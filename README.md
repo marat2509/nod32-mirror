@@ -7,13 +7,13 @@ ESET Nod32 Updates Mirror based on nginx:stable-alpine and php script [eset_mirr
 Get the docker-compose file:
 
 ```sh
-wget https://raw.githubusercontent.com/marat2509/nod32mirror/main/docker-compose.yml
+wget https://raw.githubusercontent.com/marat2509/nod32-mirror/main/docker-compose.yml
 ```
 
 Get the configuration file:
 
 ```sh
-wget https://raw.githubusercontent.com/marat2509/nod32mirror/main/nod32ms.conf
+wget https://raw.githubusercontent.com/marat2509/nod32-mirror/main/nod32ms.conf
 ```
 
 ## Run
