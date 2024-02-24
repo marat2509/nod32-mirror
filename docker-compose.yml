@@ -1,0 +1,22 @@
+version: "3"
+
+services:
+    nod32mirror-worker:
+        container_name: nod32mirror-worker
+        image: ghcr.io/marat2509/nod32mirror-worker
+        restart: always
+        environment:
+            UPDATE_INTERVAL: 3600 # update interval in seconds
+        volumes:
+            - ./nod32ms.conf:/app/nod32ms.conf
+            - ./docker-data/www:/app/www
+            - ./docker-data/log:/app/log
+
+    nod32mirror-nginx:
+        container_name: nod32mirror-nginx
+        image: ghcr.io/marat2509/nod32mirror-nginx
+        restart: always
+        ports:
+            - 8084:80
+        volumes:
+            - ./docker-data/www:/app/www
