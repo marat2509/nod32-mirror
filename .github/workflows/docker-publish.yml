@@ -25,9 +25,10 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+          multiPlatform: true
+          platform: linux/amd64,linux/arm64,linux/arm/v7
           directory: worker
           dockerfile: worker/Dockerfile
-          tags: ${{ github.ref_name }}
           addLatest: ${{ github.ref_name == 'main' }}
 
       - name: Build and push Docker image (nginx)
@@ -37,7 +38,8 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+          multiPlatform: true
+          platform: linux/amd64,linux/arm64,linux/arm/v7
           directory: nginx
           dockerfile: nginx/Dockerfile
-          tags: ${{ github.ref_name }}
           addLatest: ${{ github.ref_name == 'main' }}
