@@ -7,6 +7,7 @@ on:
 env:
   REGISTRY: ghcr.io
   PLATFORMS: linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v6,linux/386,linux/ppc64le,linux/s390x
+  BUILDX_NO_DEFAULT_ATTESTATIONS: 1
 
 permissions:
   contents: read
@@ -21,8 +22,6 @@ jobs:
 
       - name: Build and push Docker image (worker)
         uses: mr-smithers-excellent/docker-build-push@v6
-        env:
-          BUILDX_NO_DEFAULT_ATTESTATIONS: 1
         with:
           image: ${{ github.event.repository.name }}-worker
           registry: ${{ env.REGISTRY }}
@@ -36,8 +35,6 @@ jobs:
 
       - name: Build and push Docker image (nginx)
         uses: mr-smithers-excellent/docker-build-push@v6
-        env:
-          BUILDX_NO_DEFAULT_ATTESTATIONS: 1
         with:
           image: ${{ github.event.repository.name }}-nginx
           registry: ${{ env.REGISTRY }}
