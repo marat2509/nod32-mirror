@@ -6,6 +6,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
+  PLATFORMS: linux/amd64,linux/arm64,linux/arm/v7,linux/ppc64le,linux/s390x,windows/amd64,windows/arm64
 
 permissions:
   contents: read
@@ -28,7 +29,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
           multiPlatform: true
-          platform: linux/amd64,linux/arm64,linux/arm/v7
+          platform: ${{ env.PLATFORMS }}
           directory: worker
           dockerfile: worker/Dockerfile
           addLatest: ${{ github.ref_name == 'main' }}
@@ -43,7 +44,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
           multiPlatform: true
-          platform: linux/amd64,linux/arm64,linux/arm/v7
+          platform: ${{ env.PLATFORMS }}
           directory: nginx
           dockerfile: nginx/Dockerfile
           addLatest: ${{ github.ref_name == 'main' }}
