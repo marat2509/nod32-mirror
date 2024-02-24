@@ -4,5 +4,5 @@ git php php-curl php-fileinfo php-iconv php-mbstring php-openssl pcre php-simple
 WORKDIR /app
 COPY core/ .
 COPY entrypoint.sh .
-ENTRYPOINT ["/app/entrypoint.sh"]
+ENTRYPOINT ["sh", "/app/entrypoint.sh"]
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 CMD ["test", "-f", "/app/health.ok"]
