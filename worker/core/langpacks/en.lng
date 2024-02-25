@@ -31,6 +31,7 @@ Deleted files: %s
 Deleted folders: %s
 Error while parsing update.ver from %s
 Downloading %d files
+Trying download file %s from %s
 All mirrors is down!
 Log file was cutted due rotation...
 Run script %s
