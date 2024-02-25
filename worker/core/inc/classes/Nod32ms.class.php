@@ -410,12 +410,11 @@ class Nod32ms
         }
 
         while ($elem = array_shift($patterns)) {
-            $pattern_name = pathinfo($elem);
-            Log::write_log(Language::t("Begining search at %s", $pattern_name['basename']), 4, Mirror::$version);
+            Log::write_log(Language::t("Begining search at %s", str_replace(realpath(PATTERN) . DIRECTORY_SEPARATOR, '', $elem)), 4, Mirror::$version);
             $find = @file_get_contents($elem);
 
             if (!$find) {
-                Log::write_log(Language::t("File %s doesn't exist!", $pattern_name['basename']), 4, Mirror::$version);
+                Log::write_log(Language::t("File %s doesn't exist!", str_replace(realpath(PATTERN) . DIRECTORY_SEPARATOR, '', $elem)), 4, Mirror::$version);
                 continue;
             }
 
