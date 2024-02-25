@@ -2,78 +2,6 @@
 
 chdir(__DIR__ . "/..");
 
-$DIRECTORIES = [
-    'v3' => [
-        'file' => 'eset_upd/update.ver',
-        'dll' => false,
-        'name' => 'ESET NOD32 Ver. 3-4, 6-8'
-    ],
-    'v5' => [
-        'file' => 'eset_upd/v5/update.ver',
-        'dll' => false,
-        'name' => 'ESET NOD32 Ver. 5'
-    ],
-    'ep6' => [
-        'file' => 'eset_upd/ep6/update.ver',
-        'dll' => false,
-        'name' => 'ESET NOD32 Endpoint Ver. 6'
-    ],
-    'ep7' => [
-        'file' => 'eset_upd/ep7/update.ver',
-        'dll' => 'eset_upd/ep7/dll/update.ver',
-        'name' => 'ESET NOD32 Endpoint Ver. 7'
-    ],
-    'ep8' => [
-        'file' => 'eset_upd/ep8/update.ver',
-        'dll' => 'eset_upd/ep8/dll/update.ver',
-        'name' => 'ESET NOD32 Endpoint Ver. 8'
-    ],
-    'ep9' => [
-        'file' => 'eset_upd/ep9/update.ver',
-        'dll' => 'eset_upd/ep9/dll/update.ver',
-        'name' => 'ESET NOD32 Endpoint Ver. 9'
-    ],
-    'ep10' => [
-        'file' => 'eset_upd/ep10/update.ver',
-        'dll' => 'eset_upd/ep10/dll/update.ver',
-        'name' => 'ESET NOD32 Endpoint Ver. 10'
-    ],
-    'ep11' => [
-        'file' => 'eset_upd/ep11/update.ver',
-        'dll' => 'eset_upd/ep11/dll/update.ver',
-        'name' => 'ESET NOD32 Endpoint Ver. 11'
-    ],
-    'v9' => [
-        'file' => 'eset_upd/v9/update.ver',
-        'dll' => false,
-        'name' => 'ESET NOD32 Ver. 9'
-    ],
-    'v10' => [
-        'file' => 'eset_upd/v10/update.ver',
-        'dll' => 'eset_upd/v10/dll/update.ver',
-        'name' => 'ESET NOD32 Ver. 10-11'
-    ],
-    'v12' => [
-        'file' => 'eset_upd/v12/update.ver',
-        'dll' => 'eset_upd/v12/dll/update.ver',
-        'name' => 'ESET NOD32 Ver. 12'
-    ],
-    'v13' => [
-        'file' => 'eset_upd/v13/update.ver',
-        'dll' => 'eset_upd/v13/dll/update.ver',
-        'name' => 'ESET NOD32 Ver. 13'
-    ],
-    'v14' => [
-        'file' => 'eset_upd/v14/update.ver',
-        'dll' => 'eset_upd/v14/dll/update.ver',
-        'name' => 'ESET NOD32 Ver. 14'
-    ],
-    'v15' => [
-        'file' => 'eset_upd/v15/update.ver',
-        'dll' => 'eset_upd/v15/dll/update.ver',
-        'name' => 'ESET NOD32 Ver. 15'
-    ]
-];
 
 $VERSION = '20240224';
 
@@ -93,7 +21,92 @@ $VERSION = '20240224';
 @define('LINKTEST', 'nod_linktest');
 @define('DATABASES_SIZE', 'nod_databases_size');
 
+
 $autoload = function ($class) {
     @include_once CLASSES . "$class.class.php";
 };
 spl_autoload_register($autoload);
+
+$DIRECTORIES = [
+    'ep6' => [
+        'file' => 'eset_upd/ep6/update.ver',
+        'dll' => false,
+        'name' => Language::t('ESET NOD32 Endpoint Ver. 6')
+    ],
+    'ep7' => [
+        'file' => 'eset_upd/ep7/update.ver',
+        'dll' => 'eset_upd/ep7/dll/update.ver',
+        'name' => Language::t('ESET NOD32 Endpoint Ver. 7')
+    ],
+    'ep8' => [
+        'file' => 'eset_upd/ep8/update.ver',
+        'dll' => 'eset_upd/ep8/dll/update.ver',
+        'name' => Language::t('ESET NOD32 Endpoint Ver. 8')
+    ],
+    'ep9' => [
+        'file' => 'eset_upd/ep9/update.ver',
+        'dll' => 'eset_upd/ep9/dll/update.ver',
+        'name' => Language::t('ESET NOD32 Endpoint Ver. 9')
+    ],
+    'ep10' => [
+        'file' => 'eset_upd/ep10/update.ver',
+        'dll' => 'eset_upd/ep10/dll/update.ver',
+        'name' => Language::t('ESET NOD32 Endpoint Ver. 10')
+    ],
+    'ep11' => [
+        'file' => 'eset_upd/ep11/update.ver',
+        'dll' => 'eset_upd/ep11/dll/update.ver',
+        'name' => Language::t('ESET NOD32 Endpoint Ver. 11')
+    ],
+    'v3' => [
+        'file' => 'eset_upd/update.ver',
+        'dll' => false,
+        'name' => Language::t('ESET NOD32 Ver. 3-4, 6-8')
+    ],
+    'v5' => [
+        'file' => 'eset_upd/v5/update.ver',
+        'dll' => false,
+        'name' => Language::t('ESET NOD32 Ver. 5')
+    ],
+    'v9' => [
+        'file' => 'eset_upd/v9/update.ver',
+        'dll' => false,
+        'name' => Language::t('ESET NOD32 Ver. 9')
+    ],
+    'v10' => [
+        'file' => 'eset_upd/v10/update.ver',
+        'dll' => 'eset_upd/v10/dll/update.ver',
+        'name' => Language::t('ESET NOD32 Ver. 10-11')
+    ],
+    'v12' => [
+        'file' => 'eset_upd/v12/update.ver',
+        'dll' => 'eset_upd/v12/dll/update.ver',
+        'name' => Language::t('ESET NOD32 Ver. 12')
+    ],
+    'v13' => [
+        'file' => 'eset_upd/v13/update.ver',
+        'dll' => 'eset_upd/v13/dll/update.ver',
+        'name' => Language::t('ESET NOD32 Ver. 13')
+    ],
+    'v14' => [
+        'file' => 'eset_upd/v14/update.ver',
+        'dll' => 'eset_upd/v14/dll/update.ver',
+        'name' => Language::t('ESET NOD32 Ver. 14')
+    ],
+    'v15' => [
+        'file' => 'eset_upd/v15/update.ver',
+        'dll' => 'eset_upd/v15/dll/update.ver',
+        'name' => Language::t('ESET NOD32 Ver. 15')
+    ],
+    'v16' => [
+        'file' => 'eset_upd/v16/update.ver',
+        'dll' => 'eset_upd/v16/dll/update.ver',
+        'name' => Language::t('ESET NOD32 Ver. 16')
+    ],
+    'v17' => [
+        'file' => 'eset_upd/v17/update.ver',
+        'dll' => 'eset_upd/v17/dll/update.ver',
+        'name' => Language::t('ESET NOD32 Ver. 17')
+    ]
+];
+
