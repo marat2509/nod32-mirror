@@ -139,24 +139,21 @@ class Nod32ms
     private function get_all_patterns($directory = PATTERN)
     {
         Log::write_log(Language::t("Running %s", __METHOD__), 5, null);
-        $d = dir($directory);
-        static $ar_patterns = [];
-
-        while (false !== ($entry = $d->read())) {
-            if (($entry == '.') || ($entry == '..'))
-                continue;
-
-            if (is_dir(Tools::ds($directory, $entry))) {
-                $this->get_all_patterns(Tools::ds($directory, $entry));
-                continue;
+    
+        $ar_patterns = [];
+    
+        $iterator = new RecursiveDirectoryIterator($directory);
+        $recursiveIterator = new RecursiveIteratorIterator($iterator);
+    
+        foreach ($recursiveIterator as $file) {
+            if ($file->isFile()) {
+                $ar_patterns[] = $file->getPathname();
             }
-
-            $ar_patterns[] = Tools::ds($directory, $entry);
         }
-
-        $d->close();
+    
         return $ar_patterns;
     }
+
 
     /**
      * @param $key
