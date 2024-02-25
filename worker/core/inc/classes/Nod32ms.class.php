@@ -511,7 +511,7 @@ class Nod32ms
 
         $html_page .= '<tr>';
         $html_page .= '<td colspan="2">' . Language::t("Present platforms") . '</td>';
-        $html_page .= '<td colspan="2">' . ($ESET['x32'] == 1 ? '32bit' : '') . ($ESET['x64'] == 1 ? ($ESET['x32'] ? ', 64bit' : '64bit') : '') . '</td>';
+        $html_page .= '<td colspan="2">' . ($ESET['x32'] == 1 ? Language::t('32bit') : '') . ($ESET['x64'] == 1 ? ($ESET['x32'] ? ', ' . Language::t('64bit') : Language::t('64bit')) : '') . '</td>';
         $html_page .= '</tr>';
 
         $html_page .= '<tr>';

@@ -91,3 +91,12 @@ Your version of database is relevant %s
 Mirror %s active
 Mirror %s inactive
 Try next mirror %s
+32bit
+64bit
+Bytes
+KBytes
+MBytes
+GBytes
+TBytes
+PBytes
+EBytes
