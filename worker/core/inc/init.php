@@ -101,12 +101,7 @@ $DIRECTORIES = [
     'v16' => [
         'file' => 'eset_upd/v16/update.ver',
         'dll' => 'eset_upd/v16/dll/update.ver',
-        'name' => Language::t('ESET NOD32 Ver. 16')
-    ],
-    'v17' => [
-        'file' => 'eset_upd/v17/update.ver',
-        'dll' => 'eset_upd/v17/dll/update.ver',
-        'name' => Language::t('ESET NOD32 Ver. 17')
+        'name' => Language::t('ESET NOD32 Ver. 16-17')
     ]
 ];
 
