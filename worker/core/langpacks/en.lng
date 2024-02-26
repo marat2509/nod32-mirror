@@ -31,6 +31,7 @@ Deleted files: %s
 Deleted folders: %s
 Error while parsing update.ver from %s
 Downloading %d files
+Trying download file %s from %s
 All mirrors is down!
 Log file was cutted due rotation...
 Run script %s
@@ -91,3 +92,28 @@ Your version of database is relevant %s
 Mirror %s active
 Mirror %s inactive
 Try next mirror %s
+32bit
+64bit
+Bytes
+KBytes
+MBytes
+GBytes
+TBytes
+PBytes
+EBytes
+ESET NOD32 Ver. 3-4, 6-8
+ESET NOD32 Ver. 5
+ESET NOD32 Endpoint Ver. 6
+ESET NOD32 Endpoint Ver. 7
+ESET NOD32 Endpoint Ver. 8
+ESET NOD32 Endpoint Ver. 9
+ESET NOD32 Endpoint Ver. 10
+ESET NOD32 Endpoint Ver. 11
+ESET NOD32 Ver. 9
+ESET NOD32 Ver. 10-11
+ESET NOD32 Ver. 12
+ESET NOD32 Ver. 13
+ESET NOD32 Ver. 14
+ESET NOD32 Ver. 15
+ESET NOD32 Ver. 16
+ESET NOD32 Ver. 17

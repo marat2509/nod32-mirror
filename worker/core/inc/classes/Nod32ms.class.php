@@ -139,24 +139,21 @@ class Nod32ms
     private function get_all_patterns($directory = PATTERN)
     {
         Log::write_log(Language::t("Running %s", __METHOD__), 5, null);
-        $d = dir($directory);
-        static $ar_patterns = [];
-
-        while (false !== ($entry = $d->read())) {
-            if (($entry == '.') || ($entry == '..'))
-                continue;
-
-            if (is_dir(Tools::ds($directory, $entry))) {
-                $this->get_all_patterns(Tools::ds($directory, $entry));
-                continue;
+    
+        $ar_patterns = [];
+    
+        $iterator = new RecursiveDirectoryIterator($directory);
+        $recursiveIterator = new RecursiveIteratorIterator($iterator);
+    
+        foreach ($recursiveIterator as $file) {
+            if ($file->isFile()) {
+                $ar_patterns[] = $file->getPathname();
             }
-
-            $ar_patterns[] = Tools::ds($directory, $entry);
         }
-
-        $d->close();
+    
         return $ar_patterns;
     }
+
 
     /**
      * @param $key
@@ -413,12 +410,11 @@ class Nod32ms
         }
 
         while ($elem = array_shift($patterns)) {
-            $pattern_name = pathinfo($elem);
-            Log::write_log(Language::t("Begining search at %s", $pattern_name['basename']), 4, Mirror::$version);
+            Log::write_log(Language::t("Begining search at %s", str_replace(realpath(PATTERN) . DIRECTORY_SEPARATOR, '', $elem)), 4, Mirror::$version);
             $find = @file_get_contents($elem);
 
             if (!$find) {
-                Log::write_log(Language::t("File %s doesn't exist!", $pattern_name['basename']), 4, Mirror::$version);
+                Log::write_log(Language::t("File %s doesn't exist!", str_replace(realpath(PATTERN) . DIRECTORY_SEPARATOR, '', $elem)), 4, Mirror::$version);
                 continue;
             }
 
@@ -511,7 +507,7 @@ class Nod32ms
 
         $html_page .= '<tr>';
         $html_page .= '<td colspan="2">' . Language::t("Present platforms") . '</td>';
-        $html_page .= '<td colspan="2">' . ($ESET['x32'] == 1 ? '32bit' : '') . ($ESET['x64'] == 1 ? ($ESET['x32'] ? ', 64bit' : '64bit') : '') . '</td>';
+        $html_page .= '<td colspan="2">' . ($ESET['x32'] == 1 ? Language::t('32bit') : '') . ($ESET['x64'] == 1 ? ($ESET['x32'] ? ', ' . Language::t('64bit') : Language::t('64bit')) : '') . '</td>';
         $html_page .= '</tr>';
 
         $html_page .= '<tr>';
