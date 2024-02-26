@@ -125,7 +125,7 @@ class Tools
      */
     static public function bytesToSize1024($bytes, $precision = 2)
     {
-        $unit = ['Bytes', 'KBytes', 'MBytes', 'GBytes', 'TBytes', 'PBytes', 'EBytes'];
+        $unit = [Language::t('Bytes'), Language::t('KBytes'), Language::t('MBytes'), Language::t('GBytes'), Language::t('TBytes'), Language::t('PBytes'), Language::t('EBytes')];
         return $bytes > 0 ? @round($bytes / pow(1024, ($i = floor(log($bytes, 1024)))), $precision) . ' ' . $unit[intval($i)] :  '0 ' . $unit[intval(0)];
     }
 
