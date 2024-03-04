@@ -19,7 +19,7 @@ fi
 
 if [ "${#health}" = "1" ]; then
     touch /app/health.ok
-    bash -c watch -eptn $UPDATE_INTERVAL "php /app/update.php"
+    bash -c "watch -eptn $UPDATE_INTERVAL \"php /app/update.php\""
 else
     while true; do
         read _
