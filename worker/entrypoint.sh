@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 if [ -f "/app/health.ok" ]; then
     rm -rf /app/health.ok
