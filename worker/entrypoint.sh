@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 if [ -f "/app/health.ok" ]; then
     rm -rf /app/health.ok
@@ -19,7 +19,7 @@ fi
 
 if [ "${#health}" = "1" ]; then
     touch /app/health.ok
-    bash -c "watch -eptn $UPDATE_INTERVAL \"php /app/update.php\""
+    watch -eptn $UPDATE_INTERVAL "php /app/update.php"
 else
     while true; do
         read _
