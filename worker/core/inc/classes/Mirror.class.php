@@ -649,14 +649,26 @@ class Mirror
 
                             if (!file_exists($res)) mkdir($res, 0755, true);
 
-                            switch (Config::get('create_hard_links')) {
-                                case 'link':
-                                    symlink($result, $path);
+                            switch (Config::get('SCRIPT')['link_method']) {
+                                case 'hardlink_php':
+                                    link($result, $path);
                                     Log::write_log(Language::t("Created hard link for %s", basename($array['file'])), 3, static::$version);
                                     break;
-                                case 'fsutil':
+                                case 'hardlink_fsutil':
                                     shell_exec(sprintf("fsutil hardlink create %s %s", $path, $result));
                                     Log::write_log(Language::t("Created hard link for %s", basename($array['file'])), 3, static::$version);
+                                    break;
+                                case 'hardlink_ln':
+                                    shell_exec(sprintf("ln %s %s", $path, $result));
+                                    Log::write_log(Language::t("Created hard link for %s", basename($array['file'])), 3, static::$version);
+                                    break;
+                                case 'symlink_php':
+                                    symlink($result, $path);
+                                    Log::write_log(Language::t("Created symbolic link for %s", basename($array['file'])), 3, static::$version);
+                                    break;
+                                case 'symlink_ln':
+                                    shell_exec(sprintf("ln -s %s %s", $path, $result));
+                                    Log::write_log(Language::t("Created symbolic link for %s", basename($array['file'])), 3, static::$version);
                                     break;
                                 case 'copy':
                                 default:
