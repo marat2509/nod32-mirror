@@ -659,6 +659,7 @@ class Mirror
                                     Log::write_log(Language::t("Created hard link for %s", basename($array['file'])), 3, static::$version);
                                     break;
                                 case 'hardlink_ln':
+                                    echo "ln $path $result";
                                     shell_exec(sprintf("ln %s %s", $path, $result));
                                     Log::write_log(Language::t("Created hard link for %s", basename($array['file'])), 3, static::$version);
                                     break;
