@@ -11,4 +11,4 @@ if [ -z "${UPDATE_INTERVAL}" ]; then
     UPDATE_INTERVAL=3600
 fi
 
-watch -n $UPDATE_INTERVAL "php /app/update.php"
+watch -tn $UPDATE_INTERVAL "php /app/update.php"

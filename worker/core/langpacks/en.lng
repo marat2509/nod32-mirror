@@ -21,6 +21,7 @@ Incorrect value of self_update parameter. Must be 0, 1 or 2!
 Language file [%s.lng] does not exist!
 Language file [%s] is corrupted!
 Created hard link for %s
+Created symbolic link for %s
 Copied file %s
 From %s downloaded %s [%s] [%s/s]
 Error download url %s
@@ -38,14 +39,14 @@ Run script %s
 Total working time: %s
 Stop script.
 Keys file is empty!
-Use valid key [%s:%s] Expiration date %s
+Use valid key [%s:%s]
 Invalid key [%s:%s]
 Unhandled exception [%s]
 No working keys were found!
 Link wasn't found [%s]
 Link was found [%s]
 Found keys: %s
-Found valid key [%s:%s] Expiration date %s
+Found valid key [%s:%s]
 Found invalid key [%s:%s]
 Found links: %s
 Begining search at %s
@@ -81,7 +82,8 @@ Validating key [%s:%s] for version %s
 The script has been stopped!
 Checking mirror %s with key [%s:%s]
 Extracting file %s to %s
-Key [%s:%s:%s:%s] already exists
+Key [%s:%s:%s] already exists
+Key [%s:%s] already exists
 Found expired key [%s:%s] Expiration date %s
 Downloading %s [%s Bytes]
 Error while downloading file %s [%s]
