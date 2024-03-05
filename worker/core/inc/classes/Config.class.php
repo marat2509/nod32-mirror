@@ -171,7 +171,7 @@ class Config
         if (!is_writable(static::$CONF['SCRIPT']['web_dir'])) throw new ConfigException("Web directory is not writable. Check your permissions!");
 
 
-        if (empty(static::$CONF['SCRIPT']['link_method'])) {
+        if (empty(static::$CONF['SCRIPT']['link_method']) || static::$CONF['SCRIPT']['link_method'] == "auto") {
             // Link test
             $linktestfile = Tools::ds(static::$CONF['LOG']['dir'], LINKTEST);
             $test = false;
