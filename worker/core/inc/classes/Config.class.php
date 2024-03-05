@@ -178,19 +178,19 @@ class Config
         if (file_exists($linktestfile)) {
             $status = file_get_contents($linktestfile);
 
-            if (preg_match("/link|fsutil|false/", $status)) $test = true;
+            if (preg_match("/symlink_php|hardlink_fsutil|false/", $status)) $test = true;
         }
         if ($test == false) {
             file_put_contents(Tools::ds(static::$CONF['SCRIPT']['web_dir'], 'linktest'), '');
 
             if (
-                function_exists('link') &&
+                function_exists('symlink') &&
                 symlink(
                     Tools::ds(static::$CONF['SCRIPT']['web_dir'], 'linktest'),
                     Tools::ds(static::$CONF['SCRIPT']['web_dir'], 'linktest2')
                 )
             ) {
-                $status = 'link';
+                $status = 'symlink_php';
             } elseif (
                 preg_match("/^win/i", PHP_OS) &&
                 shell_exec(
@@ -200,7 +200,7 @@ class Config
                         Tools::ds(static::$CONF['SCRIPT']['web_dir'], 'linktest2'))
                 ) != 0
             ) {
-                $status = 'fsutil';
+                $status = 'hardlink_fsutil';
             } else $status = 'false';
 
             if ($status) unlink(Tools::ds(static::$CONF['SCRIPT']['web_dir'], 'linktest2'));
@@ -208,7 +208,7 @@ class Config
             unlink(Tools::ds(static::$CONF['SCRIPT']['web_dir'], 'linktest'));
             @file_put_contents($linktestfile, $status);
         }
-        static::$CONF['create_hard_links'] = ($status != 'false' ? $status : false);
+        static::$CONF['SCRIPT']['link_method'] = ($status != 'false' ? $status : false);
     }
 
     /**
