@@ -659,8 +659,7 @@ class Mirror
                                     Log::write_log(Language::t("Created hard link for %s", basename($array['file'])), 3, static::$version);
                                     break;
                                 case 'hardlink_ln':
-                                    echo "ln $result $path";
-                                    shell_exec(sprintf("ln %s %s", $result, $path));
+                                    shell_exec(sprintf("ln -f %s %s", $result, $path));
                                     Log::write_log(Language::t("Created hard link for %s", basename($array['file'])), 3, static::$version);
                                     break;
                                 case 'symlink_php':
@@ -668,8 +667,7 @@ class Mirror
                                     Log::write_log(Language::t("Created symbolic link for %s", basename($array['file'])), 3, static::$version);
                                     break;
                                 case 'symlink_ln':
-                                    echo "ln $result $path";
-                                    shell_exec(sprintf("ln -s %s %s", $result, $path));
+                                    shell_exec(sprintf("ln -fs %s %s", $result, $path));
                                     Log::write_log(Language::t("Created symbolic link for %s", basename($array['file'])), 3, static::$version);
                                     break;
                                 case 'copy':
