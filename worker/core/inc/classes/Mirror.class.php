@@ -668,7 +668,7 @@ class Mirror
                                     Log::write_log(Language::t("Created symbolic link for %s", basename($array['file'])), 3, static::$version);
                                     break;
                                 case 'symlink_ln':
-                                    echo "ln $resul $patht";
+                                    echo "ln $result $path";
                                     shell_exec(sprintf("ln -s %s %s", $result, $path));
                                     Log::write_log(Language::t("Created symbolic link for %s", basename($array['file'])), 3, static::$version);
                                     break;
