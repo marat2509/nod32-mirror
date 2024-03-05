@@ -170,45 +170,48 @@ class Config
 
         if (!is_writable(static::$CONF['SCRIPT']['web_dir'])) throw new ConfigException("Web directory is not writable. Check your permissions!");
 
-        // Link test
-        $linktestfile = Tools::ds(static::$CONF['LOG']['dir'], LINKTEST);
-        $test = false;
-        $status = false;
 
-        if (file_exists($linktestfile)) {
-            $status = file_get_contents($linktestfile);
-
-            if (preg_match("/link|fsutil|false/", $status)) $test = true;
-        }
-        if ($test == false) {
-            file_put_contents(Tools::ds(static::$CONF['SCRIPT']['web_dir'], 'linktest'), '');
-
-            if (
-                function_exists('link') &&
-                symlink(
-                    Tools::ds(static::$CONF['SCRIPT']['web_dir'], 'linktest'),
-                    Tools::ds(static::$CONF['SCRIPT']['web_dir'], 'linktest2')
-                )
-            ) {
-                $status = 'link';
-            } elseif (
-                preg_match("/^win/i", PHP_OS) &&
-                shell_exec(
-                    sprintf(
-                        "fsutil hardlink create %s %s",
+        if (empty(static::$CONF['SCRIPT']['link_method']) || static::$CONF['SCRIPT']['link_method'] == "auto") {
+            // Link test
+            $linktestfile = Tools::ds(static::$CONF['LOG']['dir'], LINKTEST);
+            $test = false;
+            $status = false;
+    
+            if (file_exists($linktestfile)) {
+                $status = file_get_contents($linktestfile);
+    
+                if (preg_match("/symlink_php|hardlink_fsutil|false/", $status)) $test = true;
+            }
+            if ($test == false) {
+                file_put_contents(Tools::ds(static::$CONF['SCRIPT']['web_dir'], 'linktest'), '');
+    
+                if (
+                    function_exists('symlink') &&
+                    symlink(
                         Tools::ds(static::$CONF['SCRIPT']['web_dir'], 'linktest'),
-                        Tools::ds(static::$CONF['SCRIPT']['web_dir'], 'linktest2'))
-                ) != 0
-            ) {
-                $status = 'fsutil';
-            } else $status = 'false';
-
-            if ($status) unlink(Tools::ds(static::$CONF['SCRIPT']['web_dir'], 'linktest2'));
-
-            unlink(Tools::ds(static::$CONF['SCRIPT']['web_dir'], 'linktest'));
-            @file_put_contents($linktestfile, $status);
+                        Tools::ds(static::$CONF['SCRIPT']['web_dir'], 'linktest2')
+                    )
+                ) {
+                    $status = 'symlink_php';
+                } elseif (
+                    preg_match("/^win/i", PHP_OS) &&
+                    shell_exec(
+                        sprintf(
+                            "fsutil hardlink create %s %s",
+                            Tools::ds(static::$CONF['SCRIPT']['web_dir'], 'linktest'),
+                            Tools::ds(static::$CONF['SCRIPT']['web_dir'], 'linktest2'))
+                    ) != 0
+                ) {
+                    $status = 'hardlink_fsutil';
+                } else $status = 'false';
+    
+                if ($status) unlink(Tools::ds(static::$CONF['SCRIPT']['web_dir'], 'linktest2'));
+    
+                unlink(Tools::ds(static::$CONF['SCRIPT']['web_dir'], 'linktest'));
+                @file_put_contents($linktestfile, $status);
+            }
+            static::$CONF['SCRIPT']['link_method'] = ($status != 'false' ? $status : false);
         }
-        static::$CONF['create_hard_links'] = ($status != 'false' ? $status : false);
     }
 
     /**
