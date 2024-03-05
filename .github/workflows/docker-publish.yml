@@ -1,8 +1,12 @@
 name: Create and publish a Docker image to GHCR
 
 on:
-  push: {}
-  workflow_dispatch: {}
+  # push: {}
+  # workflow_dispatch: {}
+  workflow_run:
+    workflows: ["OpenCommit Action"]
+    types:
+      - completed
 
 env:
   REGISTRY: ghcr.io
