@@ -1,10 +1,18 @@
 name: Create and publish a Docker images to GHCR
 
 on:
-  push: {}
-  workflow_dispatch: {}
+  push:
+    paths:
+      - ".github/workflows/docker.yml"
+      - "nginx/**"
+      - "worker/**"
+  workflow_dispatch:
   pull_request:
     branches: [ "main" ]
+    paths:
+      - ".github/workflows/docker.yml"
+      - "nginx/**"
+      - "worker/**"
 
 env:
   REGISTRY: ghcr.io
