@@ -1,6 +1,6 @@
 # nod32mirror
 
-ESET Nod32 Updates Mirror based on nginx:stable-alpine and php script [eset_mirror_script](https://github.com/Kingston-kms/eset_mirror_script) with deleted brandings and many improvements
+ESET Nod32 Updates Mirror based on nginx:mainline-alpine, alpine:latest and php script [eset_mirror_script](https://github.com/Kingston-kms/eset_mirror_script) with deleted brandings and many improvements
 
 ## Setup
 
