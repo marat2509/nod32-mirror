@@ -1,47 +1,64 @@
-name: Create and publish a Docker image to GHCR
+name: Create and publish a Docker images to GHCR
 
 on:
   push: {}
   workflow_dispatch: {}
+  pull_request:
+    branches: [ "main" ]
 
 env:
   REGISTRY: ghcr.io
   PLATFORMS: linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v6,linux/386,linux/ppc64le,linux/s390x
-  BUILDX_NO_DEFAULT_ATTESTATIONS: 1
 
-permissions:
-  contents: read
-  packages: write
 
 jobs:
-  build-and-push:
+  build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - dockerfile: ./worker/Dockerfile
+            context: worker
+            image: ${{ github.repository }}-worker
+          - dockerfile: ./nginx/Dockerfile
+            context: nginx
+            image: ${{ github.repository }}-nginx
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Build and push Docker image (worker)
-        uses: mr-smithers-excellent/docker-build-push@v6
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log into registry ${{ env.REGISTRY }}
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3.0.0
         with:
-          image: ${{ github.event.repository.name }}-worker
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-          multiPlatform: true
-          platform: ${{ env.PLATFORMS }}
-          directory: worker
-          dockerfile: worker/Dockerfile
-          addLatest: ${{ github.ref_name == 'main' }}
-
-      - name: Build and push Docker image (nginx)
-        uses: mr-smithers-excellent/docker-build-push@v6
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5.5.1
         with:
-          image: ${{ github.event.repository.name }}-nginx
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-          multiPlatform: true
-          platform: ${{ env.PLATFORMS }}
-          directory: nginx
-          dockerfile: nginx/Dockerfile
-          addLatest: ${{ github.ref_name == 'main' }}
+          images: ${{ env.REGISTRY }}/${{ matrix.image }}
+          tags: |            
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix={{branch}}-
+            type=ref,event=branch
+      - name: Build and push Docker image
+        id: build-and-push
+        uses: docker/build-push-action@v5.1.0
+        with:
+          context: ${{ matrix.context }}
+          provenance: false
+          platforms: ${{ env.PLATFORMS }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
