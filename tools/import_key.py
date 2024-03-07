@@ -1,3 +1,4 @@
+#!/bin/env python3
 """
 Script for importing keys from an existing config file.
 """
@@ -49,7 +50,7 @@ def main() -> None:
     parser.add_argument(
         "--keys_file",
         type=str,
-        default="docker-data/log/eset_keys.valid",
+        default="docker-data/log/nod_keys.valid",
         help="Path to keys file",
     )
     parser.add_argument(
