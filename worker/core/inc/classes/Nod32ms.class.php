@@ -46,7 +46,7 @@ class Nod32ms
         Log::write_log(Language::t("Running %s", __METHOD__), 5, null);
         Log::write_log(Language::t("Total working time: %s", Tools::secondsToHumanReadable(time() - static::$start_time)), 0);
         Log::destruct();
-        Log::write_log(Language::t("Stop script."), 0);
+        Log::write_log(Language::t("Stopping script."), 0);
     }
 
     /**
@@ -497,18 +497,13 @@ class Nod32ms
                 $version = Mirror::get_DB_version($update_ver);
                 $timestamp = $this->check_time_stamp($ver, true);
                 $html_page .= '<tr>';
-                $html_page .= '<td>' . $dir['name'] . '</td>';
+                $html_page .= '<td>' . Language::t($dir['name']) . '</td>';
                 $html_page .= '<td>' . $version . '</td>';
                 $html_page .= '<td>' . (isset($total_size[$ver]) ? Tools::bytesToSize1024($total_size[$ver]) : Language::t("n/a")) . '</td>';
                 $html_page .= '<td>' . ($timestamp ? date("Y-m-d, H:i:s", $timestamp) : Language::t("n/a")) . '</td>';
                 $html_page .= '</tr>';
             }
         }
-
-        $html_page .= '<tr>';
-        $html_page .= '<td colspan="2">' . Language::t("Present platforms") . '</td>';
-        $html_page .= '<td colspan="2">' . ($ESET['x32'] == 1 ? Language::t('32bit') : '') . ($ESET['x64'] == 1 ? ($ESET['x32'] ? ', ' . Language::t('64bit') : Language::t('64bit')) : '') . '</td>';
-        $html_page .= '</tr>';
 
         $html_page .= '<tr>';
         $html_page .= '<td colspan="2">' . Language::t("Last execution of the script") . '</td>';
@@ -524,7 +519,6 @@ class Nod32ms
                 $html_page .= '<td>' . Language::t("Version") . '</td>';
                 $html_page .= '<td>' . Language::t("Used login") . '</td>';
                 $html_page .= '<td>' . Language::t("Used password") . '</td>';
-                $html_page .= '<td>' . Language::t("Expiration date") . '</td>';
                 $html_page .= '</tr>';
 
                 foreach ($keys as $k) {
@@ -533,7 +527,6 @@ class Nod32ms
                     $html_page .= '<td>' . $key[2] . '</td>';
                     $html_page .= '<td>' . $key[0] . '</td>';
                     $html_page .= '<td>' . $key[1] . '</td>';
-                    $html_page .= '<td>' . $key[3] . '</td>';
                     $html_page .= '</tr>';
                 }
             }

@@ -275,7 +275,7 @@ class Mirror
             //if (!file_exists(dirname($cur_update_ver))) @mkdir(dirname($cur_update_ver), 0755, true);
             @file_put_contents($cur_update_ver, $new_content);
 
-            Log::write_log(Language::t("Total size database: %s", Tools::bytesToSize1024($total_size)), 3, static::$version);
+            Log::write_log(Language::t("Total database size: %s", Tools::bytesToSize1024($total_size)), 3, static::$version);
 
             if (count($download_files) > 0) {
                 $average_speed = round(static::$total_downloads / (microtime(true) - $start_time));
@@ -392,7 +392,7 @@ class Mirror
             foreach ($mirrorList as $id => $mirror) {
 
                 $time = microtime(true);
-                Log::write_log(Language::t("Trying download file %s from %s", $file['file'], $mirror['host']), 3, static::$version);
+                Log::write_log(Language::t("Downloading file %s from %s...", $file['file'], $mirror['host']), 3, static::$version);
                 $out = Tools::ds($web_dir, $file['file']);
                 Tools::download_file(
                     [
@@ -470,10 +470,7 @@ class Mirror
                 true);
             $output = array_shift($parsed_container);
 
-            if (empty($output['file']) or empty($output['size']) or
-                (static::$ESET['x32'] != 1 and preg_match("/32|86/", $output['platform'])) or
-                (static::$ESET['x64'] != 1 and preg_match("/64/", $output['platform']))
-            ) continue;
+            if (empty($output['file']) or empty($output['size'])) continue;
             $new_files[] = $output;
             $total_size += $output['size'];
             $new_content .= $container;
