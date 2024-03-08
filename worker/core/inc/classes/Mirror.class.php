@@ -213,6 +213,8 @@ class Mirror
             if (preg_match_all('#\[\w+\][^\[]+#', $content, $matches))
             {
                 list($new_files, $total_size, $new_content) = static::parse_update_file($matches[0]);
+                # add error if no files for download
+                if (count($new_files) == 0) throw new ToolsException(Language::t("No files to download"), 1);
                 $new_files = array_filter($new_files, function($v, $k) {
                     return $v['size'] <= 1024 * 1024;
                 }, ARRAY_FILTER_USE_BOTH);
@@ -472,8 +474,8 @@ class Mirror
 
             if (empty($output['file']) or empty($output['size']) or
                 (static::$ESET['x32'] != 1 and preg_match("/32|86/", $output['platform'])) or
-                (static::$ESET['x64'] != 1 and preg_match("/(?<!a)64/", $output['platform'])) or
-                (static::$ESET['arm64'] != 1 and preg_match("/a64/", $output['platform']))
+                (static::$ESET['arm64'] != 1 and preg_match("/a64/", $output['platform'])) or
+                (static::$ESET['x64'] != 1 and preg_match("/64/", $output['platform']))
             ) continue;
             $new_files[] = $output;
             $total_size += $output['size'];
