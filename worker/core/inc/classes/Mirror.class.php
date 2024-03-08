@@ -472,8 +472,8 @@ class Mirror
 
             if (empty($output['file']) or empty($output['size']) or
                 (static::$ESET['x32'] != 1 and preg_match("/32|86/", $output['platform'])) or
-                (static::$ESET['x64'] != 1 and preg_match("/64/", $output['platform'])) or
-                (static::$ESET['arm64'] != 1 and preg_match("/a64/", $output['platform'])) or
+                (static::$ESET['x64'] != 1 and preg_match("/(?<!a)64/", $output['platform'])) or
+                (static::$ESET['arm64'] != 1 and preg_match("/a64/", $output['platform']))
             ) continue;
             $new_files[] = $output;
             $total_size += $output['size'];

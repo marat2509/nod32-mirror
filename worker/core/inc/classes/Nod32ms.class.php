@@ -464,6 +464,11 @@ class Nod32ms
         $total_size = $this->get_databases_size();
         $web_dir = Config::get('SCRIPT')['web_dir'];
         $ESET = Config::get('ESET');
+        $arch_list = array();
+        if ($ESET['x32'] == 1) $arch_list[] = Language::t('32bit');
+        if ($ESET['x64'] == 1) $arch_list[] = Language::t('64bit');
+        if ($ESET['arm64'] == 1) $arch_list[] = Language::t('arm64');
+
         $html_page = '';
 
         if (Config::get('SCRIPT')['generate_only_table'] == '0') {
@@ -507,7 +512,7 @@ class Nod32ms
 
         $html_page .= '<tr>';
         $html_page .= '<td colspan="2">' . Language::t("Present platforms") . '</td>';
-        $html_page .= '<td colspan="2">' . ($ESET['x32'] == 1 ? Language::t('32bit') : '') . ($ESET['x64'] == 1 ? ($ESET['x32'] ? ', ' . Language::t('64bit') : Language::t('64bit')) : '') . '</td>';
+        $html_page .= '<td colspan="2">' . implode(', ', $arch_list) . '</td>';
         $html_page .= '</tr>';
 
         $html_page .= '<tr>';
