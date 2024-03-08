@@ -1,101 +1,79 @@
-New version is available on server [%s]!
-Please, check login/password for using SMTP authorization.
-Your script has been successfully updated to version %s!
-You already have actual version of script! No need to update!
-Update server is down!
-Config file does not exist!
-Can't read config file! Check the file and its permissions!
+ESET NOD32 Endpoint Ver. 6
+ESET NOD32 Endpoint Ver. 7
+ESET NOD32 Endpoint Ver. 8
+ESET NOD32 Endpoint Ver. 9
+ESET NOD32 Endpoint Ver. 10
+ESET NOD32 Endpoint Ver. 11
+ESET NOD32 Ver. 3-4, 6-8
+ESET NOD32 Ver. 5
+ESET NOD32 Ver. 9
+ESET NOD32 Ver. 10-11
+ESET NOD32 Ver. 12
+ESET NOD32 Ver. 13
+ESET NOD32 Ver. 14
+ESET NOD32 Ver. 15
+ESET NOD32 Ver. 16-17
 This script doesn't support your OS. Please, contact developer!
-Error in timezone settings! Please, check your config file!
-Please, check set up of log_rotate_size in your config file!
-Please, check set up of log_rotate_qty in your config file!
-Please, check set up of log_type in your config file!
-Please, check set up of WWW directory in your config file!
-You didn't set up email address of sender/recipient or it is wrong.Please, check your config file.
-Please, check SMTP host/port for using SMTP server in your config file.Or disable SMTP server if you don't wanna use it.
-Please, check login/password for using SMTP authorization.
-Pattern directory is not readable. Check your permissions!
-Log directory is not writable. Check your permissions!
-Web directory is not writable. Check your permissions!
-Incorrect value of self_update parameter. Must be 0, 1 or 2!
-Language file [%s.lng] does not exist!
-Language file [%s] is corrupted!
+Running %s
+Log file was cutted due rotation...
+Testing key [%s:%s]
+Mirror %s active
+Mirror %s inactive
+Checking mirror %s with key [%s:%s]
+Extracting file %s to %s
+Deleted files: %s
+Deleted folders: %s
+Total database size: %s
+Total downloaded: %s
+Average speed: %s/s
+Error while parsing update.ver from %s
+From %s downloaded %s [%s] [%s/s]
+Downloading file %s from %s...
+Downloading %d files
+Mirror for %s initiliazed with update_file %s
 Created hard link for %s
 Created symbolic link for %s
 Copied file %s
-From %s downloaded %s [%s] [%s/s]
-Error download url %s
-Total size database: %s
-Total downloaded: %s
-Average speed: %s/s
-Deleted files: %s
-Deleted folders: %s
-Error while parsing update.ver from %s
-Downloading %d files
-Trying download file %s from %s
-All mirrors is down!
-Log file was cutted due rotation...
 Run script %s
 Total working time: %s
-Stop script.
-Keys file is empty!
-Use valid key [%s:%s]
-Invalid key [%s:%s]
+Stopping script.
+Validating key [%s:%s] for version %s
 Unhandled exception [%s]
+Keys file is empty!
 No working keys were found!
+Found valid key [%s:%s]
+Key [%s:%s:%s] already exists
+Invalid key [%s:%s]
+Key [%s:%s] already exists
 Link wasn't found [%s]
 Link was found [%s]
 Found keys: %s
-Found valid key [%s:%s]
-Found invalid key [%s:%s]
 Found links: %s
 Begining search at %s
 File %s doesn't exist!
 [link] doesn't set up in %s file!
-Generating index.html...
+Generating html...
 ESET NOD32 update server
+Version
 Database version
 Database size
 Last update
-Version %d
-Version
-Present versions
-Present platforms
-Present languages
+n/a
 Last execution of the script
+Version
 Used login
 Used password
-Expiration date
-Your database is relevant %s
-Your database was successfully updated to %s
-The latest database %s was found on %s
-No actual update servers were found.
+Init Mirror for version %s in %s
+The script has been stopped!
+Your version of database is relevant %s
 Your database has not been updated!
 Your database was successfully updated from %s to %s
+Your database was successfully updated to %s
+All mirrors is down!
 Total size for all databases: %s
 Total downloaded for all databases: %s
 Average speed for all databases: %s/s
-n/a
-Generating html...
-Testing key [%s:%s]
-Validating key [%s:%s] for version %s
-The script has been stopped!
-Checking mirror %s with key [%s:%s]
-Extracting file %s to %s
-Key [%s:%s:%s] already exists
-Key [%s:%s] already exists
-Found expired key [%s:%s] Expiration date %s
-Downloading %s [%s Bytes]
-Error while downloading file %s [%s]
-Unrar not exists at %s
-Unrar not executable at %s
-Running %s
-Your version of database is relevant %s
-Mirror %s active
-Mirror %s inactive
-Try next mirror %s
-32bit
-64bit
+Compare %s >= %s
 Bytes
 KBytes
 MBytes
@@ -103,19 +81,3 @@ GBytes
 TBytes
 PBytes
 EBytes
-ESET NOD32 Ver. 3-4, 6-8
-ESET NOD32 Ver. 5
-ESET NOD32 Endpoint Ver. 6
-ESET NOD32 Endpoint Ver. 7
-ESET NOD32 Endpoint Ver. 8
-ESET NOD32 Endpoint Ver. 9
-ESET NOD32 Endpoint Ver. 10
-ESET NOD32 Endpoint Ver. 11
-ESET NOD32 Ver. 9
-ESET NOD32 Ver. 10-11
-ESET NOD32 Ver. 12
-ESET NOD32 Ver. 13
-ESET NOD32 Ver. 14
-ESET NOD32 Ver. 15
-ESET NOD32 Ver. 16
-ESET NOD32 Ver. 17
