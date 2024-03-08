@@ -116,6 +116,10 @@ class Mirror
 
         foreach ($test_mirrors as $mirror => $time) {
             $version = static::check_mirror($mirror);
+            if ($version == false) {
+                Log::write_log(Language::t("Mirror test aborted"), 2, static::$version);
+                continue;
+            }
             if ($version) {
                 $maxVersion = $version > $maxVersion ? $version : $maxVersion;
                 $sameMirrors[] = ['host' => $mirror, 'db_version' => $version];
@@ -216,7 +220,8 @@ class Mirror
                 # add error if no files for download
                 if (count($new_files) == 0) {
                     Log::write_log(Language::t("No files to download"), 1, static::$version);
-                    return;
+                    # stop checking mirror for this version
+                    return false;
                 }
                 $new_files = array_filter($new_files, function($v, $k) {
                     return $v['size'] <= 1024 * 1024;
