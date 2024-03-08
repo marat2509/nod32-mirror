@@ -116,10 +116,6 @@ class Mirror
 
         foreach ($test_mirrors as $mirror => $time) {
             $version = static::check_mirror($mirror);
-            if ($version == false) {
-                Log::write_log(Language::t("Mirror test aborted"), 2, static::$version);
-                continue;
-            }
             if ($version) {
                 $maxVersion = $version > $maxVersion ? $version : $maxVersion;
                 $sameMirrors[] = ['host' => $mirror, 'db_version' => $version];
@@ -217,12 +213,6 @@ class Mirror
             if (preg_match_all('#\[\w+\][^\[]+#', $content, $matches))
             {
                 list($new_files, $total_size, $new_content) = static::parse_update_file($matches[0]);
-                # add error if no files for download
-                if (count($new_files) == 0) {
-                    Log::write_log(Language::t("No files to download"), 1, static::$version);
-                    # stop checking mirror for this version
-                    return false;
-                }
                 $new_files = array_filter($new_files, function($v, $k) {
                     return $v['size'] <= 1024 * 1024;
                 }, ARRAY_FILTER_USE_BOTH);
@@ -285,7 +275,7 @@ class Mirror
             //if (!file_exists(dirname($cur_update_ver))) @mkdir(dirname($cur_update_ver), 0755, true);
             @file_put_contents($cur_update_ver, $new_content);
 
-            Log::write_log(Language::t("Total size database: %s", Tools::bytesToSize1024($total_size)), 3, static::$version);
+            Log::write_log(Language::t("Total database size: %s", Tools::bytesToSize1024($total_size)), 3, static::$version);
 
             if (count($download_files) > 0) {
                 $average_speed = round(static::$total_downloads / (microtime(true) - $start_time));
@@ -402,7 +392,7 @@ class Mirror
             foreach ($mirrorList as $id => $mirror) {
 
                 $time = microtime(true);
-                Log::write_log(Language::t("Trying download file %s from %s", $file['file'], $mirror['host']), 3, static::$version);
+                Log::write_log(Language::t("Downloading file %s from %s...", $file['file'], $mirror['host']), 3, static::$version);
                 $out = Tools::ds($web_dir, $file['file']);
                 Tools::download_file(
                     [

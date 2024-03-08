@@ -31,7 +31,7 @@ $DIRECTORIES = [
     'ep6' => [
         'file' => 'eset_upd/ep6/update.ver',
         'dll' => false,
-        'name' => Language::t('ESET NOD32 Endpoint Ver. 6')
+        'name' => Language::t('')
     ],
     'ep7' => [
         'file' => 'eset_upd/ep7/update.ver',

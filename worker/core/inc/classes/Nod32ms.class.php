@@ -46,7 +46,7 @@ class Nod32ms
         Log::write_log(Language::t("Running %s", __METHOD__), 5, null);
         Log::write_log(Language::t("Total working time: %s", Tools::secondsToHumanReadable(time() - static::$start_time)), 0);
         Log::destruct();
-        Log::write_log(Language::t("Stop script."), 0);
+        Log::write_log(Language::t("Stopping script."), 0);
     }
 
     /**
@@ -462,13 +462,8 @@ class Nod32ms
         Log::write_log(Language::t("Running %s", __METHOD__), 5, null);
         Log::write_log(Language::t("Generating html..."), 0);
         $total_size = $this->get_databases_size();
-        $web_dir = Config::get('SCRIPT')['web_dir'];
+        $web_dir = WEB_DIR;
         $ESET = Config::get('ESET');
-        $arch_list = array();
-        if ($ESET['x32'] == 1) $arch_list[] = Language::t('32bit');
-        if ($ESET['x64'] == 1) $arch_list[] = Language::t('64bit');
-        if ($ESET['arm64'] == 1) $arch_list[] = Language::t('arm64');
-
         $html_page = '';
 
         if (Config::get('SCRIPT')['generate_only_table'] == '0') {
@@ -511,11 +506,6 @@ class Nod32ms
         }
 
         $html_page .= '<tr>';
-        $html_page .= '<td colspan="2">' . Language::t("Present platforms") . '</td>';
-        $html_page .= '<td colspan="2">' . implode(', ', $arch_list) . '</td>';
-        $html_page .= '</tr>';
-
-        $html_page .= '<tr>';
         $html_page .= '<td colspan="2">' . Language::t("Last execution of the script") . '</td>';
         $html_page .= '<td colspan="2">' . (static::$start_time ? date("Y-m-d, H:i:s", static::$start_time) : Language::t("n/a")) . '</td>';
         $html_page .= '</tr>';
@@ -529,7 +519,6 @@ class Nod32ms
                 $html_page .= '<td>' . Language::t("Version") . '</td>';
                 $html_page .= '<td>' . Language::t("Used login") . '</td>';
                 $html_page .= '<td>' . Language::t("Used password") . '</td>';
-                $html_page .= '<td>' . Language::t("Expiration date") . '</td>';
                 $html_page .= '</tr>';
 
                 foreach ($keys as $k) {
