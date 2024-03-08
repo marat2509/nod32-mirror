@@ -462,7 +462,7 @@ class Nod32ms
         Log::write_log(Language::t("Running %s", __METHOD__), 5, null);
         Log::write_log(Language::t("Generating html..."), 0);
         $total_size = $this->get_databases_size();
-        $web_dir = WEB_DIR;
+        $web_dir = Config::get('SCRIPT')['web_dir'];
         $ESET = Config::get('ESET');
         $html_page = '';
 
@@ -497,7 +497,7 @@ class Nod32ms
                 $version = Mirror::get_DB_version($update_ver);
                 $timestamp = $this->check_time_stamp($ver, true);
                 $html_page .= '<tr>';
-                $html_page .= '<td>' . $dir['name'] . '</td>';
+                $html_page .= '<td>' . Language::t($dir['name']) . '</td>';
                 $html_page .= '<td>' . $version . '</td>';
                 $html_page .= '<td>' . (isset($total_size[$ver]) ? Tools::bytesToSize1024($total_size[$ver]) : Language::t("n/a")) . '</td>';
                 $html_page .= '<td>' . ($timestamp ? date("Y-m-d, H:i:s", $timestamp) : Language::t("n/a")) . '</td>';

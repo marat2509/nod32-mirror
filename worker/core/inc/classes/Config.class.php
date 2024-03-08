@@ -113,7 +113,7 @@ class Config
             static::$CONF['LOG']['rotate_size'] = Tools::human2bytes(static::$CONF['LOG']['rotate_size']);
 
             if (intval(static::$CONF['LOG']['rotate_qty']) < 1) {
-                throw new ConfigException("Please, check set up of (rotate_qty in your config file!");
+                throw new ConfigException("Please, check set up of (log) rotate_qty in your config file!");
             } else {
                 static::$CONF['LOG']['rotate_qty'] = intval(static::$CONF['LOG']['rotate_qty']);
             }
@@ -122,8 +122,8 @@ class Config
                 throw new ConfigException("Please, check set up of (log) type in your config file!");
         }
 
-        if (empty(static::$CONF['SCRIPT']['web_dir']))
-            static::$CONF['SCRIPT']['web_dir'] = 'www';
+        static::$CONF['SCRIPT']['web_dir'] = 'www';
+
         while (substr(static::$CONF['SCRIPT']['web_dir'], -1) == DS)
             static::$CONF['SCRIPT']['web_dir'] = substr(static::$CONF['SCRIPT']['web_dir'], 0, -1);
 
