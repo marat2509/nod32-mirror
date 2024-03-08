@@ -527,7 +527,6 @@ class Nod32ms
                     $html_page .= '<td>' . $key[2] . '</td>';
                     $html_page .= '<td>' . $key[0] . '</td>';
                     $html_page .= '<td>' . $key[1] . '</td>';
-                    $html_page .= '<td>' . $key[3] . '</td>';
                     $html_page .= '</tr>';
                 }
             }
