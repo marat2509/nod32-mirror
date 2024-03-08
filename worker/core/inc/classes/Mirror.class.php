@@ -214,7 +214,10 @@ class Mirror
             {
                 list($new_files, $total_size, $new_content) = static::parse_update_file($matches[0]);
                 # add error if no files for download
-                if (count($new_files) == 0) throw new ToolsException(Language::t("No files to download"), 1);
+                if (count($new_files) == 0) {
+                    Log::write_log(Language::t("No files to download"), 1, static::$version);
+                    return;
+                }
                 $new_files = array_filter($new_files, function($v, $k) {
                     return $v['size'] <= 1024 * 1024;
                 }, ARRAY_FILTER_USE_BOTH);
