@@ -394,6 +394,10 @@ class Mirror
                 $time = microtime(true);
                 Log::write_log(Language::t("Downloading file %s from %s...", $file['file'], $mirror['host']), 3, static::$version);
                 $out = Tools::ds($web_dir, $file['file']);
+                $dir = dirname($out);
+                
+                if (!@file_exists($dir)) @mkdir($dir, 0755, true);
+
                 Tools::download_file(
                     [
                         CURLOPT_USERPWD => static::$key[0] . ":" . static::$key[1],
