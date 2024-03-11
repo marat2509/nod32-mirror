@@ -63,30 +63,10 @@ $DIRECTORIES = [
         'dll' => false,
         'name' => 'ESET NOD32 Ver. 3-4, 6-8'
     ],
-    'v5' => [
-        'file' => 'eset_upd/v5/update.ver',
-        'dll' => false,
-        'name' => 'ESET NOD32 Ver. 5'
-    ],
-    'v9' => [
-        'file' => 'eset_upd/v9/update.ver',
-        'dll' => false,
-        'name' => 'ESET NOD32 Ver. 9'
-    ],
     'v10' => [
         'file' => 'eset_upd/v10/update.ver',
         'dll' => 'eset_upd/v10/dll/update.ver',
         'name' => 'ESET NOD32 Ver. 10-11'
-    ],
-    'v12' => [
-        'file' => 'eset_upd/v12/update.ver',
-        'dll' => 'eset_upd/v12/dll/update.ver',
-        'name' => 'ESET NOD32 Ver. 12'
-    ],
-    'v13' => [
-        'file' => 'eset_upd/v13/update.ver',
-        'dll' => 'eset_upd/v13/dll/update.ver',
-        'name' => 'ESET NOD32 Ver. 13'
     ],
     'v14' => [
         'file' => 'eset_upd/v14/update.ver',
