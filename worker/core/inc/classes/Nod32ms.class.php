@@ -576,7 +576,7 @@ class Nod32ms
                 if (!empty(Mirror::$mirrors)) {
 
                     if (!empty(Mirror::$mirrors)) {
-                        $mirror = array_shift(Mirror::$mirrors);
+                        $mirror = current(Mirror::$mirrors);  
 
                         if ($old_version && $this->compare_versions($old_version, $mirror['db_version'])) {
                             Log::informer(Language::t("Your version of database is relevant %s", $old_version), Mirror::$version, 2);
@@ -585,6 +585,9 @@ class Nod32ms
 
                         list($size, $downloads, $speed) = Mirror::download_signature();
                         $this->set_database_size($size);
+
+                        // Deleting first element of array
+                        array_shift(Mirror::$mirrors); 
 
                         if (!Mirror::$updated && $old_version != 0 && !$this->compare_versions($old_version, $mirror['db_version'])) {
                             Log::informer(Language::t("Your database has not been updated!"), Mirror::$version, 1);

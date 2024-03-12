@@ -94,6 +94,8 @@ class Mirror
         $test_mirrors = [];
         foreach (static::$ESET['mirror'] as $mirror) {
 
+            Log::write_log(Language::t("Testing mirror %s", $mirror), 4, static::$version);
+
             Tools::download_file(
                 [
                     CURLOPT_USERPWD => static::$key[0] . ":" . static::$key[1],
@@ -106,6 +108,7 @@ class Mirror
 
             if ($headers['http_code'] == 200) {
                 $test_mirrors[$mirror] = round($headers['total_time'] * 1000);
+                Log::write_log(Language::t("%s mirror is good", $mirror), 4, static::$version);
             }
         }
 
@@ -231,6 +234,11 @@ class Mirror
     static public function download_signature()
     {
         Log::write_log(Language::t("Running %s", __METHOD__), 5, static::$version);
+
+        if(empty(static::$mirrors)) {
+            throw new Exception("Error Processing Request", 1);
+        }
+
         static::download_update_ver(current(static::$mirrors)['host']);
         $web_dir = Config::get('SCRIPT')['web_dir'];
         $cur_update_ver = static::$local_update_file;
