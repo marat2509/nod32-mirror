@@ -58,10 +58,10 @@ class Config
 
         static::$CONF = parse_ini_file(CONF_FILE, true);
 
-        // Parse mirrors
-        if (empty(static::$CONF['ESET']['mirror'])) static::$CONF['ESET']['mirror'] = 'update.eset.com';
-
         static::$CONF['ESET']['mirror'] = array_map("trim", (explode(",", static::$CONF['ESET']['mirror'])));
+        if (!in_array("update.eset.com", static::$CONF['ESET']['mirror'])) {
+            static::$CONF['ESET']['mirror'][] = "update.eset.com";
+        }
 
         if (preg_match("/^win/i", PHP_OS) == false) {
             if (substr(static::$CONF['SCRIPT']['web_dir'], 0, 1) != DS) {
