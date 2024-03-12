@@ -655,20 +655,8 @@ class Mirror
                                     link($result, $path);
                                     Log::write_log(Language::t("Created hard link for %s", basename($array['file'])), 3, static::$version);
                                     break;
-                                case 'hardlink_fsutil':
-                                    shell_exec(sprintf("fsutil hardlink create %s %s", $path, $result));
-                                    Log::write_log(Language::t("Created hard link for %s", basename($array['file'])), 3, static::$version);
-                                    break;
-                                case 'hardlink_ln':
-                                    shell_exec(sprintf("ln -f %s %s", $result, $path));
-                                    Log::write_log(Language::t("Created hard link for %s", basename($array['file'])), 3, static::$version);
-                                    break;
                                 case 'symlink_php':
                                     symlink($result, $path);
-                                    Log::write_log(Language::t("Created symbolic link for %s", basename($array['file'])), 3, static::$version);
-                                    break;
-                                case 'symlink_ln':
-                                    shell_exec(sprintf("ln -fs %s %s", $result, $path));
                                     Log::write_log(Language::t("Created symbolic link for %s", basename($array['file'])), 3, static::$version);
                                     break;
                                 case 'copy':
