@@ -9,7 +9,7 @@ services:
         environment:
             UPDATE_INTERVAL: 3600 # update interval in seconds
         volumes:
-            - ./nod32ms-dev:/app/nod32ms.conf
+            - ./nod32ms.conf:/app/nod32ms.conf
             - ./docker-data/www:/app/www
             - ./docker-data/log:/app/log
 
