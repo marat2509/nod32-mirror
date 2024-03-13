@@ -18,7 +18,6 @@ $VERSION = '20240308';
 @define('KEY_FILE_INVALID', 'nod_keys.invalid');
 @define('LOG_FILE', 'nod32ms.log');
 @define('SUCCESSFUL_TIMESTAMP', 'nod_lastupdate');
-@define('LINKTEST', 'nod_linktest');
 @define('DATABASES_SIZE', 'nod_databases_size');
 
 

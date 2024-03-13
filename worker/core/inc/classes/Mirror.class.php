@@ -650,13 +650,9 @@ class Mirror
                             if (!file_exists($res)) mkdir($res, 0755, true);
 
                             switch (Config::get('SCRIPT')['link_method']) {
-                                case 'hardlink_php':
+                                case 'hardlink':
                                     link($result, $path);
                                     Log::write_log(Language::t("Created hard link for %s", basename($array['file'])), 3, static::$version);
-                                    break;
-                                case 'symlink_php':
-                                    symlink($result, $path);
-                                    Log::write_log(Language::t("Created symbolic link for %s", basename($array['file'])), 3, static::$version);
                                     break;
                                 case 'copy':
                                 default:
