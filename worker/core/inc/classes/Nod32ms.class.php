@@ -533,7 +533,12 @@ class Nod32ms
         }
         $html_page .= '</table>';
         $html_page .= (Config::get('SCRIPT')['generate_only_table'] == '0') ? '</td></tr></table></body></html>' : '';
+
         $file = Tools::ds($web_dir, Config::get('SCRIPT')['filename_html']);
+
+        if (!is_dir (dirname($file))) {
+            @mkdir(dirname($file), 0755, true);
+        }
 
         if (file_exists($file)) @unlink($file);
 

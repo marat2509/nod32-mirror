@@ -2,3 +2,4 @@
 /nod32ms.conf/
 .ruff_cache/
 .vscode/settings.json
+/test.php
