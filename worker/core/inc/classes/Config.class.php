@@ -63,6 +63,10 @@ class Config
             static::$CONF['ESET']['mirror'][] = "update.eset.com";
         }
 
+        if (empty(static::$CONF['SCRIPT']['web_dir'])) {
+            static::$CONF['SCRIPT']['web_dir'] = "www";
+        }
+
         if (preg_match("/^win/i", PHP_OS) == false) {
             if (substr(static::$CONF['SCRIPT']['web_dir'], 0, 1) != DS) {
                 static::$CONF['SCRIPT']['web_dir'] = Tools::ds(SELF, static::$CONF['SCRIPT']['web_dir']);
