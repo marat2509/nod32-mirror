@@ -27,7 +27,7 @@ $autoload = function ($class) {
 spl_autoload_register($autoload);
 
 $DIRECTORIES = [
-    'ep6' => [
+    'ep6.6' => [
         'file' => 'eset_upd/ep6.6/update.ver',
         'dll' => 'eset_upd/ep6.6/dll/update.ver',
         'name' => 'ESET NOD32 Endpoint 6'
