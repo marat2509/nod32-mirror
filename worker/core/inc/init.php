@@ -60,7 +60,7 @@ $DIRECTORIES = [
     'v3' => [
         'file' => 'eset_upd/update.ver',
         'dll' => false,
-        'name' => 'ESET NOD32 3-8'
+        'name' => 'ESET NOD32 3-9'
     ],
     'v10' => [
         'file' => 'eset_upd/v10/update.ver',

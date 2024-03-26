@@ -58,10 +58,15 @@ class Config
 
         static::$CONF = parse_ini_file(CONF_FILE, true);
 
-        static::$CONF['ESET']['mirror'] = array_map("trim", (explode(",", static::$CONF['ESET']['mirror'])));
+        if (empty(static::$CONF['ESET']['mirror'])) {
+            throw new ConfigException(Language::t("ESET mirrors list is not set!"));
+        }
+
+        /* static::$CONF['ESET']['mirror'] = array_map("trim", (explode(",", static::$CONF['ESET']['mirror'])));
         if (!in_array("update.eset.com", static::$CONF['ESET']['mirror'])) {
             static::$CONF['ESET']['mirror'][] = "update.eset.com";
         }
+        */
 
         if (empty(static::$CONF['SCRIPT']['web_dir'])) {
             static::$CONF['SCRIPT']['web_dir'] = "www";
