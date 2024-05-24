@@ -58,10 +58,21 @@ class Config
 
         static::$CONF = parse_ini_file(CONF_FILE, true);
 
-        // Parse mirrors
-        if (empty(static::$CONF['ESET']['mirror'])) static::$CONF['ESET']['mirror'] = 'update.eset.com';
+        if (empty(static::$CONF['ESET']['mirror'])) {
+            throw new ConfigException(Language::t("ESET mirrors list is not set!"));
+        }
 
         static::$CONF['ESET']['mirror'] = array_map("trim", (explode(",", static::$CONF['ESET']['mirror'])));
+
+        /* 
+        if (!in_array("update.eset.com", static::$CONF['ESET']['mirror'])) {
+            static::$CONF['ESET']['mirror'][] = "update.eset.com";
+        }
+        */
+
+        if (empty(static::$CONF['SCRIPT']['web_dir'])) {
+            static::$CONF['SCRIPT']['web_dir'] = "www";
+        }
 
         if (preg_match("/^win/i", PHP_OS) == false) {
             if (substr(static::$CONF['SCRIPT']['web_dir'], 0, 1) != DS) {
@@ -168,49 +179,6 @@ class Config
         if (!is_writable(static::$CONF['LOG']['dir'])) throw new ConfigException("Log directory is not writable. Check your permissions!");
 
         if (!is_writable(static::$CONF['SCRIPT']['web_dir'])) throw new ConfigException("Web directory is not writable. Check your permissions!");
-
-
-        if (empty(static::$CONF['SCRIPT']['link_method']) || static::$CONF['SCRIPT']['link_method'] == "auto") {
-            // Link test
-            $linktestfile = Tools::ds(static::$CONF['LOG']['dir'], LINKTEST);
-            $test = false;
-            $status = false;
-    
-            if (file_exists($linktestfile)) {
-                $status = file_get_contents($linktestfile);
-    
-                if (preg_match("/symlink_php|hardlink_fsutil|false/", $status)) $test = true;
-            }
-            if ($test == false) {
-                file_put_contents(Tools::ds(static::$CONF['SCRIPT']['web_dir'], 'linktest'), '');
-    
-                if (
-                    function_exists('symlink') &&
-                    symlink(
-                        Tools::ds(static::$CONF['SCRIPT']['web_dir'], 'linktest'),
-                        Tools::ds(static::$CONF['SCRIPT']['web_dir'], 'linktest2')
-                    )
-                ) {
-                    $status = 'symlink_php';
-                } elseif (
-                    preg_match("/^win/i", PHP_OS) &&
-                    shell_exec(
-                        sprintf(
-                            "fsutil hardlink create %s %s",
-                            Tools::ds(static::$CONF['SCRIPT']['web_dir'], 'linktest'),
-                            Tools::ds(static::$CONF['SCRIPT']['web_dir'], 'linktest2'))
-                    ) != 0
-                ) {
-                    $status = 'hardlink_fsutil';
-                } else $status = 'false';
-    
-                if ($status) unlink(Tools::ds(static::$CONF['SCRIPT']['web_dir'], 'linktest2'));
-    
-                unlink(Tools::ds(static::$CONF['SCRIPT']['web_dir'], 'linktest'));
-                @file_put_contents($linktestfile, $status);
-            }
-            static::$CONF['SCRIPT']['link_method'] = ($status != 'false' ? $status : false);
-        }
     }
 
     /**

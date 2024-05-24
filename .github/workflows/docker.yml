@@ -57,7 +57,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ matrix.image }}
           tags: |            
             type=raw,value=latest,enable={{is_default_branch}}
-            type=sha,prefix={{branch}}-
+            type=sha,prefix={{branch}}-,enable=${{ startsWith(github.ref, 'refs/heads/') }}
             type=ref,event=branch
       - name: Build and push Docker image
         id: build-and-push

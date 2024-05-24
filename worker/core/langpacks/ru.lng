@@ -1,18 +1,3 @@
-ESET NOD32 Endpoint 6
-ESET NOD32 Endpoint 7
-ESET NOD32 Endpoint 8
-ESET NOD32 Endpoint 9
-ESET NOD32 Endpoint 10
-ESET NOD32 Endpoint 11
-ESET NOD32 3-4, 6-8
-ESET NOD32 5
-ESET NOD32 9
-ESET NOD32 10-11
-ESET NOD32 12
-ESET NOD32 13
-ESET NOD32 14
-ESET NOD32 15
-ESET NOD32 16-17
 Этот скрипт не поддерживает вашу ОС. Пожалуйста, свяжитесь с разработчиком!
 Выполнение %s
 Лог-файл был очищен из-за ротации...
@@ -32,7 +17,6 @@ ESET NOD32 16-17
 Загрузка %d файлов
 Зеркало для %s инициализировано с помощью update_file %s
 Создана жесткая ссылка для %s
-Создана символическая ссылка для %s
 Скопирован файл %s
 Запуск скрипта %s
 Общее время работы: %s
@@ -81,3 +65,4 @@ ESET NOD32 16-17
 Тбайт
 Пбайт
 Эбайт
+Список зеркал ESET не установлен!

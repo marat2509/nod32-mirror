@@ -1,7 +1,7 @@
 version: "3"
 
 services:
-    nod32mirror-worker:
+    nod32-mirror-worker:
         container_name: nod32mirror-worker
         build:
             context: worker
@@ -13,7 +13,7 @@ services:
             - ./docker-data/www:/app/www
             - ./docker-data/log:/app/log
 
-    nod32mirror-nginx:
+    nod32-mirror-nginx:
         container_name: nod32mirror-nginx
         build:
             context: nginx

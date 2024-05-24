@@ -1,7 +1,7 @@
 version: "3"
 
 services:
-    nod32mirror-worker:
+    nod32-mirror-worker:
         container_name: nod32-mirror-worker
         image: ghcr.io/marat2509/nod32-mirror-worker
         restart: always
@@ -12,7 +12,7 @@ services:
             - ./docker-data/www:/app/www
             - ./docker-data/log:/app/log
 
-    nod32mirror-nginx:
+    nod32-mirror-nginx:
         container_name: nod32-mirror-nginx
         image: ghcr.io/marat2509/nod32-mirror-nginx
         restart: always
