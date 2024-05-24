@@ -93,7 +93,6 @@ class Mirror
 
         $test_mirrors = [];
         foreach (static::$ESET['mirror'] as $mirror) {
-
             Tools::download_file(
                 [
                     CURLOPT_USERPWD => static::$key[0] . ":" . static::$key[1],
@@ -651,25 +650,9 @@ class Mirror
                             if (!file_exists($res)) mkdir($res, 0755, true);
 
                             switch (Config::get('SCRIPT')['link_method']) {
-                                case 'hardlink_php':
+                                case 'hardlink':
                                     link($result, $path);
                                     Log::write_log(Language::t("Created hard link for %s", basename($array['file'])), 3, static::$version);
-                                    break;
-                                case 'hardlink_fsutil':
-                                    shell_exec(sprintf("fsutil hardlink create %s %s", $path, $result));
-                                    Log::write_log(Language::t("Created hard link for %s", basename($array['file'])), 3, static::$version);
-                                    break;
-                                case 'hardlink_ln':
-                                    shell_exec(sprintf("ln -f %s %s", $result, $path));
-                                    Log::write_log(Language::t("Created hard link for %s", basename($array['file'])), 3, static::$version);
-                                    break;
-                                case 'symlink_php':
-                                    symlink($result, $path);
-                                    Log::write_log(Language::t("Created symbolic link for %s", basename($array['file'])), 3, static::$version);
-                                    break;
-                                case 'symlink_ln':
-                                    shell_exec(sprintf("ln -fs %s %s", $result, $path));
-                                    Log::write_log(Language::t("Created symbolic link for %s", basename($array['file'])), 3, static::$version);
                                     break;
                                 case 'copy':
                                 default:

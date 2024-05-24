@@ -11,4 +11,12 @@ if [ -z "${UPDATE_INTERVAL}" ]; then
     UPDATE_INTERVAL=3600
 fi
 
-watch -tn $UPDATE_INTERVAL "php /app/update.php"
+while true; do
+    php /app/update.php
+    if [ ! $? -eq 0 ]; then
+        echo "E: Run script failed, exitting..."
+        exit 1
+    else
+        sleep $UPDATE_INTERVAL
+    fi
+done
