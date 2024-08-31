@@ -52,9 +52,13 @@ class Config
      */
     static public function init()
     {
-        if (!file_exists(CONF_FILE)) throw new ConfigException(Language::t("Config file does not exist!"));
+        if (!file_exists(CONF_FILE)) {
+            throw new ConfigException(Language::t("Config file does not exist!"));
+        }
 
-        if (!is_readable(CONF_FILE)) throw new ConfigException(Language::t("Can't read config file! Check the file and its permissions!"));
+        if (!is_readable(CONF_FILE)) {
+            throw new ConfigException(Language::t("Can't read config file! Check the file and its permissions!"));
+        }
 
         static::$CONF = parse_ini_file(CONF_FILE, true);
 
@@ -86,7 +90,7 @@ class Config
      * @param $nm
      * @return mixed|null
      */
-    static function get($nm)
+    static public function get($nm)
     {
         return isset(static::$CONF[$nm]) ? static::$CONF[$nm] : null;
     }
@@ -97,7 +101,7 @@ class Config
      */
     static public function upd_version_is_set($i)
     {
-        return (isset(static::$CONF['ESET']['version' . strval($i)]) ? static::$CONF['ESET']['version' . strval($i)] : 0);
+        return isset(static::$CONF['ESET']['version' . strval($i)]) ? static::$CONF['ESET']['version' . strval($i)] : 0;
     }
 
     /**
@@ -106,8 +110,9 @@ class Config
      */
     static private function check_config()
     {
-        if (array_search(PHP_OS, array("Darwin", "Linux", "FreeBSD", "OpenBSD", "WINNT")) === false)
+        if (array_search(PHP_OS, array("Darwin", "Linux", "FreeBSD", "OpenBSD", "WINNT")) === false) {
             throw new ConfigException(Language::t("This script doesn't support your OS. Please, contact developer!"));
+        }
 
         if (function_exists("date_default_timezone_set") and function_exists("date_default_timezone_get")) {
             if (empty(static::$CONF['SCRIPT']['timezone'])) {
@@ -129,56 +134,71 @@ class Config
                 static::$CONF['LOG']['rotate_qty'] = intval(static::$CONF['LOG']['rotate_qty']);
             }
 
-            if (intval(static::$CONF['LOG']['type']) < 0 || intval(static::$CONF['LOG']['type']) > 3)
+            if (intval(static::$CONF['LOG']['type']) < 0 || intval(static::$CONF['LOG']['type']) > 3) {
                 throw new ConfigException("Please, check set up of (log) type in your config file!");
+            }
         }
 
         static::$CONF['SCRIPT']['web_dir'] = 'www';
 
-        while (substr(static::$CONF['SCRIPT']['web_dir'], -1) == DS)
+        while (substr(static::$CONF['SCRIPT']['web_dir'], -1) == DS) {
             static::$CONF['SCRIPT']['web_dir'] = substr(static::$CONF['SCRIPT']['web_dir'], 0, -1);
+        }
 
-        while (substr(static::$CONF['LOG']['dir'], -1) == DS)
+        while (substr(static::$CONF['LOG']['dir'], -1) == DS) {
             static::$CONF['LOG']['dir'] = substr(static::$CONF['LOG']['dir'], 0, -1);
+        }
 
         @mkdir(PATTERN, 0755, true);
         @mkdir(static::$CONF['LOG']['dir'], 0755, true);
         @mkdir(static::$CONF['SCRIPT']['web_dir'], 0755, true);
         @mkdir(TMP_PATH, 0755, true);
 
-        if (static::$CONF['SCRIPT']['debug_html'] == 1)
+        if (static::$CONF['SCRIPT']['debug_html'] == 1) {
             @mkdir(Tools::ds(static::$CONF['LOG']['dir'], DEBUG_DIR), 0755, true);
+        }
 
         if (static::$CONF['MAILER']['enable'] == 1) {
             if (empty(static::$CONF['MAILER']['sender']) ||
                 strpos(static::$CONF['MAILER']['sender'], "@") === FALSE ||
                 empty(static::$CONF['MAILER']['recipient']) ||
                 strpos(static::$CONF['MAILER']['recipient'], "@") === FALSE
-            )
+            ) {
                 throw new ConfigException("You didn't set up email address of sender/recipient or it is wrong.Please, check your config file.");
 
+            }
             if (static::$CONF['MAILER']['smtp'] == 1) {
                 if (empty(static::$CONF['MAILER']['host']) ||
                     empty(static::$CONF['MAILER']['port'])
-                )
+                ) {
                     throw new ConfigException("Please, check SMTP host/port for using SMTP server in your config file.Or disable SMTP server if you don't wanna use it.");
 
+                }
                 if (static::$CONF['MAILER']['auth'] == 1) {
                     if (empty(static::$CONF['MAILER']['login']) ||
                         empty(static::$CONF['MAILER']['password'])
-                    )
+                    ) {
                         throw new ConfigException("Please, check login/password for using SMTP authorization.");
+                    }
                 }
             }
         }
 
-        if (intval(static::$CONF['FIND']['errors_quantity']) <= 0) static::$CONF['FIND']['errors_quantity'] = 1;
+        if (intval(static::$CONF['FIND']['errors_quantity']) <= 0) {
+            static::$CONF['FIND']['errors_quantity'] = 1;
+        }
 
-        if (!is_readable(PATTERN)) throw new ConfigException("Pattern directory is not readable. Check your permissions!");
+        if (!is_readable(PATTERN)) {
+            throw new ConfigException("Pattern directory is not readable. Check your permissions!");
+        }
 
-        if (!is_writable(static::$CONF['LOG']['dir'])) throw new ConfigException("Log directory is not writable. Check your permissions!");
+        if (!is_writable(static::$CONF['LOG']['dir'])) {
+            throw new ConfigException("Log directory is not writable. Check your permissions!");
+        }
 
-        if (!is_writable(static::$CONF['SCRIPT']['web_dir'])) throw new ConfigException("Web directory is not writable. Check your permissions!");
+        if (!is_writable(static::$CONF['SCRIPT']['web_dir'])) {
+            throw new ConfigException("Web directory is not writable. Check your permissions!");
+        }
     }
 
     /**

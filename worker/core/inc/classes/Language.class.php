@@ -35,34 +35,42 @@ class Language
      */
     static public function init()
     {
-        if (!file_exists(CONF_FILE))
+        if (!file_exists(CONF_FILE)) {
             throw new ConfigException("Config file does not exist!");
+        }
 
-        if (!is_readable(CONF_FILE))
+        if (!is_readable(CONF_FILE)) {
             throw new ConfigException("Can't read config file! Check the file and its permissions!");
+        }
 
         $ini = parse_ini_file(CONF_FILE, true);
 
-        if (empty($ini))
+        if (empty($ini)) {
             throw new ConfigException("Empty config file!");
+        }
 
         static::$language = $ini['SCRIPT']['language'];
         static::$language_file = Tools::ds(LANGPACKS_DIR, static::$language . '.lng');
         static::$default_language_file = Tools::ds(LANGPACKS_DIR, 'en.lng');
 
         if (static::$language != 'en') {
-            if (!file_exists(static::$language_file))
+            if (!file_exists(static::$language_file)) {
                 throw new Exception("Language file [" . static::$language . ".lng] does not exist!");
-        } else return;
+            }
+        } else {
+            return;
+        }
 
         $tmp = file(static::$language_file);
         static::$default_language_pack = file(static::$default_language_file);
 
-        if (count($tmp) != count(static::$default_language_pack))
+        if (count($tmp) != count(static::$default_language_pack)) {
             throw new Exception("Language file [" . static::$language . ".lng] is corrupted!");
+        }
 
-        for ($i = 0; $i < count($tmp); $i++)
+        for ($i = 0; $i < count($tmp); $i++) {
             static::$language_pack[trim($tmp[$i])] = trim(static::$default_language_pack[$i]);
+        }
     }
 
     /**

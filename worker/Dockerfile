@@ -1,5 +1,22 @@
 FROM alpine:latest
-RUN apk update && apk upgrade && apk add --no-cache xterm git php php-curl php-fileinfo php-iconv php-mbstring php-openssl pcre php-simplexml php-sockets php-zlib php-json
+RUN apk update && \
+  apk upgrade && \
+
+RUN apk add --no-cache \
+  git \
+  pcre \
+  php \
+  php-curl \
+  php-fileinfo \
+  php-iconv \
+  php-json \
+  php-mbstring \
+  php-openssl \
+  php-simplexml \
+  php-sockets \
+  php-zlib \
+  xterm
+
 WORKDIR /app
 COPY core/ .
 COPY entrypoint.sh .

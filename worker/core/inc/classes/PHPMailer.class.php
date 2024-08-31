@@ -1427,7 +1427,7 @@ class PHPMailer
             } else {
                 // Overwrite language-specific strings.
                 // This way we'll never have missing translations.
-                $foundlang = include $lang_file;
+                $foundlang = include_once $lang_file;
             }
         }
         $this->language = $PHPMAILER_LANG;

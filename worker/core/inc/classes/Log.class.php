@@ -47,16 +47,18 @@ class Log
             $mailer->Priority = 3;
             $mailer->Subject = Tools::conv(static::$CONF['MAILER']['subject'], $mailer->CharSet);
 
-            if (static::$CONF['MAILER']['level'] == '3')
+            if (static::$CONF['MAILER']['level'] == '3') {
                 static::$mailer_log = implode("\r\n", static::$log);
+            }
 
             $mailer->Body = Tools::conv(static::$mailer_log, $mailer->CharSet);
             $mailer->SetFrom(static::$CONF['MAILER']['sender'], "NOD32 mirror script");
             $mailer->AddAddress(static::$CONF['MAILER']['recipient'], "Admin");
             $mailer->SMTPDebug = 1;
 
-            if (!$mailer->Send())
+            if (!$mailer->Send()) {
                 static::write_log($mailer->ErrorInfo, 0);
+            }
 
             $mailer->ClearAddresses();
             $mailer->ClearAttachments();
@@ -71,7 +73,9 @@ class Log
     {
         $f = fopen($filename, "a+");
 
-        if (!feof($f)) fwrite($f, $text);
+        if (!feof($f)) {
+            fwrite($f, $text);
+        }
 
         fflush($f);
         fclose($f);
@@ -87,8 +91,9 @@ class Log
     {
         static::write_log($str, $level, $ver);
 
-        if (static::$CONF['MAILER']['log_level'] >= $level)
+        if (static::$CONF['MAILER']['log_level'] >= $level) {
             static::$mailer_log .= sprintf("[%s] [%s] %s%s", date("Y-m-d"), date("H:i:s"), ($ver ? '[ver. ' . strval($ver) . '] ' : ''), $str) . chr(10);
+        }
     }
 
     /**
@@ -100,11 +105,17 @@ class Log
      */
     static public function write_log($text, $level, $version = null, $ignore_rotate = false)
     {
-        if (empty($text)) return null;
+        if (empty($text)) {
+            return null;
+        }
 
-        if (static::$CONF['type'] == '0') return null;
+        if (static::$CONF['type'] == '0') {
+            return null;
+        }
 
-        if (static::$CONF['level'] < $level) return null;
+        if (static::$CONF['level'] < $level) {
+            return null;
+        }
 
         $fn = Tools::ds(static::$CONF['dir'], LOG_FILE);
 
@@ -134,10 +145,13 @@ class Log
         } else {
             $text = sprintf("[%s] %s%s", date("Y-m-d, H:i:s"), ($version ? '[ver. ' . strval($version) . '] ' : ''), $text);
 
-            if (static::$CONF['type'] == '1' || static::$CONF['type'] == '3')
+            if (static::$CONF['type'] == '1' || static::$CONF['type'] == '3') {
                 static::write_to_file($fn, Tools::conv($text . "\r\n", static::$CONF['codepage']));
+            }
 
-            if (static::$CONF['type'] == '2' || static::$CONF['type'] == '3') echo Tools::conv($text, static::$CONF['codepage']) . chr(10);
+            if (static::$CONF['type'] == '2' || static::$CONF['type'] == '3') {
+                echo Tools::conv($text, static::$CONF['codepage']) . chr(10);
+            }
         }
         static::$log[] = $text;
         return;
@@ -149,25 +163,31 @@ class Log
      */
     static public function init()
     {
-        if (!file_exists(CONF_FILE))
+        if (!file_exists(CONF_FILE)) {
             throw new ConfigException("Config file does not exist!");
+        }
 
-        if (!is_readable(CONF_FILE))
+        if (!is_readable(CONF_FILE)) {
             throw new ConfigException("Can't read config file! Check the file and its permissions!");
 
+        }
+            
         $ini = parse_ini_file(CONF_FILE, true);
 
-        if (empty($ini))
+        if (empty($ini)) {
             throw new ConfigException("Empty config file!");
+        }
 
         static::$CONF = $ini['LOG'];
-        if (!file_exists(static::$CONF['dir']))
+        if (!file_exists(static::$CONF['dir'])) {
             mkdir(static::$CONF['dir']);
+        }
         static::$CONF['rotate_size'] = Tools::human2bytes(static::$CONF['rotate_size']);
         static::$CONF['MAILER'] = $ini['MAILER'];
         static::$CONF['codepage'] = $ini['SCRIPT']['codepage'];
 
-        if (empty(static::$CONF))
+        if (empty(static::$CONF)) {
             throw new ConfigException("Log parameters don't set!");
+        }
     }
 }
