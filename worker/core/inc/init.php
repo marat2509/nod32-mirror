@@ -80,7 +80,7 @@ $DIRECTORIES = [
     'v16' => [
         'file' => 'eset_upd/v16/update.ver',
         'dll' => 'eset_upd/v16/dll/update.ver',
-        'name' => 'ESET NOD32 16-17'
+        'name' => 'ESET NOD32 16-18'
     ]
 ];
 
