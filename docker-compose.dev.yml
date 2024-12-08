@@ -1,8 +1,6 @@
-version: "3"
-
 services:
     nod32-mirror-worker:
-        container_name: nod32mirror-worker
+        container_name: nod32-mirror-worker
         build:
             context: worker
         restart: always
@@ -14,7 +12,7 @@ services:
             - ./docker-data/log:/app/log
 
     nod32-mirror-nginx:
-        container_name: nod32mirror-nginx
+        container_name: nod32-mirror-nginx
         build:
             context: nginx
         restart: always
