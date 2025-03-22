@@ -1,5 +1,3 @@
-version: "3"
-
 services:
     nod32-mirror-worker:
         container_name: nod32-mirror-worker

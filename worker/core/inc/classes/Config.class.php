@@ -97,7 +97,7 @@ class Config
      */
     static public function upd_version_is_set($i)
     {
-        return (isset(static::$CONF['ESET']['version' . strval($i)]) ? static::$CONF['ESET']['version' . strval($i)] : 0);
+        return (isset(static::$CONF['ESET']['version_' . strval($i)]) ? static::$CONF['ESET']['version_' . strval($i)] : 0);
     }
 
     /**

@@ -654,6 +654,10 @@ class Mirror
                                     link($result, $path);
                                     Log::write_log(Language::t("Created hard link for %s", basename($array['file'])), 3, static::$version);
                                     break;
+                                case 'symlink':
+                                    symlink($result, $path);
+                                    Log::write_log(Language::t("Created symbolic link for %s", basename($array['file'])), 3, static::$version);
+                                    break;
                                 case 'copy':
                                 default:
                                     copy($result, $path);

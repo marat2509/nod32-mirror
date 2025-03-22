@@ -17,6 +17,7 @@ Downloading file %s from %s...
 Downloading %d files
 Mirror for %s initiliazed with update_file %s
 Created hard link for %s
+Created symbolic link for %s
 Copied file %s
 Run script %s
 Total working time: %s

@@ -6,17 +6,24 @@ if [ ! -f "/app/nod32ms.conf" ]; then
     exit 1
 fi
 
-
-if [ -z "${UPDATE_INTERVAL}" ]; then
-    UPDATE_INTERVAL=3600
-fi
+UPDATE_INTERVAL=${UPDATE_INTERVAL:-3600}
 
 while true; do
+    start_time=$(date +%s)
     php /app/update.php
-    if [ ! $? -eq 0 ]; then
-        echo "E: Run script failed, exitting..."
+    end_time=$(date +%s)
+    duration=$((end_time - start_time))
+
+    if [ $? -ne 0 ]; then
+        echo "E: Run script failed after $duration s, exiting..."
         exit 1
+    fi
+
+    sleep_time=$((UPDATE_INTERVAL - duration))
+
+    if [ "$sleep_time" -gt 0 ]; then
+        sleep "$sleep_time"
     else
-        sleep $UPDATE_INTERVAL
+        echo "Warning: Script execution time ($duration s) exceeded UPDATE_INTERVAL ($UPDATE_INTERVAL s). Skipping sleep."
     fi
 done
