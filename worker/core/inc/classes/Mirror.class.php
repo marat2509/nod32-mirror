@@ -506,9 +506,17 @@ class Mirror
         static::$total_downloads = 0;
         static::$version = $version;
         static::$name = $dir['name'];
-        static::$source_update_file = isset($dir['dll']) && $dir['dll'] ? $dir['dll'] : $dir['file'];
+        if (isset($dir['file']) && $dir['file'] !== false) {
+            static::$source_update_file = isset($dir['dll']) && $dir['dll'] ? $dir['dll'] : $dir['file'];
+        } else {
+            static::$source_update_file = isset($dir['dll']) ? $dir['dll'] : null;
+        }
         static::$updated = false;
         static::$ESET = Config::get('ESET');
+
+        if (static::$source_update_file === null) {
+            throw new Exception(Language::t("No update file specified for version %s - both 'file' and 'dll' are false or not set", $version));
+        }
 
         $fixed_update_file = preg_replace('/eset_upd\/update\.ver/is','eset_upd/v3/update.ver', static::$source_update_file);
 

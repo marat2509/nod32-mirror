@@ -67,3 +67,4 @@ TBytes
 PBytes
 EBytes
 ESET mirrors list is not set!
+No update file specified for version %s - both 'file' and 'dll' are false or not set

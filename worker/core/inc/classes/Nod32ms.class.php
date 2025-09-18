@@ -493,7 +493,13 @@ class Nod32ms
 
         foreach ($DIRECTORIES as $ver => $dir) {
             if (Config::upd_version_is_set($ver) == '1') {
-                $update_ver = Tools::ds($web_dir, preg_replace('/eset_upd\/update\.ver/is','eset_upd/v3/update.ver', isset($dir['dll']) && $dir['dll'] ? $dir['dll'] : $dir['file']));
+                $source_file = null;
+                if (isset($dir['file']) && $dir['file'] !== false) {
+                    $source_file = isset($dir['dll']) && $dir['dll'] ? $dir['dll'] : $dir['file'];
+                } else {
+                    $source_file = isset($dir['dll']) ? $dir['dll'] : null;
+                }
+                $update_ver = Tools::ds($web_dir, preg_replace('/eset_upd\/update\.ver/is','eset_upd/v3/update.ver', $source_file));
                 $version = Mirror::get_DB_version($update_ver);
                 $timestamp = $this->check_time_stamp($ver, true);
                 $html_page .= '<tr>';

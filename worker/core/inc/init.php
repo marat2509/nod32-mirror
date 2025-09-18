@@ -32,16 +32,10 @@ $DIRECTORIES = [
         'dll' => 'eset_upd/ep6.6/dll/update.ver',
         'name' => 'ESET NOD32 Endpoint 6'
     ],
-    // status of ep7 - EoL
-    'ep7' => [
-        'file' => 'eset_upd/ep7/update.ver',
-        'dll' => 'eset_upd/ep7/dll/update.ver',
-        'name' => 'ESET NOD32 Endpoint 7'
-    ],
     'ep8' => [
         'file' => 'eset_upd/ep8/update.ver',
         'dll' => 'eset_upd/ep8/dll/update.ver',
-        'name' => 'ESET NOD32 Endpoint 8'
+        'name' => 'ESET NOD32 Endpoint 7-8'
     ],
     'ep9' => [
         'file' => 'eset_upd/ep9/update.ver',
@@ -49,17 +43,17 @@ $DIRECTORIES = [
         'name' => 'ESET NOD32 Endpoint 9'
     ],
     'ep10' => [
-        'file' => 'eset_upd/ep10/update.ver',
+        'file' => false,
         'dll' => 'eset_upd/ep10/dll/update.ver',
         'name' => 'ESET NOD32 Endpoint 10'
     ],
     'ep11' => [
-        'file' => 'eset_upd/ep11/update.ver',
+        'file' => false,
         'dll' => 'eset_upd/ep11/dll/update.ver',
         'name' => 'ESET NOD32 Endpoint 11'
     ],
     'ep12' => [
-        'file' => 'eset_upd/ep12/update.ver',
+        'file' => false,
         'dll' => 'eset_upd/ep12/dll/update.ver',
         'name' => 'ESET NOD32 Endpoint 12'
     ],
@@ -74,17 +68,17 @@ $DIRECTORIES = [
         'name' => 'ESET NOD32 10-13'
     ],
     'v14' => [
-        'file' => 'eset_upd/v14/update.ver',
+        'file' => false,
         'dll' => 'eset_upd/v14/dll/update.ver',
         'name' => 'ESET NOD32 14'
     ],
     'v15' => [
-        'file' => 'eset_upd/v15/update.ver',
+        'file' => false,
         'dll' => 'eset_upd/v15/dll/update.ver',
         'name' => 'ESET NOD32 15'
     ],
     'v16' => [
-        'file' => 'eset_upd/v16/update.ver',
+        'file' => false,
         'dll' => 'eset_upd/v16/dll/update.ver',
         'name' => 'ESET NOD32 16-18'
     ]
