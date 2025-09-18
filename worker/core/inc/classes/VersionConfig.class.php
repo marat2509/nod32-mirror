@@ -13,23 +13,7 @@ class VersionConfig
      */
     public static function get_version_config($version)
     {
-        // Try exact case first
-        $config = Config::get('ESET.VERSIONS.' . $version);
-        if ($config) {
-            return $config;
-        }
-
-        // Try case-insensitive search
-        $versions_config = Config::get('ESET.VERSIONS');
-        if ($versions_config) {
-            foreach ($versions_config as $config_key => $config_value) {
-                if (strcasecmp($config_key, $version) === 0) {
-                    return $config_value;
-                }
-            }
-        }
-
-        return null;
+        return Config::get('ESET.VERSIONS.' . $version);
     }
 
     /**
@@ -100,24 +84,4 @@ class VersionConfig
         return $enabled_versions;
     }
 
-    /**
-     * Find version configuration key with case-insensitive search
-     * @param string $version
-     * @return string|null
-     */
-    public static function find_version_key($version)
-    {
-        $versions_config = Config::get('ESET.VERSIONS');
-        if (!$versions_config) {
-            return null;
-        }
-
-        foreach ($versions_config as $config_key => $config_value) {
-            if (strcasecmp($config_key, $version) === 0) {
-                return $config_key;
-            }
-        }
-
-        return null;
-    }
 }
