@@ -52,6 +52,11 @@ class Mirror
      */
     static private $ESET;
 
+    /**
+     * @var array
+     */
+    static public $platforms = array();
+
 
     static public $unAuthorized = false;
 
@@ -394,7 +399,7 @@ class Mirror
                 Log::write_log(Language::t("Downloading file %s from %s...", $file['file'], $mirror['host']), 3, static::$version);
                 $out = Tools::ds($web_dir, $file['file']);
                 $dir = dirname($out);
-                
+
                 if (!@file_exists($dir)) @mkdir($dir, 0755, true);
 
                 Tools::download_file(
@@ -474,9 +479,13 @@ class Mirror
             $output = array_shift($parsed_container);
 
             if (empty($output['file']) or empty($output['size'])) continue;
-            $new_files[] = $output;
-            $total_size += $output['size'];
-            $new_content .= $container;
+
+            // Apply platform filtering
+            if (static::matches_platform($output)) {
+                $new_files[] = $output;
+                $total_size += $output['size'];
+                $new_content .= $container;
+            }
         }
 
         return array($new_files, $total_size, $new_content);
@@ -506,27 +515,31 @@ class Mirror
         static::$total_downloads = 0;
         static::$version = $version;
         static::$name = $dir['name'];
-        if (isset($dir['file']) && $dir['file'] !== false) {
-            static::$source_update_file = isset($dir['dll']) && $dir['dll'] ? $dir['dll'] : $dir['file'];
-        } else {
-            static::$source_update_file = isset($dir['dll']) ? $dir['dll'] : null;
-        }
         static::$updated = false;
         static::$ESET = Config::get('ESET');
 
-        if (static::$source_update_file === null) {
-            throw new Exception(Language::t("No update file specified for version %s - both 'file' and 'dll' are false or not set", $version));
+        // Initialize platforms from config
+        $global_platforms = Config::get('ESET.VERSIONS')['platforms'];
+        if (empty($global_platforms)) {
+            static::$platforms = true; // All platforms
+        } else {
+            static::$platforms = explode(',', $global_platforms);
         }
 
-        $fixed_update_file = preg_replace('/eset_upd\/update\.ver/is','eset_upd/v3/update.ver', static::$source_update_file);
+        // Set source file from directory config
+        static::$source_update_file = $dir['file'] ?? $dir['dll'] ?? null;
 
-        static::$tmp_update_file = Tools::ds(TMP_PATH, $fixed_update_file);
-        static::$local_update_file = Tools::ds(Config::get('SCRIPT')['web_dir'], $fixed_update_file);
+        // Set update file paths
+        if (static::$source_update_file) {
+            $fixed_update_file = preg_replace('/eset_upd\/update\.ver/is','eset_upd/v3/update.ver', static::$source_update_file);
+            static::$tmp_update_file = Tools::ds(TMP_PATH, $fixed_update_file);
+            static::$local_update_file = Tools::ds(Config::get('SCRIPT')['web_dir'], $fixed_update_file);
 
-        @mkdir(dirname(static::$tmp_update_file), 0755, true);
-        @mkdir(dirname(static::$local_update_file), 0755, true);
+            @mkdir(dirname(static::$tmp_update_file), 0755, true);
+            @mkdir(dirname(static::$local_update_file), 0755, true);
+        }
 
-        Log::write_log(Language::t("Mirror for %s initiliazed with update_file %s", static::$name, static::$source_update_file), 5, static::$version);
+        Log::write_log(Language::t("Mirror for %s initiliazed", static::$name), 5, static::$version);
     }
 
     /**
@@ -704,4 +717,53 @@ class Mirror
 
         return $max;
     }
+
+    /**
+     * Check if file matches current platform filter
+     * @param array $file_info
+     * @return bool
+     */
+    static public function matches_platform($file_info)
+    {
+        if (!isset($file_info['platform'])) {
+            return true; // If platform is not specified, include the file
+        }
+
+        // If platforms is true, null, or empty array, include all platforms
+        if (static::$platforms === true || static::$platforms === null || empty(static::$platforms)) {
+            return true;
+        }
+
+        // If platforms is not an array, include all platforms
+        if (!is_array(static::$platforms)) {
+            return true;
+        }
+
+        return in_array($file_info['platform'], static::$platforms);
+    }
+
+
+
+    /**
+     * Filter files based on platform, file type and other criteria
+     * @param array $files
+     * @return array
+     */
+    static public function filter_files($files)
+    {
+        Log::write_log(Language::t("Running %s", __METHOD__), 5, static::$version);
+
+        $filtered_files = array();
+
+        foreach ($files as $file) {
+            if (static::matches_platform($file)) {
+                $filtered_files[] = $file;
+            }
+        }
+
+        Log::write_log(Language::t("Filtered %d files from %d total files", count($filtered_files), count($files)), 4, static::$version);
+
+        return $filtered_files;
+    }
+
 }

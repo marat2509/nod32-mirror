@@ -28,59 +28,69 @@ spl_autoload_register($autoload);
 
 $DIRECTORIES = [
     'ep6' => [
+        'name' => 'ESET NOD32 Endpoint 6',
         'file' => 'eset_upd/ep6.6/update.ver',
         'dll' => 'eset_upd/ep6.6/dll/update.ver',
-        'name' => 'ESET NOD32 Endpoint 6'
+        'platforms' => ['x64', 'x86', 'arm', 'arm64']
     ],
     'ep8' => [
+        'name' => 'ESET NOD32 Endpoint 7-8',
         'file' => 'eset_upd/ep8/update.ver',
         'dll' => 'eset_upd/ep8/dll/update.ver',
-        'name' => 'ESET NOD32 Endpoint 7-8'
+        'platforms' => ['x64', 'x86', 'arm', 'arm64']
     ],
     'ep9' => [
+        'name' => 'ESET NOD32 Endpoint 9',
         'file' => 'eset_upd/ep9/update.ver',
         'dll' => 'eset_upd/ep9/dll/update.ver',
-        'name' => 'ESET NOD32 Endpoint 9'
+        'platforms' => ['x64', 'x86', 'arm', 'arm64']
     ],
     'ep10' => [
+        'name' => 'ESET NOD32 Endpoint 10',
         'file' => false,
         'dll' => 'eset_upd/ep10/dll/update.ver',
-        'name' => 'ESET NOD32 Endpoint 10'
+        'platforms' => ['x64', 'x86', 'arm', 'arm64']
     ],
     'ep11' => [
+        'name' => 'ESET NOD32 Endpoint 11',
         'file' => false,
         'dll' => 'eset_upd/ep11/dll/update.ver',
-        'name' => 'ESET NOD32 Endpoint 11'
+        'platforms' => ['x64', 'x86', 'arm', 'arm64']
     ],
     'ep12' => [
+        'name' => 'ESET NOD32 Endpoint 12',
         'file' => false,
         'dll' => 'eset_upd/ep12/dll/update.ver',
-        'name' => 'ESET NOD32 Endpoint 12'
+        'platforms' => ['x64', 'x86', 'arm', 'arm64']
     ],
     'v3' => [
+        'name' => 'ESET NOD32 3-9',
         'file' => 'eset_upd/update.ver',
         'dll' => false,
-        'name' => 'ESET NOD32 3-9'
+        'platforms' => ['x64', 'x86']
     ],
     'v10' => [
+        'name' => 'ESET NOD32 10-13',
         'file' => 'eset_upd/v10/update.ver',
         'dll' => false,
-        'name' => 'ESET NOD32 10-13'
+        'platforms' => ['x64', 'x86']
     ],
     'v14' => [
+        'name' => 'ESET NOD32 14',
         'file' => false,
         'dll' => 'eset_upd/v14/dll/update.ver',
-        'name' => 'ESET NOD32 14'
+        'platforms' => ['x64', 'x86']
     ],
     'v15' => [
+        'name' => 'ESET NOD32 15',
         'file' => false,
         'dll' => 'eset_upd/v15/dll/update.ver',
-        'name' => 'ESET NOD32 15'
+        'platforms' => ['x64', 'x86', 'arm', 'arm64']
     ],
     'v16' => [
+        'name' => 'ESET NOD32 16-18',
         'file' => false,
         'dll' => 'eset_upd/v16/dll/update.ver',
-        'name' => 'ESET NOD32 16-18'
+        'platforms' => ['x64', 'x86', 'arm', 'arm64']
     ]
 ];
-
