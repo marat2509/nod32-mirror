@@ -74,7 +74,7 @@ class VersionConfig
             return true;
         }
 
-        return explode(',', $platforms);
+        return Tools::parse_comma_list($platforms);
     }
 
     /**

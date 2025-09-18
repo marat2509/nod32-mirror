@@ -437,7 +437,7 @@ class Nod32ms
 
             if (empty($recursion_level)) $recursion_level[] = $FIND['recursion_level'];
 
-            $queries = explode(", ", $FIND['query']);
+            $queries = Tools::parse_comma_list($FIND['query'], ', ');
 
             foreach ($queries as $query) {
                 $pages = substr_count($link[0], "#PAGE#") ? $page_qty[0] : 1;

@@ -523,7 +523,7 @@ class Mirror
         if (empty($global_platforms)) {
             static::$platforms = true; // All platforms
         } else {
-            static::$platforms = explode(',', $global_platforms);
+            static::$platforms = Tools::parse_comma_list($global_platforms);
         }
 
         // Set source file from directory config
