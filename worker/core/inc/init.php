@@ -32,10 +32,16 @@ $DIRECTORIES = [
         'dll' => 'eset_upd/ep6.6/dll/update.ver',
         'name' => 'ESET NOD32 Endpoint 6'
     ],
+    // status of ep7 - EoL
     'ep7' => [
         'file' => 'eset_upd/ep7/update.ver',
         'dll' => 'eset_upd/ep7/dll/update.ver',
-        'name' => 'ESET NOD32 Endpoint 7-8'
+        'name' => 'ESET NOD32 Endpoint 7'
+    ],
+    'ep8' => [
+        'file' => 'eset_upd/ep8/update.ver',
+        'dll' => 'eset_upd/ep8/dll/update.ver',
+        'name' => 'ESET NOD32 Endpoint 8'
     ],
     'ep9' => [
         'file' => 'eset_upd/ep9/update.ver',
