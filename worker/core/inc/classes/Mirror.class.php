@@ -57,6 +57,11 @@ class Mirror
      */
     static public $platforms = array();
 
+    /**
+     * @var array
+     */
+    static public $platforms_found = array();
+
 
     static public $unAuthorized = false;
 
@@ -485,6 +490,11 @@ class Mirror
                 $new_files[] = $output;
                 $total_size += $output['size'];
                 $new_content .= $container;
+
+                // Collect discovered platforms for this version
+                if (isset($output['platform']) && !in_array($output['platform'], static::$platforms_found)) {
+                    static::$platforms_found[] = $output['platform'];
+                }
             }
         }
 
@@ -518,16 +528,14 @@ class Mirror
         static::$updated = false;
         static::$ESET = Config::get('ESET');
 
-        // Initialize platforms from config
-        $global_platforms = Config::get('ESET.VERSIONS')['platforms'];
-        if (empty($global_platforms)) {
-            static::$platforms = true; // All platforms
-        } else {
-            static::$platforms = Tools::parse_comma_list($global_platforms);
-        }
+        // Initialize platforms from config using VersionConfig
+        static::$platforms = VersionConfig::get_version_platforms($version);
+
+        // Initialize discovered platforms array
+        static::$platforms_found = array();
 
         // Set source file from directory config
-        static::$source_update_file = $dir['file'] ?? $dir['dll'] ?? null;
+        static::$source_update_file = !empty($dir['file']) ? $dir['file'] : $dir['dll'];
 
         // Set update file paths
         if (static::$source_update_file) {
@@ -566,6 +574,8 @@ class Mirror
         static::$key = array();
         static::$updated = false;
         static::$unAuthorized = false;
+        static::$platforms = array();
+        static::$platforms_found = array();
     }
 
 

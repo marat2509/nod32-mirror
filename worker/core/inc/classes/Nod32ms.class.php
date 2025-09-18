@@ -23,6 +23,11 @@ class Nod32ms
     static private $foundValidKey = false;
 
     /**
+     * @var array
+     */
+    static private $platforms_found = array();
+
+    /**
      * Nod32ms constructor.
      * @throws Exception
      * @throws ToolsException
@@ -503,7 +508,12 @@ class Nod32ms
 
             // Format platforms for display
             if ($version_platforms === true) {
-                $platforms_display = Language::t("All");
+                // Check if we have discovered platforms for this version
+                if (isset(static::$platforms_found[$ver]) && !empty(static::$platforms_found[$ver])) {
+                    $platforms_display = implode(', ', static::$platforms_found[$ver]);
+                } else {
+                    $platforms_display = Language::t("All");
+                }
             } else {
                 $platforms_display = is_array($version_platforms) ? implode(', ', $version_platforms) : $version_platforms;
             }
@@ -595,13 +605,9 @@ class Nod32ms
             }
 
             $dir = $DIRECTORIES[$version];
-            $version_platforms = VersionConfig::get_version_platforms($version);
 
             Log::write_log(Language::t("Init Mirror for version %s in %s", $version, $dir['name']), 5, $version);
             Mirror::init($version, $dir);
-
-            // Override platforms for this version
-            Mirror::$platforms = $version_platforms;
 
             static::$foundValidKey = false;
             $this->read_keys();
@@ -629,6 +635,11 @@ class Nod32ms
                 } else {
                     list($size, $downloads, $speed) = Mirror::download_signature();
                     $this->set_database_size($size);
+
+                    // Save discovered platforms for this version
+                    if (!empty(Mirror::$platforms_found)) {
+                        static::$platforms_found[Mirror::$version] = Mirror::$platforms_found;
+                    }
 
                     if (!Mirror::$updated && $old_version != 0 && !$this->compare_versions($old_version, $mirror['db_version'])) {
                         Log::informer(Language::t("Your database has not been updated!"), Mirror::$version, 1);

@@ -40,25 +40,34 @@ class VersionConfig
      */
     public static function get_version_platforms($version)
     {
+        // First check version-specific config
         $version_config = self::get_version_config($version);
+        if ($version_config && isset($version_config['platforms'])) {
+            $platforms = $version_config['platforms'];
 
-        if (!$version_config || !isset($version_config['platforms'])) {
-            // No specific config, get platforms from directory config
-            global $DIRECTORIES;
-            if (isset($DIRECTORIES[$version]['platforms'])) {
-                return $DIRECTORIES[$version]['platforms'];
+            // If platforms is empty, true, or null, return all platforms
+            if (empty($platforms) || $platforms === true || $platforms === null) {
+                return true;
             }
-            return true; // No filtering - download all available platforms
+
+            return Tools::parse_comma_list($platforms);
         }
 
-        $platforms = $version_config['platforms'];
+        // If no version-specific config, check global config
+        $global_config = Config::get('ESET.VERSIONS');
+        if ($global_config && isset($global_config['platforms'])) {
+            $platforms = $global_config['platforms'];
 
-        // If platforms is empty, true, or null, return all platforms
-        if (empty($platforms) || $platforms === true || $platforms === null) {
-            return true;
+            // If platforms is empty, true, or null, return all platforms
+            if (empty($platforms) || $platforms === true || $platforms === null) {
+                return true;
+            }
+
+            return Tools::parse_comma_list($platforms);
         }
 
-        return Tools::parse_comma_list($platforms);
+        // No platforms specified anywhere - download all available platforms
+        return true;
     }
 
     /**
