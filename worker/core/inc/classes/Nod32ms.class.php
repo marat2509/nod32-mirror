@@ -507,15 +507,18 @@ class Nod32ms
             $version_platforms = VersionConfig::get_version_platforms($ver);
 
             // Format platforms for display
+            $found_platforms = isset(static::$platforms_found[$ver]) ? static::$platforms_found[$ver] : array();
             if ($version_platforms === true) {
-                // Check if we have discovered platforms for this version
-                if (isset(static::$platforms_found[$ver]) && !empty(static::$platforms_found[$ver])) {
-                    $platforms_display = implode(', ', static::$platforms_found[$ver]);
+                // If all platforms allowed, show only those actually found
+                if (!empty($found_platforms)) {
+                    $platforms_display = implode(', ', $found_platforms);
                 } else {
-                    $platforms_display = Language::t("All");
+                    $platforms_display = Language::t("n/a");
                 }
             } else {
-                $platforms_display = is_array($version_platforms) ? implode(', ', $version_platforms) : $version_platforms;
+                $version_platforms_arr = is_array($version_platforms) ? $version_platforms : Tools::parse_comma_list($version_platforms);
+                $display_arr = !empty($found_platforms) ? array_intersect($version_platforms_arr, $found_platforms) : array();
+                $platforms_display = !empty($display_arr) ? implode(', ', $display_arr) : Language::t("n/a");
             }
 
             // Determine source file
