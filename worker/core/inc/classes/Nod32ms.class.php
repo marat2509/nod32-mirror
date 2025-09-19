@@ -23,6 +23,11 @@ class Nod32ms
     static private $foundValidKey = false;
 
     /**
+     * @var array
+     */
+    static private $platforms_found = array();
+
+    /**
      * Nod32ms constructor.
      * @throws Exception
      * @throws ToolsException
@@ -139,18 +144,18 @@ class Nod32ms
     private function get_all_patterns($directory = PATTERN)
     {
         Log::write_log(Language::t("Running %s", __METHOD__), 5, null);
-    
+
         $ar_patterns = [];
-    
+
         $iterator = new RecursiveDirectoryIterator($directory);
         $recursiveIterator = new RecursiveIteratorIterator($iterator);
-    
+
         foreach ($recursiveIterator as $file) {
             if ($file->isFile()) {
                 $ar_patterns[] = $file->getPathname();
             }
         }
-    
+
         return $ar_patterns;
     }
 
@@ -437,7 +442,7 @@ class Nod32ms
 
             if (empty($recursion_level)) $recursion_level[] = $FIND['recursion_level'];
 
-            $queries = explode(", ", $FIND['query']);
+            $queries = Tools::parse_comma_list($FIND['query'], ', ');
 
             foreach ($queries as $query) {
                 $pages = substr_count($link[0], "#PAGE#") ? $page_qty[0] : 1;
@@ -455,8 +460,89 @@ class Nod32ms
     }
 
     /**
-     *
+     * Build path to the local update.ver file for mirror output.
      */
+    private function get_update_file_path($dir, $web_dir)
+    {
+        $source_file = null;
+
+        if (isset($dir['file']) && $dir['file'] !== false) {
+            $source_file = $dir['file'];
+        } elseif (isset($dir['dll']) && $dir['dll'] !== false) {
+            $source_file = $dir['dll'];
+        }
+
+        if (!$source_file) {
+            return null;
+        }
+
+        $fixed_file = preg_replace('/eset_upd\/update\.ver/is', 'eset_upd/v3/update.ver', $source_file);
+
+        return Tools::ds($web_dir, $fixed_file);
+    }
+
+    /**
+     * Parse update.ver file and return actually downloaded platforms.
+     */
+    private function parse_platforms_from_update_file($update_file)
+    {
+        if (!$update_file || !file_exists($update_file)) {
+            return array();
+        }
+
+        $content = @file_get_contents($update_file);
+
+        if ($content === false || !preg_match_all('#\[[^\]]+\][^\[]+#', $content, $matches)) {
+            return array();
+        }
+
+        $found = array();
+
+        foreach ($matches[0] as $container) {
+            $parsed_ini = @parse_ini_string(
+                preg_replace('/version=(.*?)\n/i', 'version="${1}"' . "\n", str_replace("\r\n", "\n", $container)),
+                true
+            );
+
+            if (!$parsed_ini || !is_array($parsed_ini)) {
+                continue;
+            }
+
+            $data = array_shift($parsed_ini);
+
+            if (!empty($data['platform'])) {
+                $found[] = trim($data['platform']);
+            }
+        }
+
+        if (!empty($found)) {
+            $found = array_values(array_unique($found));
+            natcasesort($found);
+            $found = array_values($found);
+        }
+
+        return $found;
+    }
+
+    /**
+     * Return cached or parsed platform list for the provided version.
+     */
+    private function get_platforms_for_version($version, $dir, $web_dir, $update_file = null)
+    {
+        if (!empty(static::$platforms_found[$version])) {
+            return static::$platforms_found[$version];
+        }
+
+        $update_path = $update_file ?: $this->get_update_file_path($dir, $web_dir);
+        $platforms = $this->parse_platforms_from_update_file($update_path);
+
+        if (!empty($platforms)) {
+            static::$platforms_found[$version] = $platforms;
+        }
+
+        return $platforms;
+    }
+
     private function generate_html()
     {
         Log::write_log(Language::t("Running %s", __METHOD__), 5, null);
@@ -481,9 +567,10 @@ class Nod32ms
         }
 
         $html_page .= '<table>';
-        $html_page .= '<tr><td colspan="4">' . Language::t("ESET NOD32 update server") . '</td></tr>';
+        $html_page .= '<tr><td colspan="5">' . Language::t("ESET NOD32 update server") . '</td></tr>';
         $html_page .= '<tr>';
         $html_page .= '<td>' . Language::t("Version") . '</td>';
+        $html_page .= '<td>' . Language::t("Platforms") . '</td>';
         $html_page .= '<td>' . Language::t("Database version") . '</td>';
         $html_page .= '<td>' . Language::t("Database size") . '</td>';
         $html_page .= '<td>' . Language::t("Last update") . '</td>';
@@ -491,23 +578,56 @@ class Nod32ms
 
         global $DIRECTORIES;
 
-        foreach ($DIRECTORIES as $ver => $dir) {
-            if (Config::upd_version_is_set($ver) == '1') {
-                $update_ver = Tools::ds($web_dir, preg_replace('/eset_upd\/update\.ver/is','eset_upd/v3/update.ver', isset($dir['dll']) && $dir['dll'] ? $dir['dll'] : $dir['file']));
-                $version = Mirror::get_DB_version($update_ver);
-                $timestamp = $this->check_time_stamp($ver, true);
-                $html_page .= '<tr>';
-                $html_page .= '<td>' . Language::t($dir['name']) . '</td>';
-                $html_page .= '<td>' . $version . '</td>';
-                $html_page .= '<td>' . (isset($total_size[$ver]) ? Tools::bytesToSize1024($total_size[$ver]) : Language::t("n/a")) . '</td>';
-                $html_page .= '<td>' . ($timestamp ? date("Y-m-d, H:i:s", $timestamp) : Language::t("n/a")) . '</td>';
-                $html_page .= '</tr>';
+        // Get enabled versions from new config structure
+        $enabled_versions = VersionConfig::get_enabled_versions();
+
+        foreach ($enabled_versions as $ver) {
+            if (!isset($DIRECTORIES[$ver])) continue;
+
+            $dir = $DIRECTORIES[$ver];
+            $version_platforms = VersionConfig::get_version_platforms($ver);
+            $update_ver = $this->get_update_file_path($dir, $web_dir);
+
+            if (!$update_ver) continue;
+
+            $found_platforms = $this->get_platforms_for_version($ver, $dir, $web_dir, $update_ver);
+            $display_platforms = $found_platforms;
+
+            if ($version_platforms !== true) {
+                $allowed_platforms = is_array($version_platforms) ? $version_platforms : Tools::parse_comma_list($version_platforms);
+
+                if (!empty($allowed_platforms)) {
+                    $filtered_platforms = array_values(array_intersect($found_platforms, $allowed_platforms));
+
+                    if (!empty($filtered_platforms)) {
+                        $display_platforms = $filtered_platforms;
+                    }
+                }
             }
+
+            if (!empty($display_platforms)) {
+                natcasesort($display_platforms);
+                $display_platforms = array_values($display_platforms);
+            }
+
+            $platforms_display = !empty($display_platforms) ? implode(', ', $display_platforms) : Language::t("n/a");
+
+            $version = Mirror::get_DB_version($update_ver);
+            $timestamp = $this->check_time_stamp($ver, true);
+            $size_key = $ver;
+
+            $html_page .= '<tr>';
+            $html_page .= '<td>' . Language::t($dir['name']) . '</td>';
+            $html_page .= '<td>' . $platforms_display . '</td>';
+            $html_page .= '<td>' . $version . '</td>';
+            $html_page .= '<td>' . (isset($total_size[$size_key]) ? Tools::bytesToSize1024($total_size[$size_key]) : Language::t("n/a")) . '</td>';
+            $html_page .= '<td>' . ($timestamp ? date("Y-m-d, H:i:s", $timestamp) : Language::t("n/a")) . '</td>';
+            $html_page .= '</tr>';
         }
 
         $html_page .= '<tr>';
         $html_page .= '<td colspan="2">' . Language::t("Last execution of the script") . '</td>';
-        $html_page .= '<td colspan="2">' . (static::$start_time ? date("Y-m-d, H:i:s", static::$start_time) : Language::t("n/a")) . '</td>';
+        $html_page .= '<td colspan="3">' . (static::$start_time ? date("Y-m-d, H:i:s", static::$start_time) : Language::t("n/a")) . '</td>';
         $html_page .= '</tr>';
 
         if (Config::get('SCRIPT')['show_login_password']) {
@@ -557,41 +677,58 @@ class Nod32ms
         $total_downloads = array();
         $average_speed = array();
 
+        $stored_sizes = $this->get_databases_size();
 
-        foreach ($DIRECTORIES as $version => $dir) {
-            if (Config::upd_version_is_set($version) == '1') {
+        // Get enabled versions from new config structure
+        $enabled_versions = VersionConfig::get_enabled_versions();
 
-                Log::write_log(Language::t("Init Mirror for version %s in %s", $version, $dir['name']), 5, $version);
-                Mirror::init($version, $dir);
+        if (!empty($stored_sizes) && !empty($enabled_versions)) {
+            $stored_sizes = array_map('intval', $stored_sizes);
+            $total_size = array_intersect_key($stored_sizes, array_flip($enabled_versions));
+        }
 
-                static::$foundValidKey = false;
-                $this->read_keys();
+        foreach ($enabled_versions as $version) {
+            if (!isset($DIRECTORIES[$version])) {
+                Log::write_log(Language::t("Version %s not found in directories configuration", $version), 1, $version);
+                continue;
+            }
+
+            $dir = $DIRECTORIES[$version];
+
+            Log::write_log(Language::t("Init Mirror for version %s in %s", $version, $dir['name']), 5, $version);
+            Mirror::init($version, $dir);
+
+            static::$foundValidKey = false;
+            $this->read_keys();
+
+            if (static::$foundValidKey == false) {
+                $this->find_keys();
 
                 if (static::$foundValidKey == false) {
-                    $this->find_keys();
+                    Log::write_log(Language::t("The script has been stopped!"), 1, Mirror::$version);
+                    continue;
+                }
+            }
 
-                    if (static::$foundValidKey == false) {
-                        Log::write_log(Language::t("The script has been stopped!"), 1, Mirror::$version);
-                        continue;
-                    }
+            $old_version = Mirror::get_DB_version(Mirror::$local_update_file);
+
+            if (!empty(Mirror::$mirrors)) {
+                if (count(Mirror::$mirrors) > 1) {
+                    $mirror = array_shift(Mirror::$mirrors);
+                } else {
+                    $mirror = Mirror::$mirrors[0];
                 }
 
-                $old_version = Mirror::get_DB_version(Mirror::$local_update_file);
-
-                if (!empty(Mirror::$mirrors)) {
-                    if (count(Mirror::$mirrors) > 1) {
-                        $mirror = array_shift(Mirror::$mirrors);  
-                    } else {
-                        $mirror = Mirror::$mirrors[0];
-                    }
-
-                    if ($old_version && $this->compare_versions($old_version, $mirror['db_version'])) {
-                        Log::informer(Language::t("Your version of database is relevant %s", $old_version), Mirror::$version, 2);
-                        continue;
-                    }
-
+                if ($old_version && $this->compare_versions($old_version, $mirror['db_version'])) {
+                    Log::informer(Language::t("Your version of database is relevant %s", $old_version), Mirror::$version, 2);
+                } else {
                     list($size, $downloads, $speed) = Mirror::download_signature();
                     $this->set_database_size($size);
+
+                    // Save discovered platforms for this version
+                    if (!empty(Mirror::$platforms_found)) {
+                        static::$platforms_found[Mirror::$version] = Mirror::$platforms_found;
+                    }
 
                     if (!Mirror::$updated && $old_version != 0 && !$this->compare_versions($old_version, $mirror['db_version'])) {
                         Log::informer(Language::t("Your database has not been updated!"), Mirror::$version, 1);
@@ -608,12 +745,12 @@ class Nod32ms
                             Log::informer(Language::t("Your database was successfully updated to %s", $mirror['db_version']), Mirror::$version, 2);
                         }
                     }
-                } else {
-                    Log::write_log(Language::t("All mirrors is down!"), 1, Mirror::$version);
                 }
-
-                Mirror::destruct();
+            } else {
+                Log::write_log(Language::t("All mirrors is down!"), 1, Mirror::$version);
             }
+
+            Mirror::destruct();
         }
 
         foreach (glob(Tools::ds(TMP_PATH, '*')) as $folder) {
