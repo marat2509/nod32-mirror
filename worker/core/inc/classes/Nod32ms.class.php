@@ -514,8 +514,8 @@ class Nod32ms
                     foreach ($m_local[0] as $container_local) {
                         $parsed_local = parse_ini_string(
                             preg_replace(
-                                "/version=(.*?)\n/i",
-                                "version=\"\\${1}\"\n",
+                                '/version=(.*?)\n/i',
+                                'version="${1}"\n',
                                 str_replace("\r\n", "\n", $container_local)
                             ),
                             true
