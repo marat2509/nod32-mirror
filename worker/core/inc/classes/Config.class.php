@@ -62,9 +62,9 @@ class Config
             throw new ConfigException(Language::t("ESET mirrors list is not set!"));
         }
 
-        static::$CONF['ESET']['mirror'] = array_map("trim", (explode(",", static::$CONF['ESET']['mirror'])));
+        static::$CONF['ESET']['mirror'] = Tools::parse_comma_list(static::$CONF['ESET']['mirror']);
 
-        /* 
+        /*
         if (!in_array("update.eset.com", static::$CONF['ESET']['mirror'])) {
             static::$CONF['ESET']['mirror'][] = "update.eset.com";
         }

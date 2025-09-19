@@ -15,7 +15,7 @@ Error while parsing update.ver from %s
 From %s downloaded %s [%s] [%s/s]
 Downloading file %s from %s...
 Downloading %d files
-Mirror for %s initiliazed with update_file %s
+Mirror for %s initialized
 Created hard link for %s
 Created symbolic link for %s
 Copied file %s
@@ -67,3 +67,6 @@ TBytes
 PBytes
 EBytes
 ESET mirrors list is not set!
+Platforms
+All
+Filtered %d files from %d total files
