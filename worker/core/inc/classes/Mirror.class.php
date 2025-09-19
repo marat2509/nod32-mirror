@@ -547,7 +547,7 @@ class Mirror
             @mkdir(dirname(static::$local_update_file), 0755, true);
         }
 
-        Log::write_log(Language::t("Mirror for %s initiliazed", static::$name), 5, static::$version);
+        Log::write_log(Language::t("Mirror for %s initialized", static::$name), 5, static::$version);
     }
 
     /**

@@ -15,7 +15,7 @@ Error while parsing update.ver from %s
 From %s downloaded %s [%s] [%s/s]
 Downloading file %s from %s...
 Downloading %d files
-Mirror for %s initiliazed
+Mirror for %s initialized
 Created hard link for %s
 Created symbolic link for %s
 Copied file %s
