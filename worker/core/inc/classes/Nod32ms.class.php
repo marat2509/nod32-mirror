@@ -506,31 +506,7 @@ class Nod32ms
             $dir = $DIRECTORIES[$ver];
             $version_platforms = VersionConfig::get_version_platforms($ver);
 
-            // === Recalculate actually available platforms from existing update.ver ===
-            if (file_exists($update_ver)) {
-                $found = array();
-                $content_local = @file_get_contents($update_ver);
-                if (preg_match_all('#\[\w+\][^\[]+#', $content_local, $m_local)) {
-                    foreach ($m_local[0] as $container_local) {
-                        $parsed_local = parse_ini_string(
-                            preg_replace(
-                                '/version=(.*?)\n/i',
-                                'version="${1}"\n',
-                                str_replace("\r\n", "\n", $container_local)
-                            ),
-                            true
-                        );
-                        $out_local = array_shift($parsed_local);
-                        if (!empty($out_local['platform'])) {
-                            $found[] = $out_local['platform'];
-                        }
-                    }
-                }
-                if (!empty($found)) {
-                    $found = array_unique($found);
-                    static::$platforms_found[$ver] = $found;
-                }
-            }
+            // --- пересчет платформ будет выполнен ниже после определения $update_ver ---
 
             // Format platforms for display (moved below to account for recalculated list)
             $found_platforms = isset(static::$platforms_found[$ver]) ? static::$platforms_found[$ver] : array();
@@ -558,6 +534,30 @@ class Nod32ms
             if (!$source_file) continue;
 
             $update_ver = Tools::ds($web_dir, preg_replace('/eset_upd\/update\.ver/is','eset_upd/v3/update.ver', $source_file));
+            // === Recalculate actually available platforms from existing update.ver ===
+            if (file_exists($update_ver)) {
+                $found = array();
+                $content_local = @file_get_contents($update_ver);
+                if ($content_local !== false && preg_match_all('#\[\w+\][^\[]+#', $content_local, $m_local)) {
+                    foreach ($m_local[0] as $container_local) {
+                        $parsed_ini = @parse_ini_string(
+                            preg_replace('/version=(.*?)\n/i', 'version="${1}"\n', str_replace("\r\n", "\n", $container_local)),
+                            true
+                        );
+                        if ($parsed_ini && is_array($parsed_ini)) {
+                            $out_local = array_shift($parsed_ini);
+                            if (isset($out_local['platform']) && $out_local['platform'] !== '') {
+                                $found[] = $out_local['platform'];
+                            }
+                        }
+                    }
+                }
+                if (!empty($found)) {
+                    $found = array_unique($found);
+                    static::$platforms_found[$ver] = $found;
+                }
+            }
+
             $version = Mirror::get_DB_version($update_ver);
             $timestamp = $this->check_time_stamp($ver, true);
             $size_key = $ver;
