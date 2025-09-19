@@ -3,7 +3,7 @@
 chdir(__DIR__ . "/..");
 
 
-$VERSION = '20240308';
+$VERSION = '20250919';
 
 @define('DS', DIRECTORY_SEPARATOR);
 @define('SELF', dirname(__DIR__) . DS);
