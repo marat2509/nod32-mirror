@@ -506,7 +506,33 @@ class Nod32ms
             $dir = $DIRECTORIES[$ver];
             $version_platforms = VersionConfig::get_version_platforms($ver);
 
-            // Format platforms for display
+            // === Recalculate actually available platforms from existing update.ver ===
+            if (file_exists($update_ver)) {
+                $found = array();
+                $content_local = @file_get_contents($update_ver);
+                if (preg_match_all('#\[\w+\][^\[]+#', $content_local, $m_local)) {
+                    foreach ($m_local[0] as $container_local) {
+                        $parsed_local = parse_ini_string(
+                            preg_replace(
+                                "/version=(.*?)\n/i",
+                                "version=\"\\${1}\"\n",
+                                str_replace("\r\n", "\n", $container_local)
+                            ),
+                            true
+                        );
+                        $out_local = array_shift($parsed_local);
+                        if (!empty($out_local['platform'])) {
+                            $found[] = $out_local['platform'];
+                        }
+                    }
+                }
+                if (!empty($found)) {
+                    $found = array_unique($found);
+                    static::$platforms_found[$ver] = $found;
+                }
+            }
+
+            // Format platforms for display (moved below to account for recalculated list)
             $found_platforms = isset(static::$platforms_found[$ver]) ? static::$platforms_found[$ver] : array();
             if ($version_platforms === true) {
                 // If all platforms allowed, show only those actually found
