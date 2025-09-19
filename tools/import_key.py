@@ -35,11 +35,14 @@ def main() -> None:
     """
     Add a key to ESET config.
 
+    The script reads enabled versions from [ESET.VERSIONS.*] sections
+    where mirror=1, and adds the specified keys for those versions.
+
     Args:
         --config (str, optional): Path to nod32ms.conf.
                                   Defaults to 'nod32ms.conf'.
         --keys_file (str, optional): Path to keys file.
-                                     Defaults to 'docker-data/log/eset_keys.valid'.
+                                     Defaults to 'docker-data/log/nod_keys.valid'.
         --key (str): Key in format LOGIN:PASSWORD, can be used multiple times
                      Has check if key is valid by regex pattern
         --pattern (str): Pattern for keys in format LOGIN:PASSWORD
@@ -71,11 +74,19 @@ def main() -> None:
     config = configparser.ConfigParser(inline_comment_prefixes=";")
     config.read(args.config, encoding="utf-8")
 
-    versions = [
-        key.replace("version", "")
-        for key in config["ESET"].keys()
-        if "version" in key and config["ESET"][key] == "1"
-    ]
+    # Get versions from ESET.VERSIONS section
+    versions = []
+    for section_name in config.sections():
+        if section_name.startswith("ESET.VERSIONS."):
+            version = section_name.replace("ESET.VERSIONS.", "")
+            if config[section_name].get("mirror") == "1":
+                versions.append(version)
+
+    if not versions:
+        print("Warning: No enabled versions found in configuration.")
+        return
+
+    print(f"Found enabled versions: {', '.join(versions)}")
 
     pattern = re.compile(args.pattern)
 

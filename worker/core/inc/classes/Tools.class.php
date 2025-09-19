@@ -261,4 +261,19 @@ class Tools
         }
         return $n;
     }
+
+    /**
+     * Parse comma-separated string into array with trimmed values
+     * @param string $string The comma-separated string to parse
+     * @param string $delimiter The delimiter to use (default: ',')
+     * @return array Array of trimmed values
+     */
+    static public function parse_comma_list($string, $delimiter = ',')
+    {
+        if (empty($string)) {
+            return [];
+        }
+
+        return array_map('trim', explode($delimiter, $string));
+    }
 }
