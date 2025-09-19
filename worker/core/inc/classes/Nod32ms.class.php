@@ -517,6 +517,8 @@ class Nod32ms
 
         if (!empty($found)) {
             $found = array_values(array_unique($found));
+            natcasesort($found);
+            $found = array_values($found);
         }
 
         return $found;
@@ -601,6 +603,11 @@ class Nod32ms
                         $display_platforms = $filtered_platforms;
                     }
                 }
+            }
+
+            if (!empty($display_platforms)) {
+                natcasesort($display_platforms);
+                $display_platforms = array_values($display_platforms);
             }
 
             $platforms_display = !empty($display_platforms) ? implode(', ', $display_platforms) : Language::t("n/a");
