@@ -506,23 +506,6 @@ class Nod32ms
             $dir = $DIRECTORIES[$ver];
             $version_platforms = VersionConfig::get_version_platforms($ver);
 
-            // --- пересчет платформ будет выполнен ниже после определения $update_ver ---
-
-            // Format platforms for display (moved below to account for recalculated list)
-            $found_platforms = isset(static::$platforms_found[$ver]) ? static::$platforms_found[$ver] : array();
-            if ($version_platforms === true) {
-                // If all platforms allowed, show only those actually found
-                if (!empty($found_platforms)) {
-                    $platforms_display = implode(', ', $found_platforms);
-                } else {
-                    $platforms_display = Language::t("n/a");
-                }
-            } else {
-                $version_platforms_arr = is_array($version_platforms) ? $version_platforms : Tools::parse_comma_list($version_platforms);
-                $display_arr = !empty($found_platforms) ? array_intersect($version_platforms_arr, $found_platforms) : array();
-                $platforms_display = !empty($display_arr) ? implode(', ', $display_arr) : Language::t("n/a");
-            }
-
             // Determine source file
             $source_file = null;
             if (isset($dir['file']) && $dir['file'] !== false) {
@@ -534,6 +517,7 @@ class Nod32ms
             if (!$source_file) continue;
 
             $update_ver = Tools::ds($web_dir, preg_replace('/eset_upd\/update\.ver/is','eset_upd/v3/update.ver', $source_file));
+
             // === Recalculate actually available platforms from existing update.ver ===
             if (file_exists($update_ver)) {
                 $found = array();
@@ -556,6 +540,21 @@ class Nod32ms
                     $found = array_unique($found);
                     static::$platforms_found[$ver] = $found;
                 }
+            }
+
+            // Format platforms for display (after recalculating platforms)
+            $found_platforms = isset(static::$platforms_found[$ver]) ? static::$platforms_found[$ver] : array();
+            if ($version_platforms === true) {
+                // If all platforms allowed, show only those actually found
+                if (!empty($found_platforms)) {
+                    $platforms_display = implode(', ', $found_platforms);
+                } else {
+                    $platforms_display = Language::t("n/a");
+                }
+            } else {
+                $version_platforms_arr = is_array($version_platforms) ? $version_platforms : Tools::parse_comma_list($version_platforms);
+                $display_arr = !empty($found_platforms) ? array_intersect($version_platforms_arr, $found_platforms) : array();
+                $platforms_display = !empty($display_arr) ? implode(', ', $display_arr) : Language::t("n/a");
             }
 
             $version = Mirror::get_DB_version($update_ver);
