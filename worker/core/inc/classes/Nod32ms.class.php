@@ -677,9 +677,15 @@ class Nod32ms
         $total_downloads = array();
         $average_speed = array();
 
+        $stored_sizes = $this->get_databases_size();
 
         // Get enabled versions from new config structure
         $enabled_versions = VersionConfig::get_enabled_versions();
+
+        if (!empty($stored_sizes) && !empty($enabled_versions)) {
+            $stored_sizes = array_map('intval', $stored_sizes);
+            $total_size = array_intersect_key($stored_sizes, array_flip($enabled_versions));
+        }
 
         foreach ($enabled_versions as $version) {
             if (!isset($DIRECTORIES[$version])) {
