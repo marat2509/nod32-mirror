@@ -58,6 +58,14 @@ class Config
 
         static::$CONF = parse_ini_file(CONF_FILE, true);
 
+        if (!isset(static::$CONF['SCRIPT']['generate_json'])) {
+            static::$CONF['SCRIPT']['generate_json'] = '0';
+        }
+
+        if (empty(static::$CONF['SCRIPT']['filename_json'])) {
+            static::$CONF['SCRIPT']['filename_json'] = 'index.json';
+        }
+
         if (empty(static::$CONF['ESET']['mirror'])) {
             throw new ConfigException(Language::t("ESET mirrors list is not set!"));
         }

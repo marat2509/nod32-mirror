@@ -543,6 +543,31 @@ class Nod32ms
         return $platforms;
     }
 
+    private function format_size_decimal($bytes)
+    {
+        if ($bytes === null) {
+            return null;
+        }
+
+        $units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB'];
+        $value = (float) $bytes;
+        $index = 0;
+
+        while ($value >= 1000 && $index < count($units) - 1) {
+            $value /= 1000;
+            $index++;
+        }
+
+        $formatted = number_format($value, 6, '.', '');
+        $formatted = rtrim(rtrim($formatted, '0'), '.');
+
+        if ($formatted === '') {
+            $formatted = '0';
+        }
+
+        return $formatted . ' ' . $units[$index];
+    }
+
     private function generate_html()
     {
         Log::write_log(Language::t("Running %s", __METHOD__), 5, null);
@@ -665,6 +690,121 @@ class Nod32ms
         Log::write_to_file($file, Tools::conv($html_page, Config::get('SCRIPT')['html_codepage']));
     }
 
+    private function generate_json()
+    {
+        Log::write_log(Language::t("Running %s", __METHOD__), 5, null);
+        global $DIRECTORIES;
+
+        $web_dir = Config::get('SCRIPT')['web_dir'];
+        $enabled_versions = VersionConfig::get_enabled_versions();
+        $total_sizes = $this->get_databases_size();
+
+        if (!is_array($total_sizes)) {
+            $total_sizes = [];
+        } else {
+            $total_sizes = array_map('intval', $total_sizes);
+        }
+
+        $versions = [];
+        $latest_update = null;
+
+        foreach ($enabled_versions as $version) {
+            if (!isset($DIRECTORIES[$version])) {
+                continue;
+            }
+
+            $dir = $DIRECTORIES[$version];
+            $update_path = $this->get_update_file_path($dir, $web_dir);
+            $found_platforms = $this->get_platforms_for_version($version, $dir, $web_dir, $update_path);
+            $display_platforms = $found_platforms;
+
+            $version_platforms = VersionConfig::get_version_platforms($version);
+            if ($version_platforms !== true && $version_platforms !== null) {
+                $allowed_platforms = is_array($version_platforms) ? $version_platforms : Tools::parse_comma_list($version_platforms);
+
+                if (!empty($allowed_platforms)) {
+                    $filtered_platforms = array_values(array_intersect($found_platforms, $allowed_platforms));
+
+                    if (!empty($filtered_platforms)) {
+                        $display_platforms = $filtered_platforms;
+                    }
+                }
+            }
+
+            if (!empty($display_platforms)) {
+                natcasesort($display_platforms);
+                $display_platforms = array_values(array_unique($display_platforms));
+            } else {
+                $display_platforms = [];
+            }
+
+            $db_version = null;
+            if ($update_path) {
+                $db_version = Mirror::get_DB_version($update_path);
+                if ($db_version !== null) {
+                    $db_version = (int) $db_version;
+                }
+            }
+
+            $size_bytes = isset($total_sizes[$version]) ? (int) $total_sizes[$version] : null;
+            $timestamp = $this->check_time_stamp($version, true);
+            $last_update = $timestamp ? date('c', $timestamp) : null;
+
+            if ($timestamp && ($latest_update === null || $timestamp > $latest_update)) {
+                $latest_update = $timestamp;
+            }
+
+            $versions[$version] = [
+                'name' => $dir['name'],
+                'platforms' => $display_platforms,
+                'database' => [
+                    'version' => $db_version,
+                    'size' => [
+                        'bytes' => $size_bytes,
+                        'pretty' => $size_bytes !== null ? $this->format_size_decimal($size_bytes) : null,
+                    ],
+                    'last_update' => $last_update,
+                ],
+                'files' => [
+                    'file' => (isset($dir['file']) && $dir['file'] !== false) ? $dir['file'] : false,
+                    'dll' => (isset($dir['dll']) && $dir['dll'] !== false) ? $dir['dll'] : false,
+                ],
+            ];
+        }
+
+        $total_bytes = 0;
+
+        if (!empty($total_sizes) && !empty($enabled_versions)) {
+            $total_bytes = array_sum(array_intersect_key($total_sizes, array_flip($enabled_versions)));
+        }
+
+        $summary = [
+            'title' => Language::t("ESET NOD32 update server"),
+            'last_update' => $latest_update ? date('c', $latest_update) : date('c', static::$start_time ?: time()),
+            'total_size' => [
+                'bytes' => $total_bytes,
+                'pretty' => $this->format_size_decimal($total_bytes),
+            ],
+            'versions' => $versions,
+        ];
+
+        $json = json_encode($summary, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        if ($json === false) {
+            Log::write_log('JSON encoding failed: ' . json_last_error_msg(), 1, null);
+            return;
+        }
+
+        $file = Tools::ds($web_dir, Config::get('SCRIPT')['filename_json']);
+
+        if (!is_dir(dirname($file))) {
+            @mkdir(dirname($file), 0755, true);
+        }
+
+        file_put_contents($file, $json . PHP_EOL);
+    }
+
+
     /**
      * @throws Exception
      * @throws ToolsException
@@ -767,6 +907,8 @@ class Nod32ms
             Log::write_log(Language::t("Average speed for all databases: %s/s", Tools::bytesToSize1024(array_sum($average_speed) / count($average_speed))), 3);
 
         if (Config::get('SCRIPT')['generate_html'] == '1') $this->generate_html();
+
+        if (Config::get('SCRIPT')['generate_json'] == '1') $this->generate_json();
     }
 
     private function clear_tmp($path)
