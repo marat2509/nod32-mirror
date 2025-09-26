@@ -27,6 +27,10 @@ class Mirror
      */
     static public $source_update_file = null;
 
+    static public $update_variants = array();
+
+    static public $primary_variant = null;
+
     /**
      * @var null
      */
@@ -190,16 +194,24 @@ class Mirror
      * @param $mirror
      * @throws ToolsException
      */
-    static public function download_update_ver($mirror, $downloadRandomFile = false)
+    static public function download_update_ver($mirror, $downloadRandomFile = false, $variantKey = null)
     {
         Log::write_log(Language::t("Running %s", __METHOD__), 5, static::$version);
-        $tmp_path = dirname(static::$tmp_update_file);
+
+        $variantKey = $variantKey ?: static::$primary_variant;
+
+        if (empty(static::$update_variants[$variantKey])) {
+            return;
+        }
+
+        $variant = static::$update_variants[$variantKey];
+        $tmp_path = dirname($variant['tmp']);
         $archive = Tools::ds($tmp_path, 'update.rar');
-        $extracted = Tools::ds($tmp_path, 'update.ver');
+        $extracted = $variant['tmp'];
         Tools::download_file(
             [
                 CURLOPT_USERPWD => static::$key[0] . ":" . static::$key[1],
-                CURLOPT_URL => "http://" . "$mirror/" . static::$source_update_file,
+                CURLOPT_URL => "http://" . $mirror . "/" . $variant['source'],
                 CURLOPT_FILE => $archive
             ],
             $headers
@@ -217,9 +229,13 @@ class Mirror
             } else {
                 rename($archive, $extracted);
             }
-            if (!$downloadRandomFile) return;
+
+            if (!$downloadRandomFile) {
+                return;
+            }
+
             $content = @file_get_contents($extracted);
-            if (preg_match_all('#\[\w+\][^\[]+#', $content, $matches))
+            if (preg_match_all('#\\[\\w+\\][^\\[]+#', $content, $matches))
             {
                 list($new_files, $total_size, $new_content) = static::parse_update_file($matches[0]);
                 $new_files = array_filter($new_files, function($v, $k) {
@@ -240,39 +256,56 @@ class Mirror
     static public function download_signature()
     {
         Log::write_log(Language::t("Running %s", __METHOD__), 5, static::$version);
-        static::download_update_ver(current(static::$mirrors)['host']);
+
+        if (empty(static::$update_variants)) {
+            return array(null, static::$total_downloads, null);
+        }
+
         $web_dir = Config::get('SCRIPT')['web_dir'];
-        $cur_update_ver = static::$local_update_file;
-        $tmp_update_ver = static::$tmp_update_file;
-        $content = @file_get_contents($tmp_update_ver);
-        $start_time = microtime(true);
-        preg_match_all('#\[\w+\][^\[]+#', $content, $matches);
+        $mirror = !empty(static::$mirrors) ? current(static::$mirrors) : null;
+        $mirrorHost = $mirror ? $mirror['host'] : null;
         $total_size = null;
-        $average_speed = null;
+        $total_duration = 0;
+        $total_downloaded = 0;
+        $all_needed_files = array();
+        $processed = false;
 
-        if (!empty($matches)) {
-            // Parse files from .ver file
-            list($new_files, $total_size, $new_content) = static::parse_update_file($matches[0]);
+        foreach (static::$update_variants as $variantKey => $paths) {
+            $result = static::process_update_variant($variantKey, $paths, $web_dir, $mirrorHost);
 
-            // Create hardlinks/copy file for empty needed files (name, size)
-            list($download_files, $needed_files) = static::create_links($web_dir, $new_files);
-
-            // Download files
-            if (!empty($download_files)) {
-                static::download_files($download_files);
-                static::$updated = !static::$unAuthorized;
+            if (empty($result['processed'])) {
+                continue;
             }
+
+            $processed = true;
+
+            if ($result['size'] !== null) {
+                if ($total_size === null) {
+                    $total_size = 0;
+                }
+                $total_size += $result['size'];
+            }
+
+            if (!empty($result['needed_files'])) {
+                $all_needed_files = array_merge($all_needed_files, $result['needed_files']);
+            }
+
+            $total_duration += $result['duration'];
+            $total_downloaded += $result['downloaded'];
+        }
+
+        if ($processed) {
+            $all_needed_files = array_values(array_unique($all_needed_files));
             $version = static::$version == 'v5' ? 'ep5' : static::$version;
-            // Delete not needed files
+
             foreach (glob(Tools::ds($web_dir, $version . "-*"), GLOB_ONLYDIR) as $file) {
-                $del_files = static::del_files($file, $needed_files);
+                $del_files = static::del_files($file, $all_needed_files);
                 if ($del_files > 0) {
                     static::$updated = true;
                     Log::write_log(Language::t("Deleted files: %s", $del_files), 3, static::$version);
                 }
             }
 
-            // Delete empty folders
             foreach (glob(Tools::ds($web_dir, $version . "-*"), GLOB_ONLYDIR) as $folder) {
                 $del_folders = static::del_folders($folder);
                 if ($del_folders > 0) {
@@ -281,25 +314,90 @@ class Mirror
                 }
             }
 
-            //if (!file_exists(dirname($cur_update_ver))) @mkdir(dirname($cur_update_ver), 0755, true);
-            @file_put_contents($cur_update_ver, $new_content);
-
-            Log::write_log(Language::t("Total database size: %s", Tools::bytesToSize1024($total_size)), 3, static::$version);
-
-            if (count($download_files) > 0) {
-                $average_speed = round(static::$total_downloads / (microtime(true) - $start_time));
-                Log::write_log(Language::t("Total downloaded: %s", Tools::bytesToSize1024(static::$total_downloads)), 3, static::$version);
-                Log::write_log(Language::t("Average speed: %s/s", Tools::bytesToSize1024($average_speed)), 3, static::$version);
+            if (static::$updated) {
+                static::fix_time_stamp();
             }
-
-            if (static::$updated) static::fix_time_stamp();
         } else {
-            Log::write_log(Language::t("Error while parsing update.ver from %s", current(static::$mirrors)['host']), 3, static::$version);
+            $logHost = $mirrorHost ?: 'unknown';
+            Log::write_log(Language::t("Error while parsing update.ver from %s", $logHost), 3, static::$version);
         }
-        @unlink($tmp_update_ver);
+
+        $average_speed = ($total_downloaded > 0 && $total_duration > 0)
+            ? round($total_downloaded / $total_duration)
+            : null;
+
         return array($total_size, static::$total_downloads, $average_speed);
     }
 
+    static protected function process_update_variant($variantKey, $paths, $web_dir, $mirrorHost)
+    {
+        $result = array(
+            'processed' => false,
+            'size' => null,
+            'needed_files' => array(),
+            'duration' => 0,
+            'downloaded' => 0
+        );
+
+        if (!$mirrorHost) {
+            return $result;
+        }
+
+        static::download_update_ver($mirrorHost, false, $variantKey);
+
+        $tmp_update_ver = $paths['tmp'];
+        $local_update_ver = $paths['local'];
+        $content = @file_get_contents($tmp_update_ver);
+
+        if ($content === false) {
+            Log::write_log(Language::t("Error while parsing update.ver from %s", $mirrorHost) . " ({$variantKey})", 3, static::$version);
+            @unlink($tmp_update_ver);
+            return $result;
+        }
+
+        preg_match_all('#\\[\w+\][^\[]+#', $content, $matches);
+
+        if (empty($matches[0])) {
+            Log::write_log(Language::t("Error while parsing update.ver from %s", $mirrorHost) . " ({$variantKey})", 3, static::$version);
+            @unlink($tmp_update_ver);
+            return $result;
+        }
+
+        list($new_files, $total_size, $new_content) = static::parse_update_file($matches[0]);
+        list($download_files, $needed_files) = static::create_links($web_dir, $new_files);
+
+        $before_download = static::$total_downloads;
+        $start_time = microtime(true);
+
+        if (!empty($download_files)) {
+            static::download_files($download_files);
+            if (!static::$unAuthorized) {
+                static::$updated = true;
+            }
+        }
+
+        $duration = (!empty($download_files)) ? (microtime(true) - $start_time) : 0;
+        $downloaded = static::$total_downloads - $before_download;
+
+        @file_put_contents($local_update_ver, $new_content);
+        @unlink($tmp_update_ver);
+
+        Log::write_log(Language::t("Total database size: %s", Tools::bytesToSize1024($total_size)) . " ({$variantKey})", 3, static::$version);
+
+        if ($downloaded > 0 && $duration > 0) {
+            $speed = round($downloaded / $duration);
+            Log::write_log(Language::t("Total downloaded: %s", Tools::bytesToSize1024($downloaded)) . " ({$variantKey})", 3, static::$version);
+            Log::write_log(Language::t("Average speed: %s/s", Tools::bytesToSize1024($speed)) . " ({$variantKey})", 3, static::$version);
+        }
+
+        $result['processed'] = true;
+        $result['size'] = $total_size;
+        $result['needed_files'] = $needed_files;
+        $result['duration'] = $duration;
+        $result['downloaded'] = max($downloaded, 0);
+
+        return $result;
+    }
 
     static protected function multiple_download($download_files, $onlyCheck = false, $checkedMirror = null)
     {
@@ -534,17 +632,45 @@ class Mirror
         // Initialize discovered platforms array
         static::$platforms_found = array();
 
-        // Set source file from directory config
-        static::$source_update_file = !empty($dir['file']) ? $dir['file'] : $dir['dll'];
+        // Set update variants from directory config
+        static::$update_variants = array();
+        static::$primary_variant = null;
+        static::$source_update_file = null;
+        static::$tmp_update_file = null;
+        static::$local_update_file = null;
 
-        // Set update file paths
-        if (static::$source_update_file) {
-            $fixed_update_file = preg_replace('/eset_upd\/update\.ver/is','eset_upd/v3/update.ver', static::$source_update_file);
-            static::$tmp_update_file = Tools::ds(TMP_PATH, $fixed_update_file);
-            static::$local_update_file = Tools::ds(Config::get('SCRIPT')['web_dir'], $fixed_update_file);
+        foreach (array('file', 'dll') as $variantKey) {
+            if (empty($dir[$variantKey])) {
+                continue;
+            }
 
-            @mkdir(dirname(static::$tmp_update_file), 0755, true);
-            @mkdir(dirname(static::$local_update_file), 0755, true);
+            $fixed_update_file = preg_replace('/eset_upd\/update\.ver/is', 'eset_upd/v3/update.ver', $dir[$variantKey]);
+            $tmpPath = Tools::ds(TMP_PATH, $fixed_update_file);
+            $localPath = Tools::ds(Config::get('SCRIPT')['web_dir'], $fixed_update_file);
+
+            static::$update_variants[$variantKey] = array(
+                'source' => $dir[$variantKey],
+                'fixed' => $fixed_update_file,
+                'tmp' => $tmpPath,
+                'local' => $localPath
+            );
+
+            @mkdir(dirname($tmpPath), 0755, true);
+            @mkdir(dirname($localPath), 0755, true);
+        }
+
+        if (isset(static::$update_variants['file'])) {
+            static::$primary_variant = 'file';
+        } elseif (!empty(static::$update_variants)) {
+            $variantKeys = array_keys(static::$update_variants);
+            static::$primary_variant = reset($variantKeys);
+        }
+
+        if (static::$primary_variant) {
+            $primary = static::$update_variants[static::$primary_variant];
+            static::$source_update_file = $primary['source'];
+            static::$tmp_update_file = $primary['tmp'];
+            static::$local_update_file = $primary['local'];
         }
 
         Log::write_log(Language::t("Mirror for %s initialized", static::$name), 5, static::$version);
@@ -569,6 +695,10 @@ class Mirror
         static::$total_downloads = 0;
         static::$version = null;
         static::$source_update_file = null;
+        static::$tmp_update_file = null;
+        static::$local_update_file = null;
+        static::$update_variants = array();
+        static::$primary_variant = null;
         static::$name = null;
         static::$mirrors = array();
         static::$key = array();
