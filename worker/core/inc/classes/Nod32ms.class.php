@@ -543,7 +543,7 @@ class Nod32ms
         return $platforms;
     }
 
-    private function format_size_decimal($bytes)
+    private function format_size_decimal($bytes, $decimal_places = 2)
     {
         if ($bytes === null) {
             return null;
@@ -558,7 +558,12 @@ class Nod32ms
             $index++;
         }
 
-        $formatted = number_format($value, 6, '.', '');
+        if ($decimal_places === false) {
+            $formatted = number_format($value, 6, '.', '');
+        } else {
+            $formatted = number_format($value, $decimal_places, '.', '');
+        }
+
         $formatted = rtrim(rtrim($formatted, '0'), '.');
 
         if ($formatted === '') {
