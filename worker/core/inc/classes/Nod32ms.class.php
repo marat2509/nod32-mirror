@@ -770,6 +770,26 @@ class Nod32ms
                     'dll' => (isset($dir['dll']) && $dir['dll'] !== false) ? $dir['dll'] : false,
                 ],
             ];
+
+            if (Config::get('SCRIPT')['show_login_password']) {
+                if (file_exists(static::$key_valid_file)) {
+                    $keys = Parser::parse_keys(static::$key_valid_file);
+                    $credentials = [];
+                    foreach ($keys as $k) {
+                        $key = explode(":", $k);
+                        // Check if the version of the key matches the current version being processed
+                        // If version is not specified in key, or it matches the current version, include it
+                        if (!isset($key[2]) || $key[2] == $version) {
+                            $credentials[] = [
+                                "login" => $key[0],
+                                "password" => $key[1],
+                                "version" => $key[2]
+                            ];
+                        }
+                    }
+                    $versions[$version]['credentials'] = $credentials;
+                }
+            }
         }
 
         $total_bytes = 0;
