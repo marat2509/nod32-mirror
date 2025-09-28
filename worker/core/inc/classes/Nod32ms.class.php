@@ -549,7 +549,15 @@ class Nod32ms
             return null;
         }
 
-        $units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB'];
+        $units = [
+            Language::t("Bytes"),
+            Language::t("KBytes"),
+            Language::t("MBytes"),
+            Language::t("GBytes"),
+            Language::t("TBytes"),
+            Language::t("PBytes"),
+            Language::t("EBytes")
+        ];
         $value = (float) $bytes;
         $index = 0;
 
