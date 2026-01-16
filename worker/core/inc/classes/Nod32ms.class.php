@@ -524,6 +524,27 @@ class Nod32ms
     }
 
     /**
+     * Normalize absolute update.ver path to a web-facing relative path.
+     */
+    private function get_public_update_path($fullPath, $web_dir)
+    {
+        if (!$fullPath) {
+            return false;
+        }
+
+        $normalizedBase = rtrim(str_replace(['/', '\\'], DS, $web_dir), DS);
+        $normalizedPath = str_replace(['/', '\\'], DS, $fullPath);
+
+        if ($normalizedBase !== '' && strpos($normalizedPath, $normalizedBase) === 0) {
+            $relative = ltrim(substr($normalizedPath, strlen($normalizedBase)), DS);
+        } else {
+            $relative = $normalizedPath;
+        }
+
+        return str_replace(DS, '/', $relative);
+    }
+
+    /**
      * Helper to find best available update path for metadata extraction
      */
     private function find_best_update_path($dir, $web_dir) {
@@ -806,39 +827,48 @@ class Nod32ms
             }
 
             $dir = $DIRECTORIES[$version];
-            
+
             // Generate detailed channels info
             $channelsInfo = [];
             $channelsList = isset($dir['channels']) ? array_keys($dir['channels']) : ['default'];
-            
+
             if (isset($dir['channels'])) {
                 foreach ($dir['channels'] as $channelName => $channelData) {
-                    $channelUpdatePath = $this->get_update_file_path($dir, $web_dir, $channelName, 'file');
-                    if (!$channelUpdatePath) {
-                        $channelUpdatePath = $this->get_update_file_path($dir, $web_dir, $channelName, 'dll');
-                    }
+                    $filePath = (isset($channelData['file']) && $channelData['file'] !== false)
+                        ? $this->get_update_file_path($dir, $web_dir, $channelName, 'file')
+                        : null;
+                    $dllPath = (isset($channelData['dll']) && $channelData['dll'] !== false)
+                        ? $this->get_update_file_path($dir, $web_dir, $channelName, 'dll')
+                        : null;
+                    $channelUpdatePath = $filePath ?: $dllPath;
 
                     $channelDbVersion = null;
                     if ($channelUpdatePath) {
                         $channelDbVersion = Mirror::get_DB_version($channelUpdatePath);
                         if ($channelDbVersion !== null) $channelDbVersion = (int) $channelDbVersion;
                     }
-                    
+
                     $channelsInfo[$channelName] = [
                         'database_version' => $channelDbVersion,
                         'files' => [
-                             'file' => (isset($channelData['file']) && $channelData['file'] !== false) ? $channelData['file'] : false,
-                             'dll' => (isset($channelData['dll']) && $channelData['dll'] !== false) ? $channelData['dll'] : false,
-                        ]
+                             'file' => $this->get_public_update_path($filePath, $web_dir),
+                             'dll' => $this->get_public_update_path($dllPath, $web_dir),
+                         ]
                     ];
                 }
             } else {
                  // Legacy support in JSON
+                 $filePath = (isset($dir['file']) && $dir['file'] !== false)
+                     ? $this->get_update_file_path($dir, $web_dir, null, 'file')
+                     : null;
+                 $dllPath = (isset($dir['dll']) && $dir['dll'] !== false)
+                     ? $this->get_update_file_path($dir, $web_dir, null, 'dll')
+                     : null;
                  $channelsInfo['default'] = [
                      'database_version' => null, // Will be filled below if needed
                      'files' => [
-                        'file' => isset($dir['file']) ? $dir['file'] : false,
-                        'dll' => isset($dir['dll']) ? $dir['dll'] : false,
+                        'file' => $this->get_public_update_path($filePath, $web_dir),
+                        'dll' => $this->get_public_update_path($dllPath, $web_dir),
                      ]
                  ];
             }
