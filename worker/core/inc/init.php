@@ -128,6 +128,7 @@ $DIRECTORIES = [
                 'file' => 'eset_upd/v10/pre/update.ver',
                 'dll' => false
             ]
+        ]
     ],
     'v16' => [
         'name' => 'ESET NOD32 14-19',
