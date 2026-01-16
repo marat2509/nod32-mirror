@@ -153,6 +153,7 @@
       padding: 18px 24px;
       font-size: 0.95rem;
       border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+      vertical-align: top;
     }
 
     th {
@@ -169,6 +170,22 @@
     tbody tr:hover {
       background: rgba(56, 189, 248, 0.06);
     }
+
+    .channel-badge {
+      display: inline-flex;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border: 1px solid currentColor;
+    }
+    .channel-production { color: #22c55e; background: rgba(34, 197, 94, 0.1); border-color: rgba(34, 197, 94, 0.3); }
+    .channel-deferred { color: #f59e0b; background: rgba(245, 158, 11, 0.1); border-color: rgba(245, 158, 11, 0.3); }
+    .channel-pre-release { color: #8b5cf6; background: rgba(139, 92, 246, 0.1); border-color: rgba(139, 92, 246, 0.3); }
+    .channel-default { color: var(--text-muted); background: rgba(148, 163, 184, 0.1); border-color: rgba(148, 163, 184, 0.3); }
+
 
     .platform-badges {
       display: flex;
@@ -219,6 +236,7 @@
       gap: 12px;
       align-items: center;
       font-size: 0.9rem;
+      flex-wrap: wrap;
     }
 
     .files a {
@@ -387,7 +405,7 @@
 
   <section class="table-card">
     <header>
-      <h2>Версии и платформы</h2>
+      <h2>Версии и каналы</h2>
       <span class="badge" id="table-badge">—</span>
     </header>
     <div class="table-wrapper">
@@ -395,9 +413,9 @@
         <thead>
           <tr>
             <th>Версия</th>
+            <th>Канал</th>
             <th>Платформы</th>
             <th>База</th>
-            <th>Размер базы</th>
             <th>Файлы</th>
             <th>Обновлено</th>
           </tr>
@@ -487,7 +505,21 @@
     return wrap;
   }
 
-  function createFileLinks(versionKey, files) {
+  function createChannelBadge(channel) {
+    const b = document.createElement('span');
+    b.className = `channel-badge channel-${channel.toLowerCase()}`;
+    b.textContent = channel;
+    // fallback for unknown channels
+    if (!b.classList.contains('channel-production') &&
+        !b.classList.contains('channel-deferred') &&
+        !b.classList.contains('channel-pre-release') &&
+        !b.classList.contains('channel-default')) {
+        b.classList.add('channel-default');
+    }
+    return b;
+  }
+
+  function createFileLinks(versionKey, channelName, files) {
     const { file, dll } = files || {};
     const div = document.createElement('div');
     div.className = 'files';
@@ -497,7 +529,7 @@
       a.href = file;
       a.target = '_blank';
       a.rel = 'noopener';
-      a.title = `update.ver для ${versionKey}`;
+      a.title = `update.ver для ${versionKey} (${channelName})`;
       a.textContent = 'Файл';
       parts.push(a);
     }
@@ -506,7 +538,7 @@
       a.href = dll;
       a.target = '_blank';
       a.rel = 'noopener';
-      a.title = `dll/update.ver для ${versionKey}`;
+      a.title = `dll/update.ver для ${versionKey} (${channelName})`;
       a.textContent = 'DLL';
       parts.push(a);
     }
@@ -594,54 +626,83 @@
     const frag = document.createDocumentFragment();
 
     for (const [key, data] of entries) {
-      const tr = document.createElement('tr');
+      const channels = data.channels || { default: { database_version: data.database?.version, files: data.files } };
+      const channelEntries = Object.entries(channels);
 
-      const tdVer = document.createElement('td');
-      tdVer.setAttribute('data-label', 'Версия');
-      tdVer.innerHTML = `
-        <div style="display:flex; flex-direction:column; gap:6px;">
-          <strong></strong>
-          <small style="color:var(--text-muted); font-size:0.8rem;"></small>
-        </div>
-      `;
-      tdVer.querySelector('strong').textContent = data?.name || key;
-      tdVer.querySelector('small').textContent = String(key).toUpperCase();
+      channelEntries.forEach(([channelName, channelData], index) => {
+          const tr = document.createElement('tr');
 
-      const tdPlat = document.createElement('td');
-      tdPlat.setAttribute('data-label', 'Платформы');
-      tdPlat.appendChild(createPlatformBadges(data?.platforms));
+          // Version column (only for first channel row, spans multiple rows if needed)
+          if (index === 0) {
+              const tdVer = document.createElement('td');
+              tdVer.setAttribute('data-label', 'Версия');
+              if (channelEntries.length > 1) {
+                  tdVer.rowSpan = channelEntries.length;
+              }
+              tdVer.innerHTML = `
+                <div style="display:flex; flex-direction:column; gap:6px;">
+                  <strong></strong>
+                  <small style="color:var(--text-muted); font-size:0.8rem;"></small>
+                </div>
+                <div style="margin-top:8px;"></div>
+              `;
+              tdVer.querySelector('strong').textContent = data?.name || key;
+              tdVer.querySelector('small').textContent = String(key).toUpperCase();
 
-      const tdDb = document.createElement('td');
-      tdDb.setAttribute('data-label', 'База');
-      tdDb.innerHTML = `
-        <div style="display:flex; flex-direction:column; gap:4px;">
-          <span style="font-weight:600; font-size:1rem;"></span>
-          <small style="color:var(--text-muted); font-size:0.8rem;">Version ID</small>
-        </div>
-      `;
-      tdDb.querySelector('span').textContent = data?.database?.version ?? '—';
+              // Add size info to version cell as it applies to the whole version
+              const sizeContainer = buildSizeCell(data?.database?.size?.bytes);
+              tdVer.querySelector('div:last-child').appendChild(sizeContainer);
 
-      const tdSize = document.createElement('td');
-      tdSize.setAttribute('data-label', 'Размер базы');
-      tdSize.appendChild(buildSizeCell(data?.database?.size?.bytes));
+              tr.appendChild(tdVer);
+          }
 
-      const tdFiles = document.createElement('td');
-      tdFiles.setAttribute('data-label', 'Файлы');
-      tdFiles.appendChild(createFileLinks(key, data?.files));
+          // Channel column
+          const tdChannel = document.createElement('td');
+          tdChannel.setAttribute('data-label', 'Канал');
+          tdChannel.appendChild(createChannelBadge(channelName));
+          tr.appendChild(tdChannel);
 
-      const tdTime = document.createElement('td');
-      tdTime.className = 'timestamp';
-      tdTime.setAttribute('data-label', 'Обновлено');
-      const abs = document.createElement('span');
-      abs.textContent = formatAbsolute(data?.database?.last_update);
-      const rel = document.createElement('small');
-      rel.textContent = formatRelative(data?.database?.last_update);
-      tdTime.appendChild(abs);
-      tdTime.appendChild(rel);
-      tdTime.setAttribute('data-iso-updated', data?.database?.last_update || '');
+          // Platforms (taken from main version info, as they are likely same)
+          const tdPlat = document.createElement('td');
+          tdPlat.setAttribute('data-label', 'Платформы');
+          tdPlat.appendChild(createPlatformBadges(data?.platforms));
+          tr.appendChild(tdPlat);
 
-      tr.append(tdVer, tdPlat, tdDb, tdSize, tdFiles, tdTime);
-      frag.appendChild(tr);
+          // Database Version
+          const tdDb = document.createElement('td');
+          tdDb.setAttribute('data-label', 'База');
+          tdDb.innerHTML = `
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              <span style="font-weight:600; font-size:1rem;"></span>
+              <small style="color:var(--text-muted); font-size:0.8rem;">Version ID</small>
+            </div>
+          `;
+          tdDb.querySelector('span').textContent = channelData?.database_version ?? '—';
+          tr.appendChild(tdDb);
+
+          // Files
+          const tdFiles = document.createElement('td');
+          tdFiles.setAttribute('data-label', 'Файлы');
+          tdFiles.appendChild(createFileLinks(key, channelName, channelData?.files));
+          tr.appendChild(tdFiles);
+
+          // Updated Time (using main version update time as fallback)
+          const tdTime = document.createElement('td');
+          tdTime.className = 'timestamp';
+          tdTime.setAttribute('data-label', 'Обновлено');
+
+          const updateTime = data?.database?.last_update;
+          const abs = document.createElement('span');
+          abs.textContent = formatAbsolute(updateTime);
+          const rel = document.createElement('small');
+          rel.textContent = formatRelative(updateTime);
+          tdTime.appendChild(abs);
+          tdTime.appendChild(rel);
+          tdTime.setAttribute('data-iso-updated', updateTime || '');
+          tr.appendChild(tdTime);
+
+          frag.appendChild(tr);
+      });
     }
 
     body.replaceChildren(frag);

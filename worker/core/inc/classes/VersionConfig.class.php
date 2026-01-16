@@ -71,6 +71,43 @@ class VersionConfig
     }
 
     /**
+     * Get channels for version
+     * @param string $version
+     * @return array|bool
+     */
+    public static function get_version_channels($version)
+    {
+        // First check version-specific config
+        $version_config = self::get_version_config($version);
+        if ($version_config && isset($version_config['channels'])) {
+            $channels = $version_config['channels'];
+
+            // If channels is empty, true, or null, return all channels
+            if (empty($channels) || $channels === true || $channels === null) {
+                return true;
+            }
+
+            return Tools::parse_comma_list($channels);
+        }
+
+        // If no version-specific config, check global config
+        $global_config = Config::get('ESET.VERSIONS');
+        if ($global_config && isset($global_config['channels'])) {
+            $channels = $global_config['channels'];
+
+            // If channels is empty, true, or null, return all channels
+            if (empty($channels) || $channels === true || $channels === null) {
+                return true;
+            }
+
+            return Tools::parse_comma_list($channels);
+        }
+
+        // No channels specified anywhere - download all available channels
+        return true;
+    }
+
+    /**
      * Get all enabled versions
      * @return array
      */
