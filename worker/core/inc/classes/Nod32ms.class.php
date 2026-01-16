@@ -472,13 +472,13 @@ class Nod32ms
             $targetChannel = $channel ?: 'production';
 
             // Try to find in specific channel
-            if (isset($dir['channels'][$targetChannel][$type])) {
+            if (isset($dir['channels'][$targetChannel][$type]) && $dir['channels'][$targetChannel][$type] !== false) {
                 $source_file = $dir['channels'][$targetChannel][$type];
             }
             // Fallback to first available channel if not found and no specific channel requested
             elseif (!$channel) {
                 foreach ($dir['channels'] as $chName => $chData) {
-                    if (isset($chData[$type])) {
+                    if (isset($chData[$type]) && $chData[$type] !== false) {
                         $source_file = $chData[$type];
                         $targetChannel = $chName;
                         break;
@@ -521,6 +521,40 @@ class Nod32ms
         }
 
         return Tools::ds($web_dir, $fixed_file);
+    }
+
+    /**
+     * Helper to find best available update path for metadata extraction
+     */
+    private function find_best_update_path($dir, $web_dir) {
+        // Priority list
+        $priorities = [
+            ['channel' => 'production', 'type' => 'file'],
+            ['channel' => 'production', 'type' => 'dll'],
+        ];
+
+        // Add other channels as fallback
+        if (isset($dir['channels'])) {
+            foreach ($dir['channels'] as $chName => $chData) {
+                if ($chName === 'production') continue;
+                $priorities[] = ['channel' => $chName, 'type' => 'file'];
+                $priorities[] = ['channel' => $chName, 'type' => 'dll'];
+            }
+        } else {
+            // Legacy
+            $priorities[] = ['channel' => null, 'type' => 'file'];
+            $priorities[] = ['channel' => null, 'type' => 'dll'];
+        }
+
+        foreach ($priorities as $p) {
+            $path = $this->get_update_file_path($dir, $web_dir, $p['channel'], $p['type']);
+            if ($path && file_exists($path)) {
+                return $path;
+            }
+        }
+
+        // If no file exists physically, try to return at least path string for production file
+        return $this->get_update_file_path($dir, $web_dir, 'production', 'file');
     }
 
     /**
@@ -576,7 +610,7 @@ class Nod32ms
             return static::$platforms_found[$version];
         }
 
-        $update_path = $update_file ?: $this->get_update_file_path($dir, $web_dir);
+        $update_path = $update_file ?: $this->find_best_update_path($dir, $web_dir);
         $platforms = $this->parse_platforms_from_update_file($update_path);
 
         if (!empty($platforms)) {
@@ -668,8 +702,8 @@ class Nod32ms
             $dir = $DIRECTORIES[$ver];
             $version_platforms = VersionConfig::get_version_platforms($ver);
 
-            // Use production file for HTML view
-            $update_ver = $this->get_update_file_path($dir, $web_dir, 'production');
+            // Use best available file for HTML view
+            $update_ver = $this->find_best_update_path($dir, $web_dir);
 
             if (!$update_ver) continue;
 
@@ -779,7 +813,11 @@ class Nod32ms
             
             if (isset($dir['channels'])) {
                 foreach ($dir['channels'] as $channelName => $channelData) {
-                    $channelUpdatePath = $this->get_update_file_path($dir, $web_dir, $channelName);
+                    $channelUpdatePath = $this->get_update_file_path($dir, $web_dir, $channelName, 'file');
+                    if (!$channelUpdatePath) {
+                        $channelUpdatePath = $this->get_update_file_path($dir, $web_dir, $channelName, 'dll');
+                    }
+
                     $channelDbVersion = null;
                     if ($channelUpdatePath) {
                         $channelDbVersion = Mirror::get_DB_version($channelUpdatePath);
@@ -789,8 +827,8 @@ class Nod32ms
                     $channelsInfo[$channelName] = [
                         'database_version' => $channelDbVersion,
                         'files' => [
-                             'file' => isset($channelData['file']) ? $channelData['file'] : false,
-                             'dll' => isset($channelData['dll']) ? $channelData['dll'] : false,
+                             'file' => (isset($channelData['file']) && $channelData['file'] !== false) ? $channelData['file'] : false,
+                             'dll' => (isset($channelData['dll']) && $channelData['dll'] !== false) ? $channelData['dll'] : false,
                         ]
                     ];
                 }
@@ -805,8 +843,8 @@ class Nod32ms
                  ];
             }
 
-            // Main info (usually from production)
-            $update_path = $this->get_update_file_path($dir, $web_dir, 'production');
+            // Main info (best available file)
+            $update_path = $this->find_best_update_path($dir, $web_dir);
             $found_platforms = $this->get_platforms_for_version($version, $dir, $web_dir, $update_path);
             $display_platforms = $found_platforms;
 
