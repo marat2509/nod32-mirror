@@ -461,22 +461,64 @@ class Nod32ms
 
     /**
      * Build path to the local update.ver file for mirror output.
+     * With channel support.
      */
-    private function get_update_file_path($dir, $web_dir)
+    private function get_update_file_path($dir, $web_dir, $channel = null, $type = 'file')
     {
         $source_file = null;
 
-        if (isset($dir['file']) && $dir['file'] !== false) {
-            $source_file = $dir['file'];
-        } elseif (isset($dir['dll']) && $dir['dll'] !== false) {
-            $source_file = $dir['dll'];
+        if (isset($dir['channels'])) {
+            // New structure with channels
+            $targetChannel = $channel ?: 'production';
+
+            // Try to find in specific channel
+            if (isset($dir['channels'][$targetChannel][$type])) {
+                $source_file = $dir['channels'][$targetChannel][$type];
+            }
+            // Fallback to first available channel if not found and no specific channel requested
+            elseif (!$channel) {
+                foreach ($dir['channels'] as $chName => $chData) {
+                    if (isset($chData[$type])) {
+                        $source_file = $chData[$type];
+                        $targetChannel = $chName;
+                        break;
+                    }
+                }
+            }
+        } else {
+            // Old structure fallback
+            if ($type === 'file' && isset($dir['file']) && $dir['file'] !== false) {
+                $source_file = $dir['file'];
+            } elseif ($type === 'dll' && isset($dir['dll']) && $dir['dll'] !== false) {
+                $source_file = $dir['dll'];
+            }
+            // For old structure, we treat it as default/legacy path, but we still need to fix it
         }
 
         if (!$source_file) {
             return null;
         }
 
-        $fixed_file = preg_replace('/eset_upd\/update\.ver/is', 'eset_upd/v3/update.ver', $source_file);
+        // We need to construct the LOCAL path based on how Mirror class does it.
+        // Mirror class logic:
+        // $localSuffix = ($variantType === 'dll' ? Tools::ds('dll', 'update.ver') : 'update.ver');
+        // $localPathRel = Tools::ds('eset_upd', $verFolder, $channelName, $localSuffix);
+
+        // Extract version folder from source path
+        $verFolder = 'v3';
+        if (preg_match('#eset_upd/([^/]+)#', $source_file, $m)) {
+            $verFolder = $m[1];
+        }
+
+        if (isset($dir['channels'])) {
+             // If we have channels, we know the structure
+             $targetChannel = $channel ?: $targetChannel; // Use identified channel
+             $localSuffix = ($type === 'dll' ? Tools::ds('dll', 'update.ver') : 'update.ver');
+             $fixed_file = Tools::ds('eset_upd', $verFolder, $targetChannel, $localSuffix);
+        } else {
+             // Legacy fallback
+             $fixed_file = preg_replace('/eset_upd\/update\.ver/is', Tools::ds('eset_upd', 'v3', 'update.ver'), $source_file);
+        }
 
         return Tools::ds($web_dir, $fixed_file);
     }
@@ -529,6 +571,7 @@ class Nod32ms
      */
     private function get_platforms_for_version($version, $dir, $web_dir, $update_file = null)
     {
+        // Cache key needs to be unique per update file now, but let's keep simple cache for main version
         if (!empty(static::$platforms_found[$version])) {
             return static::$platforms_found[$version];
         }
@@ -624,7 +667,9 @@ class Nod32ms
 
             $dir = $DIRECTORIES[$ver];
             $version_platforms = VersionConfig::get_version_platforms($ver);
-            $update_ver = $this->get_update_file_path($dir, $web_dir);
+
+            // Use production file for HTML view
+            $update_ver = $this->get_update_file_path($dir, $web_dir, 'production');
 
             if (!$update_ver) continue;
 
@@ -727,7 +772,41 @@ class Nod32ms
             }
 
             $dir = $DIRECTORIES[$version];
-            $update_path = $this->get_update_file_path($dir, $web_dir);
+            
+            // Generate detailed channels info
+            $channelsInfo = [];
+            $channelsList = isset($dir['channels']) ? array_keys($dir['channels']) : ['default'];
+            
+            if (isset($dir['channels'])) {
+                foreach ($dir['channels'] as $channelName => $channelData) {
+                    $channelUpdatePath = $this->get_update_file_path($dir, $web_dir, $channelName);
+                    $channelDbVersion = null;
+                    if ($channelUpdatePath) {
+                        $channelDbVersion = Mirror::get_DB_version($channelUpdatePath);
+                        if ($channelDbVersion !== null) $channelDbVersion = (int) $channelDbVersion;
+                    }
+                    
+                    $channelsInfo[$channelName] = [
+                        'database_version' => $channelDbVersion,
+                        'files' => [
+                             'file' => isset($channelData['file']) ? $channelData['file'] : false,
+                             'dll' => isset($channelData['dll']) ? $channelData['dll'] : false,
+                        ]
+                    ];
+                }
+            } else {
+                 // Legacy support in JSON
+                 $channelsInfo['default'] = [
+                     'database_version' => null, // Will be filled below if needed
+                     'files' => [
+                        'file' => isset($dir['file']) ? $dir['file'] : false,
+                        'dll' => isset($dir['dll']) ? $dir['dll'] : false,
+                     ]
+                 ];
+            }
+
+            // Main info (usually from production)
+            $update_path = $this->get_update_file_path($dir, $web_dir, 'production');
             $found_platforms = $this->get_platforms_for_version($version, $dir, $web_dir, $update_path);
             $display_platforms = $found_platforms;
 
@@ -770,6 +849,7 @@ class Nod32ms
             $versions[$version] = [
                 'name' => $dir['name'],
                 'platforms' => $display_platforms,
+                'channels' => $channelsInfo, // Added channels info
                 'database' => [
                     'version' => $db_version,
                     'size' => [
@@ -777,11 +857,7 @@ class Nod32ms
                         'pretty' => $size_bytes !== null ? $this->format_size_decimal($size_bytes) : null,
                     ],
                     'last_update' => $last_update,
-                ],
-                'files' => [
-                    'file' => (isset($dir['file']) && $dir['file'] !== false) ? $dir['file'] : false,
-                    'dll' => (isset($dir['dll']) && $dir['dll'] !== false) ? $dir['dll'] : false,
-                ],
+                ]
             ];
 
             if (Config::get('SCRIPT')['show_login_password']) {

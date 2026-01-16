@@ -64,6 +64,11 @@ class Mirror
     /**
      * @var array
      */
+    static public $channels = array();
+
+    /**
+     * @var array
+     */
     static public $platforms_found = array();
 
 
@@ -629,6 +634,9 @@ class Mirror
         // Initialize platforms from config using VersionConfig
         static::$platforms = VersionConfig::get_version_platforms($version);
 
+        // Initialize channels from config using VersionConfig
+        static::$channels = VersionConfig::get_version_channels($version);
+
         // Initialize discovered platforms array
         static::$platforms_found = array();
 
@@ -639,27 +647,71 @@ class Mirror
         static::$tmp_update_file = null;
         static::$local_update_file = null;
 
-        foreach (array('file', 'dll') as $variantKey) {
-            if (empty($dir[$variantKey])) {
-                continue;
+        // Check if we are using the new channel structure
+        if (isset($dir['channels'])) {
+            foreach ($dir['channels'] as $channelName => $variants) {
+                // Check if channel is enabled
+                if (is_array(static::$channels) && !in_array($channelName, static::$channels)) {
+                    continue;
+                }
+
+                foreach (array('file', 'dll') as $variantType) {
+                    if (empty($variants[$variantType])) {
+                        continue;
+                    }
+
+                    $sourcePath = $variants[$variantType];
+                    // Construct local path: eset_upd/{ver}/{channel}/[dll/]update.ver
+                    $verFolder = 'v3';
+                    if (preg_match('#eset_upd/([^/]+)#', $sourcePath, $m)) {
+                        $verFolder = $m[1];
+                    }
+
+                    $localSuffix = ($variantType === 'dll' ? Tools::ds('dll', 'update.ver') : 'update.ver');
+                    $localPathRel = Tools::ds('eset_upd', $verFolder, $channelName, $localSuffix);
+
+                    $tmpPath = Tools::ds(TMP_PATH, $localPathRel);
+                    $localPath = Tools::ds(Config::get('SCRIPT')['web_dir'], $localPathRel);
+
+                    $variantKey = $channelName . ':' . $variantType;
+
+                    static::$update_variants[$variantKey] = array(
+                        'source' => $sourcePath,
+                        'fixed' => $localPathRel,
+                        'tmp' => $tmpPath,
+                        'local' => $localPath
+                    );
+
+                    @mkdir(dirname($tmpPath), 0755, true);
+                    @mkdir(dirname($localPath), 0755, true);
+                }
             }
+        } else {
+            // Fallback for old structure (if any)
+            foreach (array('file', 'dll') as $variantKey) {
+                if (empty($dir[$variantKey])) {
+                    continue;
+                }
 
-            $fixed_update_file = preg_replace('/eset_upd\/update\.ver/is', 'eset_upd/v3/update.ver', $dir[$variantKey]);
-            $tmpPath = Tools::ds(TMP_PATH, $fixed_update_file);
-            $localPath = Tools::ds(Config::get('SCRIPT')['web_dir'], $fixed_update_file);
+                $fixed_update_file = preg_replace('/eset_upd\/update\.ver/is', Tools::ds('eset_upd', 'v3', 'update.ver'), $dir[$variantKey]);
+                $tmpPath = Tools::ds(TMP_PATH, $fixed_update_file);
+                $localPath = Tools::ds(Config::get('SCRIPT')['web_dir'], $fixed_update_file);
 
-            static::$update_variants[$variantKey] = array(
-                'source' => $dir[$variantKey],
-                'fixed' => $fixed_update_file,
-                'tmp' => $tmpPath,
-                'local' => $localPath
-            );
+                static::$update_variants[$variantKey] = array(
+                    'source' => $dir[$variantKey],
+                    'fixed' => $fixed_update_file,
+                    'tmp' => $tmpPath,
+                    'local' => $localPath
+                );
 
-            @mkdir(dirname($tmpPath), 0755, true);
-            @mkdir(dirname($localPath), 0755, true);
+                @mkdir(dirname($tmpPath), 0755, true);
+                @mkdir(dirname($localPath), 0755, true);
+            }
         }
 
-        if (isset(static::$update_variants['file'])) {
+        if (isset(static::$update_variants['production:file'])) {
+            static::$primary_variant = 'production:file';
+        } elseif (isset(static::$update_variants['file'])) {
             static::$primary_variant = 'file';
         } elseif (!empty(static::$update_variants)) {
             $variantKeys = array_keys(static::$update_variants);
@@ -705,6 +757,7 @@ class Mirror
         static::$updated = false;
         static::$unAuthorized = false;
         static::$platforms = array();
+        static::$channels = array();
         static::$platforms_found = array();
     }
 
