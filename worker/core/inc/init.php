@@ -20,11 +20,7 @@ $VERSION = '20250919';
 @define('SUCCESSFUL_TIMESTAMP', 'nod_lastupdate');
 @define('DATABASES_SIZE', 'nod_databases_size');
 
-
-$autoload = function ($class) {
-    @include_once CLASSES . "$class.class.php";
-};
-spl_autoload_register($autoload);
+require_once __DIR__ . '/../vendor/autoload.php';
 
 $DIRECTORIES = [
     'ep6' => [
