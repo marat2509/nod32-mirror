@@ -1,0 +1,19 @@
+{
+    "name": "nod32-mirror/worker",
+    "description": "NOD32 Mirror Worker Script",
+    "type": "project",
+    "license": "MIT",
+    "require": {
+        "php": ">=7.4",
+        "phpmailer/phpmailer": "^6.9"
+    },
+    "autoload": {
+        "classmap": [
+            "inc/classes/"
+        ]
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    }
+}

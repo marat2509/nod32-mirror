@@ -229,7 +229,7 @@ class Mirror
                 @unlink($archive);
                 if (Config::get('SCRIPT')['debug_update'] == 1) {
                     $date = date("Y-m-d-H-i-s-") . explode('.', microtime(1))[1];
-                    copy("${tmp_path}/update.ver", "${tmp_path}/update_${mirror}_${date}.ver");
+                    copy("{$tmp_path}/update.ver", "{$tmp_path}/update_${mirror}_${date}.ver");
                 }
             } else {
                 rename($archive, $extracted);

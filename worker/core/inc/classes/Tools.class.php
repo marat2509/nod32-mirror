@@ -10,7 +10,7 @@ class Tools
      * @param $headers
      * @return mixed
      */
-    static public function download_file($options = array(), &$headers)
+    static public function download_file($options = array(), &$headers = null)
     {
         Log::write_log(Language::t("Running %s", __METHOD__), 5, Mirror::$version);
         $out = FALSE;
