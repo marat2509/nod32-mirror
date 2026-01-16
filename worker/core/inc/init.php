@@ -112,8 +112,8 @@ $DIRECTORIES = [
                 'dll' => false
             ],
             'deferred' => [
-                'file' => false,
-                'dll' => 'deferred/eset_upd/update.ver'
+                'file' => 'deferred/eset_upd/update.ver',
+                'dll' => false
             ]
         ]
     ],
