@@ -49,7 +49,6 @@ class Nod32ms
     {
         Log::write_log(Language::t("Running %s", __METHOD__), 5, null);
         Log::write_log(Language::t("Total working time: %s", Tools::secondsToHumanReadable(time() - static::$start_time)), 0);
-        Log::destruct();
         Log::write_log(Language::t("Stopping script."), 0);
     }
 
