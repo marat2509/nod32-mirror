@@ -17,9 +17,6 @@ catch (ToolsException $e) {
 catch (ConfigException $e) {
     Log::write_log($e->getMessage(), 0);
 }
-catch (\PHPMailer\PHPMailer\Exception $e) {
-    Log::write_log($e->getMessage(), 0);
-}
 catch (Exception $e) {
     Log::write_log($e->getMessage(), 0);
 }

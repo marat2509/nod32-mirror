@@ -155,29 +155,6 @@ class Config
         if (static::$CONF['SCRIPT']['debug_html'] == 1)
             @mkdir(Tools::ds(static::$CONF['LOG']['dir'], DEBUG_DIR), 0755, true);
 
-        if (static::$CONF['MAILER']['enable'] == 1) {
-            if (empty(static::$CONF['MAILER']['sender']) ||
-                strpos(static::$CONF['MAILER']['sender'], "@") === FALSE ||
-                empty(static::$CONF['MAILER']['recipient']) ||
-                strpos(static::$CONF['MAILER']['recipient'], "@") === FALSE
-            )
-                throw new ConfigException("You didn't set up email address of sender/recipient or it is wrong.Please, check your config file.");
-
-            if (static::$CONF['MAILER']['smtp'] == 1) {
-                if (empty(static::$CONF['MAILER']['host']) ||
-                    empty(static::$CONF['MAILER']['port'])
-                )
-                    throw new ConfigException("Please, check SMTP host/port for using SMTP server in your config file.Or disable SMTP server if you don't wanna use it.");
-
-                if (static::$CONF['MAILER']['auth'] == 1) {
-                    if (empty(static::$CONF['MAILER']['login']) ||
-                        empty(static::$CONF['MAILER']['password'])
-                    )
-                        throw new ConfigException("Please, check login/password for using SMTP authorization.");
-                }
-            }
-        }
-
         if (intval(static::$CONF['FIND']['errors_quantity']) <= 0) static::$CONF['FIND']['errors_quantity'] = 1;
 
         if (!is_readable(PATTERN)) throw new ConfigException("Pattern directory is not readable. Check your permissions!");
