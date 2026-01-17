@@ -82,10 +82,13 @@ class Config
             }
         }
 
-        foreach (['proxy', 'use_multidownload'] as $opt) {
-            if (isset(static::$CONF['connection'][$opt])) {
-                static::$CONF['connection'][$opt] = (bool) static::$CONF['connection'][$opt];
-            }
+        if (isset(static::$CONF['connection'])) {
+            static::$CONF['connection']['multidownload']['enabled'] = !empty(static::$CONF['connection']['multidownload']['enabled']);
+            static::$CONF['connection']['proxy']['enabled'] = !empty(static::$CONF['connection']['proxy']['enabled']);
+            static::$CONF['connection']['multidownload']['threads'] = intval(static::$CONF['connection']['multidownload']['threads'] ?? 0);
+            static::$CONF['connection']['speed_limit'] = intval(static::$CONF['connection']['speed_limit'] ?? 0);
+            static::$CONF['connection']['timeout'] = intval(static::$CONF['connection']['timeout'] ?? 0);
+            static::$CONF['connection']['proxy']['port'] = intval(static::$CONF['connection']['proxy']['port'] ?? 0);
         }
 
         foreach (['auto', 'remove_invalid_keys'] as $opt) {
@@ -191,7 +194,7 @@ class Config
         $config = static::arrayChangeKeyCaseRecursive($config, CASE_LOWER);
 
         $config['script'] = static::normalizeSection($config, 'script');
-        $config['connection'] = static::normalizeSection($config, 'connection');
+        $config['connection'] = static::normalizeConnection($config['connection'] ?? []);
         $config['log'] = static::normalizeLog(static::normalizeSection($config, 'log'));
         $config['data'] = static::normalizeSection($config, 'data');
         $config['find'] = static::normalizeSection($config, 'find');
@@ -215,6 +218,60 @@ class Config
     static private function normalizeSection(array $config, $key)
     {
         return (isset($config[$key]) && is_array($config[$key])) ? $config[$key] : [];
+    }
+
+    /**
+     * Normalize connection settings (nested structure)
+     * @param array $connectionConfig
+     * @return array
+     */
+    static private function normalizeConnection(array $connectionConfig)
+    {
+        $defaults = [
+            'multidownload' => [
+                'enabled' => false,
+                'threads' => 32
+            ],
+            'speed_limit' => 0,
+            'timeout' => 5,
+            'proxy' => [
+                'enabled' => false,
+                'type' => 'http',
+                'server' => '',
+                'port' => 80,
+                'user' => '',
+                'password' => ''
+            ]
+        ];
+
+        $connection = $defaults;
+
+        // Multidownload
+        if (isset($connectionConfig['multidownload']) && is_array($connectionConfig['multidownload'])) {
+            $connection['multidownload']['enabled'] = !empty($connectionConfig['multidownload']['enabled']);
+            $connection['multidownload']['threads'] = intval($connectionConfig['multidownload']['threads'] ?? $defaults['multidownload']['threads']);
+        }
+
+        // Speed limit and timeout
+        if (isset($connectionConfig['speed_limit'])) {
+            $connection['speed_limit'] = intval($connectionConfig['speed_limit']);
+        }
+
+        if (isset($connectionConfig['timeout'])) {
+            $connection['timeout'] = intval($connectionConfig['timeout']);
+        }
+
+        // Proxy (nested only)
+        if (isset($connectionConfig['proxy']) && is_array($connectionConfig['proxy'])) {
+            $connection['proxy']['enabled'] = !empty($connectionConfig['proxy']['enabled']);
+            $connection['proxy']['type'] = $connectionConfig['proxy']['type'] ?? $defaults['proxy']['type'];
+            $connection['proxy']['server'] = $connectionConfig['proxy']['server'] ?? $defaults['proxy']['server'];
+            $connection['proxy']['port'] = intval($connectionConfig['proxy']['port'] ?? $defaults['proxy']['port']);
+            $connection['proxy']['user'] = $connectionConfig['proxy']['user'] ?? $defaults['proxy']['user'];
+            $connection['proxy']['password'] = $connectionConfig['proxy']['password'] ?? $defaults['proxy']['password'];
+        }
+
+        return $connection;
     }
 
     /**
@@ -520,15 +577,15 @@ class Config
             CURLOPT_MAXREDIRS => 5,
         ];
 
-        if (!empty($connection['download_speed_limit'])) {
-            $options[CURLOPT_MAX_RECV_SPEED_LARGE] = $connection['download_speed_limit'];
+        if (!empty($connection['speed_limit'])) {
+            $options[CURLOPT_MAX_RECV_SPEED_LARGE] = $connection['speed_limit'];
         }
 
-        if (!empty($connection['proxy'])) {
-            $options[CURLOPT_PROXY] = $connection['server'] ?? '';
-            $options[CURLOPT_PROXYPORT] = $connection['port'] ?? 80;
+        if (!empty($connection['proxy']['enabled'])) {
+            $options[CURLOPT_PROXY] = $connection['proxy']['server'] ?? '';
+            $options[CURLOPT_PROXYPORT] = $connection['proxy']['port'] ?? 80;
 
-            $proxyType = $connection['type'] ?? 'http';
+            $proxyType = $connection['proxy']['type'] ?? 'http';
             switch ($proxyType) {
                 case 'socks4':
                     $options[CURLOPT_PROXYTYPE] = CURLPROXY_SOCKS4;
@@ -545,9 +602,9 @@ class Config
                     break;
             }
 
-            if (!empty($connection['user'])) {
-                $options[CURLOPT_PROXYUSERNAME] = $connection['user'];
-                $options[CURLOPT_PROXYPASSWORD] = $connection['password'];
+            if (!empty($connection['proxy']['user'])) {
+                $options[CURLOPT_PROXYUSERNAME] = $connection['proxy']['user'];
+                $options[CURLOPT_PROXYPASSWORD] = $connection['proxy']['password'];
             }
         }
 

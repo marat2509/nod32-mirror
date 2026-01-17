@@ -15,16 +15,18 @@ script:
   debug_html: false  # Dump all downloaded pages to text files for debugging patterns
 
 connection:
-  use_multidownload: false  # Use multidownload if installed php-curl and compatible
-  download_speed_limit: 0  # Download speed limit n bytes/s (0=unlimit)
-  download_threads: 32  # Number of concurrent download threads
+  multidownload:
+    enabled: false  # Use multidownload if installed php-curl and compatible
+    threads: 32  # Number of concurrent download threads
+  speed_limit: 0  # Download speed limit n bytes/s (0=unlimit)
   timeout: 5  # Timeout in seconds
-  proxy: false  # Proxy usage: 0-disable, 1-enable
-  type: "http"  # Proxy type: http, socks4, socks4a, socks5
-  server: "proxy.example.com"  # Proxy server
-  port: 3128  # Proxy port
-  user: "username"  # Proxy user
-  password: "pass"  # Proxy password
+  proxy:
+    enabled: false  # Proxy usage: 0-disable, 1-enable
+    type: "http"  # Proxy type: http, socks4, socks4a, socks5
+    server: "proxy.example.com"  # Proxy server
+    port: 3128  # Proxy port
+    user: "username"  # Proxy user
+    password: "pass"  # Proxy password
 
 log:
   stdout:
