@@ -1,17 +1,9 @@
-# --- Stage 1: Builder (Unrar & Composer) ---
+# --- Stage 1: Builder (Composer) ---
 FROM alpine:3.20 AS builder
 
 # Install build dependencies
 RUN apk add --no-cache build-base wget php82 php82-openssl php82-phar php82-mbstring php82-json php82-ctype php82-curl git && \
     ln -s /usr/bin/php82 /usr/bin/php
-
-# Build unrar
-WORKDIR /tmp/unrar
-RUN wget https://www.rarlab.com/rar/unrarsrc-6.2.12.tar.gz && \
-    tar -xzvf unrarsrc-6.2.12.tar.gz && \
-    cd unrar && \
-    make -f makefile && \
-    install -v -m755 unrar /usr/bin/unrar
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
@@ -44,9 +36,6 @@ RUN apk add --no-cache \
 
 # Symlink php82 to php
 RUN ln -s /usr/bin/php82 /usr/bin/php
-
-# Copy unrar
-COPY --from=builder /usr/bin/unrar /usr/bin/unrar
 
 WORKDIR /app
 

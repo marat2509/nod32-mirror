@@ -82,36 +82,6 @@ class Tools
     }
 
     /**
-     * @param $unrar_binary
-     * @param $source
-     * @param $destination
-     * @throws ToolsException
-     */
-    static public function extract_file($unrar_binary, $source, $destination)
-    {
-        if (PHP_OS != 'WINNT')
-            $unrar_binary = exec('which unrar');
-
-        if (!file_exists($unrar_binary))
-            throw new ToolsException("Unrar not exists at %s", $unrar_binary);
-
-        if (!is_executable($unrar_binary))
-            throw new ToolsException("Unrar not executable at %s", $unrar_binary);
-
-        switch (PHP_OS) {
-            case "Darwin":
-            case "Linux":
-            case "FreeBSD":
-            case "OpenBSD":
-                exec(sprintf("%s x -inul -y %s %s", $unrar_binary, $source, $destination));
-                break;
-            case "WINNT":
-                shell_exec(sprintf("%s e -y %s %s", $unrar_binary, $source, $destination));
-                break;
-        }
-    }
-
-    /**
      * @param array $options
      * @param $hostname
      * @param int $port
