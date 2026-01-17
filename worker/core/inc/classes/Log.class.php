@@ -79,7 +79,7 @@ class Log
             if (file_exists($fn) && !$ignore_rotate) {
                 $arch_ext = Tools::get_archive_extension();
                 if (filesize($fn) >= ($fileConfig['rotate']['size'] ?? 0)) {
-                    static::write_log(Language::t("Log file was cutted due rotation..."), 0, null, true);
+                    static::write_log(Language::t('log.rotated'), 0, null, true);
                     array_pop(static::$log);
 
                     for ($i = $fileConfig['rotate']['qty']; $i > 1; $i--) {
@@ -90,7 +90,7 @@ class Log
                     @unlink($fn . ".1" . $arch_ext);
                     Tools::archive_file($fn);
                     @unlink($fn);
-                    static::write_log(Language::t("Log file was cutted due rotation..."), 0, null, true);
+                    static::write_log(Language::t('log.rotated'), 0, null, true);
                     array_pop(static::$log);
                 }
             }

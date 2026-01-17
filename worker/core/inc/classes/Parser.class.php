@@ -13,7 +13,7 @@ class Parser
      */
     static public function parse_line($handle, $tag, $pattern = false)
     {
-        Log::write_log(Language::t("Running %s", __METHOD__), 5, Mirror::$version);
+        Log::write_log(Language::t('log.running', __METHOD__), 5, Mirror::$version);
         $arr = [];
 
         if (preg_match_all(($pattern ? $pattern : "/$tag *=(.+)/"), $handle, $result, PREG_PATTERN_ORDER)) {
@@ -30,7 +30,7 @@ class Parser
      */
     static public function parse_keys($file)
     {
-        Log::write_log(Language::t("Running %s", __METHOD__), 5, Mirror::$version);
+        Log::write_log(Language::t('log.running', __METHOD__), 5, Mirror::$version);
         return static::parse_line(@file_get_contents($file), false, "/(.+:.+:.+)\n/");
     }
 
@@ -40,7 +40,7 @@ class Parser
      */
     static public function delete_parse_line_in_file($str_line, $filename)
     {
-        Log::write_log(Language::t("Running %s", __METHOD__), 5, Mirror::$version);
+        Log::write_log(Language::t('log.running', __METHOD__), 5, Mirror::$version);
         $content = file($filename);
         $count = count($content);
 
@@ -61,7 +61,7 @@ class Parser
      */
     static public function parse_template($handle, $template, &$logins, &$passwds)
     {
-        Log::write_log(Language::t("Running %s", __METHOD__), 5, Mirror::$version);
+        Log::write_log(Language::t('log.running', __METHOD__), 5, Mirror::$version);
 
         if (preg_match_all("/$template/s", $handle, $result, PREG_PATTERN_ORDER)) {
             $count = count($result[1]);
@@ -81,7 +81,7 @@ class Parser
      */
     static public function parse_header($http_response_header)
     {
-        Log::write_log(Language::t("Running %s", __METHOD__), 5, Mirror::$version);
+        Log::write_log(Language::t('log.running', __METHOD__), 5, Mirror::$version);
         $header = [];
 
         foreach ($http_response_header as $line) {

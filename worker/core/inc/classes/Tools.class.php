@@ -12,7 +12,7 @@ class Tools
      */
     static public function download_file($options = array(), &$headers = null)
     {
-        Log::write_log(Language::t("Running %s", __METHOD__), 5, Mirror::$version);
+        Log::write_log(Language::t('log.running', __METHOD__), 5, Mirror::$version);
         $out = FALSE;
         $fileTarget = null;
 
@@ -108,7 +108,7 @@ class Tools
      */
     static public function bytesToSize1024($bytes, $precision = 2)
     {
-        $unit = [Language::t('Bytes'), Language::t('KBytes'), Language::t('MBytes'), Language::t('GBytes'), Language::t('TBytes'), Language::t('PBytes'), Language::t('EBytes')];
+        $unit = [Language::t('common.bytes'), Language::t('common.kbytes'), Language::t('common.mbytes'), Language::t('common.gbytes'), Language::t('common.tbytes'), Language::t('common.pbytes'), Language::t('common.ebytes')];
         return $bytes > 0 ? @round($bytes / pow(1024, ($i = floor(log($bytes, 1024)))), $precision) . ' ' . $unit[intval($i)] :  '0 ' . $unit[intval(0)];
     }
 
