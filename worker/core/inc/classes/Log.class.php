@@ -1,7 +1,5 @@
 <?php
 
-use PHPMailer\PHPMailer\PHPMailer;
-
 /**
  * Class Log
  */
@@ -13,57 +11,10 @@ class Log
     static private $log = array();
 
     /**
-     * @var string
-     */
-    static private $mailer_log = "";
-
-    /**
      * @var array
      */
     static private $CONF;
 
-    /**
-     * @throws phpmailerException
-     */
-    static public function destruct()
-    {
-        if (!empty(static::$mailer_log) && !empty(static::$CONF['MAILER']) && static::$CONF['MAILER']['enable'] == '1') {
-            $mailer = new PHPMailer;
-            $mailer->CharSet = static::$CONF['MAILER']['codepage'];
-
-            if (static::$CONF['MAILER']['smtp'] == '1') {
-                $mailer->Host = static::$CONF['MAILER']['host'];
-                $mailer->Port = static::$CONF['MAILER']['port'];
-                $mailer->Mailer = "smtp";
-
-                if (static::$CONF['MAILER']['auth'] == '1') {
-                    $mailer->SMTPAuth = true;
-                    $mailer->SMTPSecure = static::$CONF['MAILER']['secure'];
-                    $mailer->Username = static::$CONF['MAILER']['login'];
-                    $mailer->Password = static::$CONF['MAILER']['password'];
-                } else {
-                    $mailer->SMTPAuth = false;
-                }
-            }
-
-            $mailer->Priority = 3;
-            $mailer->Subject = Tools::conv(static::$CONF['MAILER']['subject'], $mailer->CharSet);
-
-            if (static::$CONF['MAILER']['level'] == '3')
-                static::$mailer_log = implode("\r\n", static::$log);
-
-            $mailer->Body = Tools::conv(static::$mailer_log, $mailer->CharSet);
-            $mailer->SetFrom(static::$CONF['MAILER']['sender'], "NOD32 mirror script");
-            $mailer->AddAddress(static::$CONF['MAILER']['recipient'], "Admin");
-            $mailer->SMTPDebug = isset(static::$CONF['MAILER']['smtp_debug']) ? intval(static::$CONF['MAILER']['smtp_debug']) : 0;
-
-            if (!$mailer->Send())
-                static::write_log($mailer->ErrorInfo, 0);
-
-            $mailer->ClearAddresses();
-            $mailer->ClearAttachments();
-        }
-    }
 
     /**
      * @param $filename
@@ -91,9 +42,6 @@ class Log
     static public function informer($str, $ver, $level = 0)
     {
         static::write_log($str, $level, $ver);
-
-        if (static::$CONF['MAILER']['log_level'] >= $level)
-            static::$mailer_log .= sprintf("[%s] [%s] %s%s", date("Y-m-d"), date("H:i:s"), ($ver ? '[ver. ' . strval($ver) . '] ' : ''), $str) . chr(10);
     }
 
     /**
@@ -134,16 +82,12 @@ class Log
             }
         }
 
-        if ($level == 1) {
-            static::informer($text, $version, 0);
-        } else {
-            $text = sprintf("[%s] %s%s", date("Y-m-d, H:i:s"), ($version ? '[ver. ' . strval($version) . '] ' : ''), $text);
+        $text = sprintf("[%s] %s%s", date("Y-m-d, H:i:s"), ($version ? '[ver. ' . strval($version) . '] ' : ''), $text);
 
-            if (static::$CONF['type'] == '1' || static::$CONF['type'] == '3')
-                static::write_to_file($fn, Tools::conv($text . "\r\n", static::$CONF['codepage']));
+        if (static::$CONF['type'] == '1' || static::$CONF['type'] == '3')
+            static::write_to_file($fn, Tools::conv($text . "\r\n", static::$CONF['codepage']));
 
-            if (static::$CONF['type'] == '2' || static::$CONF['type'] == '3') echo Tools::conv($text, static::$CONF['codepage']) . chr(10);
-        }
+        if (static::$CONF['type'] == '2' || static::$CONF['type'] == '3') echo Tools::conv($text, static::$CONF['codepage']) . chr(10);
         static::$log[] = $text;
         return;
     }
@@ -169,11 +113,7 @@ class Log
         if (!file_exists(static::$CONF['dir']))
             mkdir(static::$CONF['dir']);
         static::$CONF['rotate_size'] = Tools::human2bytes(static::$CONF['rotate_size']);
-        static::$CONF['MAILER'] = $ini['MAILER'];
         static::$CONF['codepage'] = $ini['SCRIPT']['codepage'];
-        if (!isset(static::$CONF['MAILER']['smtp_debug'])) {
-            static::$CONF['MAILER']['smtp_debug'] = 0;
-        }
 
         if (empty(static::$CONF))
             throw new ConfigException("Log parameters don't set!");

@@ -44,7 +44,6 @@ class Nod32ms
     }
 
     /**
-     * @throws phpmailerException
      */
     public function __destruct()
     {
