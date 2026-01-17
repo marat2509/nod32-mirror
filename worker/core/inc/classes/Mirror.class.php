@@ -702,8 +702,8 @@ class Mirror
 
                     $sourcePath = $variants[$variantType];
                     // Construct local path: eset_upd/{ver}/{channel}/[dll/]update.ver
-                    $verFolder = 'v3';
-                    if (preg_match('#eset_upd/([^/]+)#', $sourcePath, $m)) {
+                    $verFolder = $version;
+                    if (preg_match('#eset_upd/([^/]+)#', $sourcePath, $m) && !empty($m[1]) && strtolower($m[1]) !== 'update.ver') {
                         $verFolder = $m[1];
                     }
 
@@ -733,7 +733,11 @@ class Mirror
                     continue;
                 }
 
-                $fixed_update_file = preg_replace('/eset_upd\/update\.ver/is', Tools::ds('eset_upd', 'v3', 'update.ver'), $dir[$variantKey]);
+                if (preg_match('#^eset_upd/update\.ver$#i', $dir[$variantKey])) {
+                    $fixed_update_file = Tools::ds('eset_upd', $version, 'update.ver');
+                } else {
+                    $fixed_update_file = preg_replace('/eset_upd\/update\.ver/is', Tools::ds('eset_upd', 'v3', 'update.ver'), $dir[$variantKey]);
+                }
                 $tmpPath = Tools::ds(TMP_PATH, $fixed_update_file);
                 $localPath = Tools::ds($webDir, $fixed_update_file);
 
