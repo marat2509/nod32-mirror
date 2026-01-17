@@ -27,12 +27,17 @@ connection:
   password: "pass"  # Proxy password
 
 log:
-  type: 2  # Logging type: 0=disable, 1=file, 2=stdout, 3=file+stdout
-  level: 4  # Logging level: 0-5 (see doc)
-  dir: "log"  # Log directory
-  rotate: true  # Enable log rotation
-  rotate_size: "100K"  # Log file rotation size (with B, K, M, G postfixes)
-  rotate_qty: 5  # How many files will be rotated
+  stdout:
+    enabled: true  # Enable stdout logging
+    level: 4  # Logging level for stdout: 0-5
+  file:
+    enabled: false  # Enable file logging
+    level: 4  # Logging level for file: 0-5
+    dir: "log"  # Log directory
+    rotate:
+      enabled: true  # Enable log rotation
+      size: "100K"  # Log file rotation size (with B, K, M, G postfixes)
+      qty: 5  # How many files will be rotated
 
 data:
   dir: "data"  # Directory for runtime data (keys, timestamps, debug dumps)

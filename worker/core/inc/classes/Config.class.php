@@ -88,13 +88,7 @@ class Config
             }
         }
 
-        foreach (['rotate'] as $opt) {
-            if (isset(static::$CONF['log'][$opt])) {
-                static::$CONF['log'][$opt] = (bool) static::$CONF['log'][$opt];
-            }
-        }
-
-        foreach (['enabled', 'remove_invalid_keys'] as $opt) {
+        foreach (['auto', 'remove_invalid_keys'] as $opt) {
             if (isset(static::$CONF['find'][$opt])) {
                 static::$CONF['find'][$opt] = (bool) static::$CONF['find'][$opt];
             }
@@ -120,8 +114,8 @@ class Config
             static::$CONF['script']['web_dir'] = "www";
         }
 
-        if (empty(static::$CONF['log']['dir'])) {
-            static::$CONF['log']['dir'] = "log";
+        if (empty(static::$CONF['log']['file']['dir'])) {
+            static::$CONF['log']['file']['dir'] = "log";
         }
 
         if (empty(static::$CONF['data']['dir'])) {
@@ -132,8 +126,8 @@ class Config
             if (substr(static::$CONF['script']['web_dir'], 0, 1) != DS) {
                 static::$CONF['script']['web_dir'] = Tools::ds(SELF, static::$CONF['script']['web_dir']);
             }
-            if (substr(static::$CONF['log']['dir'], 0, 1) != DS) {
-                static::$CONF['log']['dir'] = Tools::ds(SELF, static::$CONF['log']['dir']);
+            if (substr(static::$CONF['log']['file']['dir'], 0, 1) != DS) {
+                static::$CONF['log']['file']['dir'] = Tools::ds(SELF, static::$CONF['log']['file']['dir']);
             }
             if (substr(static::$CONF['data']['dir'], 0, 1) != DS) {
                 static::$CONF['data']['dir'] = Tools::ds(SELF, static::$CONF['data']['dir']);
@@ -264,6 +258,84 @@ class Config
         }
 
         return [];
+    }
+
+    /**
+     * Normalize log configuration (supports legacy format)
+     * @param array $logConfig
+     * @return array
+     */
+    static private function normalizeLog(array $logConfig)
+    {
+        $defaults = [
+            'stdout' => [
+                'enabled' => true,
+                'level' => 4
+            ],
+            'file' => [
+                'enabled' => true,
+                'level' => 4,
+                'dir' => 'log',
+                'rotate' => [
+                    'enabled' => true,
+                    'size' => '100K',
+                    'qty' => 5
+                ]
+            ]
+        ];
+
+        $hasStructuredLog = isset($logConfig['stdout']) || isset($logConfig['file']);
+
+        // Legacy mapping: type 0-3, single level/dir/rotate_*
+        if (!$hasStructuredLog && (isset($logConfig['type']) || isset($logConfig['level']))) {
+            $type = intval($logConfig['type'] ?? 0);
+            $level = intval($logConfig['level'] ?? 4);
+            $dir = $logConfig['dir'] ?? 'log';
+            $rotateEnabled = !empty($logConfig['rotate']);
+            $rotateSize = $logConfig['rotate_size'] ?? '0';
+            $rotateQty = $logConfig['rotate_qty'] ?? 0;
+
+            $logConfig = [
+                'stdout' => [
+                    'enabled' => in_array($type, [2, 3]),
+                    'level' => $level,
+                ],
+                'file' => [
+                    'enabled' => in_array($type, [1, 3]),
+                    'level' => $level,
+                    'dir' => $dir,
+                    'rotate' => [
+                        'enabled' => $rotateEnabled,
+                        'size' => $rotateSize,
+                        'qty' => $rotateQty,
+                    ]
+                ]
+            ];
+        }
+
+        // Merge provided config onto defaults
+        $merged = array_replace_recursive($defaults, $logConfig);
+
+        // Normalize booleans/ints and rotate sizing
+        $merged['stdout']['enabled'] = !empty($merged['stdout']['enabled']);
+        $merged['stdout']['level'] = intval($merged['stdout']['level'] ?? 4);
+
+        $merged['file']['enabled'] = !empty($merged['file']['enabled']);
+        $merged['file']['level'] = intval($merged['file']['level'] ?? 4);
+        $merged['file']['dir'] = $merged['file']['dir'] ?? 'log';
+
+        $merged['file']['rotate']['enabled'] = !empty($merged['file']['rotate']['enabled']);
+        $merged['file']['rotate']['qty'] = intval($merged['file']['rotate']['qty'] ?? 0);
+        $rotateSizeRaw = $merged['file']['rotate']['size'] ?? '0';
+        if (is_numeric($rotateSizeRaw)) {
+            $rotateSize = intval($rotateSizeRaw);
+        } else {
+            $rotateSize = Tools::human2bytes((string)$rotateSizeRaw);
+            $rotateSize = $rotateSize ?? 0;
+        }
+        $merged['file']['rotate']['size'] = $rotateSize;
+
+        return $merged;
     }
 
     /**
@@ -399,27 +471,26 @@ class Config
                 date_default_timezone_set(@date_default_timezone_get());
             } else {
                 if (@date_default_timezone_set(static::$CONF['script']['timezone']) === false) {
-                    static::$CONF['log']['rotate'] = 0;
+                    static::$CONF['log']['file']['rotate']['enabled'] = false;
                     throw new ConfigException("Error in timezone settings! Please, check your config file!");
                 }
             }
         }
 
-        $logConfig = static::$CONF['log'];
-        $rotateEnabled = !empty($logConfig['rotate']);
+        $logConfig = static::$CONF['log'] ?? [];
+        $fileConfig = $logConfig['file'] ?? [];
+        $stdoutConfig = $logConfig['stdout'] ?? [];
 
-        if ($rotateEnabled) {
-            $logConfig['rotate_size'] = Tools::human2bytes((string)($logConfig['rotate_size'] ?? '0'));
-
-            if (intval($logConfig['rotate_qty'] ?? 0) < 1) {
-                throw new ConfigException("Please, check set up of (log) rotate_qty in your config file!");
+        if (!empty($fileConfig['rotate']['enabled'])) {
+            if (intval($fileConfig['rotate']['qty'] ?? 0) < 1) {
+                throw new ConfigException("Please, check set up of (log.file.rotate) qty in your config file!");
             } else {
-                $logConfig['rotate_qty'] = intval($logConfig['rotate_qty']);
+                $fileConfig['rotate']['qty'] = intval($fileConfig['rotate']['qty']);
             }
-
-            if (intval($logConfig['type'] ?? -1) < 0 || intval($logConfig['type']) > 3)
-                throw new ConfigException("Please, check set up of (log) type in your config file!");
         }
+
+        $logConfig['file'] = $fileConfig;
+        $logConfig['stdout'] = $stdoutConfig;
         static::$CONF['log'] = $logConfig;
 
         while (substr(static::$CONF['script']['web_dir'], -1) == DS)
@@ -428,12 +499,16 @@ class Config
         while (substr(static::$CONF['data']['dir'], -1) == DS)
             static::$CONF['data']['dir'] = substr(static::$CONF['data']['dir'], 0, -1);
 
-        while (substr(static::$CONF['log']['dir'], -1) == DS)
-            static::$CONF['log']['dir'] = substr(static::$CONF['log']['dir'], 0, -1);
+        if (!empty(static::$CONF['log']['file']['dir'])) {
+            while (substr(static::$CONF['log']['file']['dir'], -1) == DS)
+                static::$CONF['log']['file']['dir'] = substr(static::$CONF['log']['file']['dir'], 0, -1);
+        }
 
         @mkdir(PATTERN, 0755, true);
         @mkdir(static::$CONF['data']['dir'], 0755, true);
-        @mkdir(static::$CONF['log']['dir'], 0755, true);
+        if (!empty(static::$CONF['log']['file']['dir'])) {
+            @mkdir(static::$CONF['log']['file']['dir'], 0755, true);
+        }
         @mkdir(static::$CONF['script']['web_dir'], 0755, true);
         @mkdir(TMP_PATH, 0755, true);
 
@@ -446,7 +521,9 @@ class Config
 
         if (!is_writable(static::$CONF['data']['dir'])) throw new ConfigException("Data directory is not writable. Check your permissions!");
 
-        if (!is_writable(static::$CONF['log']['dir'])) throw new ConfigException("Log directory is not writable. Check your permissions!");
+        if (!empty(static::$CONF['log']['file']['enabled'])) {
+            if (!is_writable(static::$CONF['log']['file']['dir'])) throw new ConfigException("Log directory is not writable. Check your permissions!");
+        }
 
         if (!is_writable(static::$CONF['script']['web_dir'])) throw new ConfigException("Web directory is not writable. Check your permissions!");
     }
