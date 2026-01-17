@@ -435,9 +435,14 @@ class Mirror
         $web_dir = $onlyCheck ? Tools::ds(TMP_PATH) : ($scriptConfig['web_dir'] ?? SELF . 'www');
         $connection = Config::get('connection');
         $options = Config::getConnectionInfo();
+        $timeout = intval($connection['timeout'] ?? 5);
 
         $mirrorList = static::$mirrors;
         if ($onlyCheck && $checkedMirror) $mirrorList = [['host' => $checkedMirror]];
+        $mirrorCount = count($mirrorList);
+        if ($mirrorCount === 0) {
+            return;
+        }
         $curlOpt = $options + [
             CURLOPT_USERPWD => static::$key[0] . ":" . static::$key[1]
         ];
@@ -446,6 +451,7 @@ class Mirror
         $max_threads = !empty($connection['download_threads']) ? $connection['download_threads'] : count($mirrorList);
 
         $chunks = array_chunk($download_files, $max_threads);
+        $mirrorIndex = 0;
 
         foreach ($chunks as $key => $files)
         {
@@ -458,11 +464,12 @@ class Mirror
                 if (!@file_exists($dir)) @mkdir($dir, 0755, true);
                 $fh = fopen($out, "wb");
                 $ch = curl_init();
-                $mirror = $mirrorList[array_rand($mirrorList)];
+                $mirror = $mirrorList[$mirrorIndex % $mirrorCount];
+                $mirrorIndex++;
                 $options = $curlOpt + [
                     CURLOPT_URL => static::buildMirrorUrl($mirror['host'], $file['file']),
                     CURLOPT_FILE => $fh,
-                    CURLOPT_TIMEOUT => $connection['timeout']
+                    CURLOPT_TIMEOUT => $timeout
                 ];
 
                 curl_setopt_array($ch, $options);
