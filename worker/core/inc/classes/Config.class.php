@@ -181,7 +181,7 @@ class Config
     }
 
     /**
-     * Normalize YAML config to legacy-friendly structure
+     * Normalize YAML config to internal structure
      * @param array $config
      * @return array
      */
@@ -261,7 +261,7 @@ class Config
     }
 
     /**
-     * Normalize log configuration (supports legacy format)
+     * Normalize log configuration
      * @param array $logConfig
      * @return array
      */
@@ -283,35 +283,6 @@ class Config
                 ]
             ]
         ];
-
-        $hasStructuredLog = isset($logConfig['stdout']) || isset($logConfig['file']);
-
-        // Legacy mapping: type 0-3, single level/dir/rotate_*
-        if (!$hasStructuredLog && (isset($logConfig['type']) || isset($logConfig['level']))) {
-            $type = intval($logConfig['type'] ?? 0);
-            $level = intval($logConfig['level'] ?? 4);
-            $dir = $logConfig['dir'] ?? 'log';
-            $rotateEnabled = !empty($logConfig['rotate']);
-            $rotateSize = $logConfig['rotate_size'] ?? '0';
-            $rotateQty = $logConfig['rotate_qty'] ?? 0;
-
-            $logConfig = [
-                'stdout' => [
-                    'enabled' => in_array($type, [2, 3]),
-                    'level' => $level,
-                ],
-                'file' => [
-                    'enabled' => in_array($type, [1, 3]),
-                    'level' => $level,
-                    'dir' => $dir,
-                    'rotate' => [
-                        'enabled' => $rotateEnabled,
-                        'size' => $rotateSize,
-                        'qty' => $rotateQty,
-                    ]
-                ]
-            ];
-        }
 
         // Merge provided config onto defaults
         $merged = array_replace_recursive($defaults, $logConfig);
