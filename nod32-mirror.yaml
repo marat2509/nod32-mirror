@@ -5,14 +5,18 @@ script:
   memory_limit: "32M"  # Memory limit for php
   debug_update: false  # Debugging update.ver files (0-off; 1-on)
   link_method: "hardlink"  # Method for linking files: hardlink, symlink, copy
-  generate_html: true  # Generate index.html in www root
-  generate_json: true  # Generate metadata JSON describing mirror contents
   generate_only_table: false  # Generate only table for injection in another HTML page
-  show_login_password: false  # Show used login and password in generated HTML/JSON
-  filename_html: "index.html"  # HTML file name
-  filename_json: "index.json"  # JSON file name
-  html_codepage: "utf-8"  # HTML codepage
   debug_html: false  # Dump all downloaded pages to text files for debugging patterns
+  generate:
+    export_credentials: false  # Export credentials in JSON/HTML
+    json:
+      enabled: true  # Generate JSON file
+      filename: "index.json"  # JSON file name
+    html:
+      enabled: true  # Generate HTML file
+      filename: "index.html"  # HTML file name
+      codepage: "utf-8"  # HTML codepage
+      only_table: false  # Generate only table for injection in another HTML page
 
 connection:
   multidownload:
