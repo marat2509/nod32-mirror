@@ -34,8 +34,11 @@ log:
   rotate_size: "100K"  # Log file rotation size (with B, K, M, G postfixes)
   rotate_qty: 5  # How many files will be rotated
 
+data:
+  dir: "data"  # Directory for runtime data (keys, timestamps, debug dumps)
+
 find:
-  auto: true  # Enable internal key autosearch module
+  enabled: true  # Enable internal key autosearch module
   number_attempts: 5  # Number of attempts to request new key if previous invalid
   system: ""  # Which system pattern to use ("" for all patterns in pattern dir)
   count_keys: 1  # Count validated keys
