@@ -137,8 +137,14 @@ class Mirror
             if ($version) {
                 $maxVersion = $version > $maxVersion ? $version : $maxVersion;
                 $sameMirrors[] = ['host' => $mirror, 'db_version' => $version];
-            } else
-                return false;
+            } else {
+                Log::write_log(Language::t("Mirror %s skipped: unable to read update.ver", $mirror), 4, static::$version);
+                continue;
+            }
+        }
+
+        if (empty($sameMirrors)) {
+            return false;
         }
 
         static::$mirrors = array_filter($sameMirrors, function ($v, $k) use ($maxVersion) {
@@ -213,16 +219,37 @@ class Mirror
         $tmp_path = dirname($variant['tmp']);
         $archive = Tools::ds($tmp_path, 'update.rar');
         $extracted = $variant['tmp'];
-        Tools::download_file(
-            [
-                CURLOPT_USERPWD => static::$key[0] . ":" . static::$key[1],
-                CURLOPT_URL => "http://" . $mirror . "/" . $variant['source'],
-                CURLOPT_FILE => $archive
-            ],
-            $headers
-        );
+        $connectionOptions = Config::getConnectionInfo();
+        $timeout = Config::get('CONNECTION')['timeout'] ?? 5;
+        $schemes = preg_match('#^https?://#i', $mirror) ? [$mirror] : ["https://{$mirror}", "http://{$mirror}"];
+        $downloaded = false;
 
-        if (is_array($headers) and $headers['http_code'] == 200) {
+        foreach ($schemes as $baseUrl) {
+            $targetUrl = rtrim($baseUrl, "/") . "/" . ltrim($variant['source'], "/");
+            $downloaded = Tools::download_file(
+                $connectionOptions + [
+                    CURLOPT_USERPWD => static::$key[0] . ":" . static::$key[1],
+                    CURLOPT_URL => $targetUrl,
+                    CURLOPT_FILE => $archive,
+                    CURLOPT_TIMEOUT => $timeout,
+                    CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+                    CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+                ],
+                $headers
+            );
+
+            if (is_array($headers) && $headers['http_code'] == 200 && $downloaded) {
+                break;
+            }
+        }
+
+        if (is_array($headers) and $headers['http_code'] == 200 and $downloaded) {
+            if (file_exists($archive) && filesize($archive) === 0) {
+                Log::write_log(Language::t("Downloaded empty update.ver archive from %s", $mirror), 3, static::$version);
+                @unlink($archive);
+                return;
+            }
+
             if (preg_match("/rar/", Tools::get_file_mimetype($archive))) {
                 Log::write_log(Language::t("Extracting file %s to %s", $archive, $tmp_path), 5, static::$version);
                 Tools::extract_file(Config::get('SCRIPT')['unrar_binary'], $archive, $tmp_path);
@@ -250,6 +277,9 @@ class Mirror
                 $file = array_shift($new_files);
                 static::download([$file], true, $mirror);
             }
+        } else {
+            Log::write_log(Language::t("Failed to download update.ver from %s (HTTP %s)", $mirror, $headers['http_code'] ?? 'n/a'), 3, static::$version);
+            @unlink($archive);
         }
     }
 
@@ -435,8 +465,9 @@ class Mirror
                 $ch = curl_init();
                 $mirror = $mirrorList[array_rand($mirrorList)];
                 $options = $curlOpt + [
-                    CURLOPT_URL => "http://" . $mirror['host'] . $file['file'],
-                    CURLOPT_FILE => $fh
+                    CURLOPT_URL => static::buildMirrorUrl($mirror['host'], $file['file']),
+                    CURLOPT_FILE => $fh,
+                    CURLOPT_TIMEOUT => $CONNECTION['timeout']
                 ];
 
                 curl_setopt_array($ch, $options);
@@ -469,7 +500,6 @@ class Mirror
 
                 if (is_array($header) and $header['http_code'] == 200 and $header['size_download'] == $tmp2['file']['size']) {
 
-                    static::$total_downloads += $header['size_download'];
                     Log::write_log(Language::t("From %s downloaded %s [%s] [%s/s]", $tmp2['mirror']['host'], basename($tmp2['file']['file']),
                         Tools::bytesToSize1024($header['size_download']),
                         Tools::bytesToSize1024($header['size_download'] / $header['total_time'])),
@@ -513,8 +543,9 @@ class Mirror
                 Tools::download_file(
                     [
                         CURLOPT_USERPWD => static::$key[0] . ":" . static::$key[1],
-                        CURLOPT_URL => "http://" . $mirror['host'] . $file['file'],
-                        CURLOPT_FILE => $out
+                        CURLOPT_URL => static::buildMirrorUrl($mirror['host'], $file['file']),
+                        CURLOPT_FILE => $out,
+                        CURLOPT_TIMEOUT => Config::get('CONNECTION')['timeout']
                     ],
                     $header
                 );
@@ -531,7 +562,6 @@ class Mirror
                         3,
                         static::$version
                     );
-                    static::$total_downloads += $header['size_download'];
                     break;
                 } else {
                     if ($onlyCheck) @unlink(static::$tmp_update_file);
@@ -884,7 +914,9 @@ class Mirror
                             break;
                         }
                     }
-                    if (!file_exists($path) && !array_search($array['file'], $download_files)) $download_files[] = $array;
+                    if (!file_exists($path) && !in_array($array['file'], array_column($download_files, 'file'), true)) {
+                        $download_files[] = $array;
+                    }
                 } else $download_files[] = $array;
             }
         }
@@ -909,6 +941,21 @@ class Mirror
             foreach ($upd as $key) $max = $max < intval($key) ? $key : $max;
 
         return $max;
+    }
+
+    /**
+     * Build mirror URL respecting provided scheme (http/https) and avoiding duplicate slashes
+     * @param string $mirrorHost
+     * @param string $path
+     * @return string
+     */
+    static private function buildMirrorUrl($mirrorHost, $path)
+    {
+        $base = preg_match('#^https?://#i', $mirrorHost)
+            ? rtrim($mirrorHost, '/')
+            : 'http://' . ltrim($mirrorHost, '/');
+
+        return $base . '/' . ltrim($path, '/');
     }
 
     /**

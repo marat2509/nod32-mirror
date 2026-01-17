@@ -141,8 +141,6 @@ class Config
                 throw new ConfigException("Please, check set up of (log) type in your config file!");
         }
 
-        static::$CONF['SCRIPT']['web_dir'] = 'www';
-
         while (substr(static::$CONF['SCRIPT']['web_dir'], -1) == DS)
             static::$CONF['SCRIPT']['web_dir'] = substr(static::$CONF['SCRIPT']['web_dir'], 0, -1);
 

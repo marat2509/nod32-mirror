@@ -14,12 +14,14 @@ class Tools
     {
         Log::write_log(Language::t("Running %s", __METHOD__), 5, Mirror::$version);
         $out = FALSE;
+        $fileTarget = null;
 
         if (key_exists(CURLOPT_FILE, $options)) {
             $dir = dirname($options[CURLOPT_FILE]);
             if (!@file_exists($dir)) @mkdir($dir, 0755, true);
-            $out = fopen($options[CURLOPT_FILE], "wb");
-	        if (!is_resource($out)) return false;
+            $fileTarget = $options[CURLOPT_FILE];
+            $out = fopen($fileTarget, "wb");
+            if (!is_resource($out)) return false;
             $options[CURLOPT_FILE] = $out;
         }
 
@@ -29,13 +31,24 @@ class Tools
 
         $headers = curl_getinfo($ch);
         if ($out) @fclose($out);
+
+        if ($res === false) {
+            $errorMessage = sprintf("Curl error (%s): %s", curl_errno($ch), curl_error($ch));
+            if ($fileTarget) {
+                @unlink($fileTarget);
+            }
+            if (class_exists('Log')) {
+                Log::write_log($errorMessage, 0, Mirror::$version);
+            }
+        }
+
         curl_close($ch);
 
         if (key_exists(CURLOPT_RETURNTRANSFER, $options)) {
             if ($options[CURLOPT_RETURNTRANSFER] == 1) return $res;
         }
 
-        return false;
+        return $res !== false;
     }
 
     /**
@@ -216,7 +229,12 @@ class Tools
      */
     static public function get_resource_id($resource)
     {
-        return (!is_resource($resource)) ? false : @end(explode('#', (string)$resource));
+        if (!is_resource($resource)) {
+            return false;
+        }
+
+        $parts = explode('#', (string)$resource);
+        return end($parts);
     }
 
     /**

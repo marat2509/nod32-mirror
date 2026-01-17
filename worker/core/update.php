@@ -6,7 +6,6 @@ try {
     Log::init();
     Language::init();
     Config::init();
-    Language::init();
 
     @ini_set('memory_limit', Config::get('SCRIPT')['memory_limit']);
 

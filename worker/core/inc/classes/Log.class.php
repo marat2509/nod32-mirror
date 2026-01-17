@@ -55,7 +55,7 @@ class Log
             $mailer->Body = Tools::conv(static::$mailer_log, $mailer->CharSet);
             $mailer->SetFrom(static::$CONF['MAILER']['sender'], "NOD32 mirror script");
             $mailer->AddAddress(static::$CONF['MAILER']['recipient'], "Admin");
-            $mailer->SMTPDebug = 1;
+            $mailer->SMTPDebug = isset(static::$CONF['MAILER']['smtp_debug']) ? intval(static::$CONF['MAILER']['smtp_debug']) : 0;
 
             if (!$mailer->Send())
                 static::write_log($mailer->ErrorInfo, 0);
@@ -71,13 +71,16 @@ class Log
      */
     static public function write_to_file($filename, $text)
     {
-        $f = fopen($filename, "a+");
+        $dir = dirname($filename);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
 
-        if (!feof($f)) fwrite($f, $text);
+        $result = @file_put_contents($filename, $text, FILE_APPEND | LOCK_EX);
 
-        fflush($f);
-        fclose($f);
-        clearstatcache();
+        if ($result === false) {
+            error_log(sprintf("Failed to write log file: %s", $filename));
+        }
     }
 
     /**
@@ -168,6 +171,9 @@ class Log
         static::$CONF['rotate_size'] = Tools::human2bytes(static::$CONF['rotate_size']);
         static::$CONF['MAILER'] = $ini['MAILER'];
         static::$CONF['codepage'] = $ini['SCRIPT']['codepage'];
+        if (!isset(static::$CONF['MAILER']['smtp_debug'])) {
+            static::$CONF['MAILER']['smtp_debug'] = 0;
+        }
 
         if (empty(static::$CONF))
             throw new ConfigException("Log parameters don't set!");
