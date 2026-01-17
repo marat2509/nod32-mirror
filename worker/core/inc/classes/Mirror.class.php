@@ -462,7 +462,7 @@ class Mirror
                 $options = $curlOpt + [
                     CURLOPT_URL => static::buildMirrorUrl($mirror['host'], $file['file']),
                     CURLOPT_FILE => $fh,
-                    CURLOPT_TIMEOUT => $CONNECTION['timeout']
+                    CURLOPT_TIMEOUT => $connection['timeout']
                 ];
 
                 curl_setopt_array($ch, $options);
