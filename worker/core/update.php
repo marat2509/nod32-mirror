@@ -3,20 +3,20 @@
 require __DIR__ . "/inc/init.php";
 
 try {
+    Config::init();
     Log::init();
     Language::init();
-    Config::init();
 
-    @ini_set('memory_limit', Config::get('SCRIPT')['memory_limit']);
+    @ini_set('memory_limit', Config::get('script')['memory_limit']);
 
     $nod32ms = new Nod32ms();
 }
 catch (ToolsException $e) {
-    Log::write_log($e->getMessage(), 0);
+    Log::isInitialized() ? Log::write_log($e->getMessage(), 0) : error_log($e->getMessage());
 }
 catch (ConfigException $e) {
-    Log::write_log($e->getMessage(), 0);
+    Log::isInitialized() ? Log::write_log($e->getMessage(), 0) : error_log($e->getMessage());
 }
 catch (Exception $e) {
-    Log::write_log($e->getMessage(), 0);
+    Log::isInitialized() ? Log::write_log($e->getMessage(), 0) : error_log($e->getMessage());
 }

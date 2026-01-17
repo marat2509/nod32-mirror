@@ -80,7 +80,7 @@ class Mirror
     static private function fix_time_stamp()
     {
         Log::write_log(Language::t("Running %s", __METHOD__), 5, static::$version);
-        $fn = Tools::ds(Config::get('LOG')['dir'], SUCCESSFUL_TIMESTAMP);
+        $fn = Tools::ds(Config::get('log')['dir'], SUCCESSFUL_TIMESTAMP);
         $timestamps = [];
 
         if (file_exists($fn)) {
@@ -110,6 +110,8 @@ class Mirror
         Log::write_log(Language::t("Running %s", __METHOD__), 5, static::$version);
         Log::write_log(Language::t("Testing key [%s:%s]", static::$key[0], static::$key[1]), 4, static::$version);
 
+        $connection = Config::get('connection');
+        $timeout = intval($connection['timeout'] ?? 5);
         $test_mirrors = [];
         foreach (static::$ESET['mirror'] as $mirror) {
             Tools::download_file(
@@ -117,7 +119,7 @@ class Mirror
                     CURLOPT_USERPWD => static::$key[0] . ":" . static::$key[1],
                     CURLOPT_URL => "http://" . $mirror . "/" . static::$source_update_file,
                     CURLOPT_NOBODY => 1,
-                    CURLOPT_TIMEOUT => Config::get('CONNECTION')['timeout']
+                    CURLOPT_TIMEOUT => $timeout
                 ],
                 $headers
             );
@@ -219,8 +221,9 @@ class Mirror
         $tmp_path = dirname($variant['tmp']);
         $archive = Tools::ds($tmp_path, 'update.rar');
         $extracted = $variant['tmp'];
+        $connection = Config::get('connection');
         $connectionOptions = Config::getConnectionInfo();
-        $timeout = Config::get('CONNECTION')['timeout'] ?? 5;
+        $timeout = intval($connection['timeout'] ?? 5);
         $schemes = preg_match('#^https?://#i', $mirror) ? [$mirror] : ["https://{$mirror}", "http://{$mirror}"];
         $downloaded = false;
 
@@ -252,9 +255,10 @@ class Mirror
 
             if (preg_match("/rar/", Tools::get_file_mimetype($archive))) {
                 Log::write_log(Language::t("Extracting file %s to %s", $archive, $tmp_path), 5, static::$version);
-                Tools::extract_file(Config::get('SCRIPT')['unrar_binary'], $archive, $tmp_path);
+                $scriptConfig = Config::get('script');
+                Tools::extract_file($scriptConfig['unrar_binary'] ?? '', $archive, $tmp_path);
                 @unlink($archive);
-                if (Config::get('SCRIPT')['debug_update'] == 1) {
+                if (!empty($scriptConfig['debug_update'])) {
                     $date = date("Y-m-d-H-i-s-") . explode('.', microtime(1))[1];
                     copy("{$tmp_path}/update.ver", "{$tmp_path}/update_${mirror}_${date}.ver");
                 }
@@ -296,7 +300,8 @@ class Mirror
             return array(null, static::$total_downloads, null);
         }
 
-        $web_dir = Config::get('SCRIPT')['web_dir'];
+        $scriptConfig = Config::get('script');
+        $web_dir = $scriptConfig['web_dir'] ?? SELF . 'www';
         $mirror = !empty(static::$mirrors) ? current(static::$mirrors) : null;
         $mirrorHost = $mirror ? $mirror['host'] : null;
         $total_size = null;
@@ -437,8 +442,9 @@ class Mirror
     static protected function multiple_download($download_files, $onlyCheck = false, $checkedMirror = null)
     {
         Log::write_log(Language::t("Running %s", __METHOD__), 5, static::$version);
-        $web_dir = $onlyCheck ? Tools::ds(TMP_PATH) : Config::get('SCRIPT')['web_dir'];
-        $CONNECTION = Config::get('CONNECTION');
+        $scriptConfig = Config::get('script');
+        $web_dir = $onlyCheck ? Tools::ds(TMP_PATH) : ($scriptConfig['web_dir'] ?? SELF . 'www');
+        $connection = Config::get('connection');
         $options = Config::getConnectionInfo();
 
         $mirrorList = static::$mirrors;
@@ -448,7 +454,7 @@ class Mirror
         ];
         $mh = curl_multi_init();
 
-        $max_threads = !empty($CONNECTION['download_threads']) ? $CONNECTION['download_threads'] : count($mirrorList);
+        $max_threads = !empty($connection['download_threads']) ? $connection['download_threads'] : count($mirrorList);
 
         $chunks = array_chunk($download_files, $max_threads);
 
@@ -526,7 +532,10 @@ class Mirror
     static protected function single_download($download_files, $onlyCheck = false, $checkedMirror = null)
     {
         Log::write_log(Language::t("Running %s", __METHOD__), 5, static::$version);
-        $web_dir = $onlyCheck ? Tools::ds(TMP_PATH) : Config::get('SCRIPT')['web_dir'];
+        $scriptConfig = Config::get('script');
+        $web_dir = $onlyCheck ? Tools::ds(TMP_PATH) : ($scriptConfig['web_dir'] ?? SELF . 'www');
+        $connection = Config::get('connection');
+        $timeout = intval($connection['timeout'] ?? 5);
         $mirrorList = static::$mirrors;
         if ($onlyCheck && $checkedMirror) $mirrorList = [['host' => $checkedMirror]];
 
@@ -545,7 +554,7 @@ class Mirror
                         CURLOPT_USERPWD => static::$key[0] . ":" . static::$key[1],
                         CURLOPT_URL => static::buildMirrorUrl($mirror['host'], $file['file']),
                         CURLOPT_FILE => $out,
-                        CURLOPT_TIMEOUT => Config::get('CONNECTION')['timeout']
+                        CURLOPT_TIMEOUT => $timeout
                     ],
                     $header
                 );
@@ -580,7 +589,10 @@ class Mirror
     {
         Log::write_log(Language::t("Running %s", __METHOD__), 5, static::$version);
 
-        switch (function_exists('curl_multi_init') && (bool)(Config::get('CONNECTION')['use_multidownload']) && !$onlyCheck) {
+        $connection = Config::get('connection');
+        $useMulti = function_exists('curl_multi_init') && !empty($connection['use_multidownload']) && !$onlyCheck;
+
+        switch ($useMulti) {
             case true:
                 static::multiple_download($download_files, $onlyCheck, $checkedMirror);
                 break;
@@ -659,7 +671,9 @@ class Mirror
         static::$version = $version;
         static::$name = $dir['name'];
         static::$updated = false;
-        static::$ESET = Config::get('ESET');
+        static::$ESET = Config::get('eset');
+        $scriptConfig = Config::get('script');
+        $webDir = $scriptConfig['web_dir'] ?? SELF . 'www';
 
         // Initialize platforms from config using VersionConfig
         static::$platforms = VersionConfig::get_version_platforms($version);
@@ -701,7 +715,7 @@ class Mirror
                     $localPathRel = Tools::ds('eset_upd', $verFolder, $channelName, $localSuffix);
 
                     $tmpPath = Tools::ds(TMP_PATH, $localPathRel);
-                    $localPath = Tools::ds(Config::get('SCRIPT')['web_dir'], $localPathRel);
+                    $localPath = Tools::ds($webDir, $localPathRel);
 
                     $variantKey = $channelName . ':' . $variantType;
 
@@ -725,7 +739,7 @@ class Mirror
 
                 $fixed_update_file = preg_replace('/eset_upd\/update\.ver/is', Tools::ds('eset_upd', 'v3', 'update.ver'), $dir[$variantKey]);
                 $tmpPath = Tools::ds(TMP_PATH, $fixed_update_file);
-                $localPath = Tools::ds(Config::get('SCRIPT')['web_dir'], $fixed_update_file);
+                $localPath = Tools::ds($webDir, $fixed_update_file);
 
                 static::$update_variants[$variantKey] = array(
                     'source' => $dir[$variantKey],
@@ -868,6 +882,8 @@ class Mirror
 
         $version = false;
         preg_match($preg_pattern, static::$version,$version);
+        $scriptConfig = Config::get('script');
+        $linkMethod = $scriptConfig['link_method'] ?? 'copy';
         /** @var RegexIterator $file */
         foreach ($iterator as $file) {
             $pathVersion = false;
@@ -893,7 +909,7 @@ class Mirror
 
                             if (!file_exists($res)) mkdir($res, 0755, true);
 
-                            switch (Config::get('SCRIPT')['link_method']) {
+                            switch ($linkMethod) {
                                 case 'hardlink':
                                     link($result, $path);
                                     Log::write_log(Language::t("Created hard link for %s", basename($array['file'])), 3, static::$version);
