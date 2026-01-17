@@ -14,11 +14,10 @@ $VERSION = '20250919';
 @define('LANGPACKS_DIR', SELF . 'langpacks' . DS);
 @define('DEBUG_DIR', SELF . 'debug' . DS);
 @define('TMP_PATH', SELF . 'tmp' . DS);
-@define('KEY_FILE_VALID', 'nod_keys.valid');
-@define('KEY_FILE_INVALID', 'nod_keys.invalid');
+@define('KEY_FILE', 'keys.json');
 @define('LOG_FILE', 'nod32ms.log');
-@define('SUCCESSFUL_TIMESTAMP', 'nod_lastupdate');
-@define('DATABASES_SIZE', 'nod_databases_size');
+@define('SUCCESSFUL_TIMESTAMP', 'lastupdate.json');
+@define('DATABASES_SIZE', 'databases_size.json');
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
