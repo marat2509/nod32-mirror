@@ -34,6 +34,7 @@ class Nod32ms
         static::$start_time = time();
         $dataDir = Config::getDataDir();
         static::$keys_file = Tools::ds($dataDir, KEY_FILE);
+        $this->ensure_data_files($dataDir);
         Log::write_log(Language::t('script.run', $VERSION), 0);
         $this->run_script();
     }
@@ -199,6 +200,31 @@ class Nod32ms
         }
 
         return $data;
+    }
+
+    /**
+     * Ensure JSON data files exist (lastupdate, databases size).
+     *
+     * @param string $dataDir
+     * @return void
+     */
+    private function ensure_data_files($dataDir)
+    {
+        $files = [
+            SUCCESSFUL_TIMESTAMP => "{}\n",
+            DATABASES_SIZE => "{}\n",
+        ];
+
+        foreach ($files as $name => $defaultContent) {
+            $path = Tools::ds($dataDir, $name);
+
+            if (!file_exists($path)) {
+                if (!is_dir(dirname($path))) {
+                    @mkdir(dirname($path), 0755, true);
+                }
+                @file_put_contents($path, $defaultContent);
+            }
+        }
     }
 
     /**
