@@ -230,7 +230,7 @@ class Tools
             $str = intval(trim($result[1][0]));
 
             if (count($result) != 3 || $str < 1 || empty($result[1][0]) || empty($result[2][0]))
-                throw new Exception("Please, check set up of (log) rotate_size in your config file!");
+                throw new Exception("Please, check set up of log.file.rotate.size in your config file!");
 
             switch (trim($result[2][0])) {
                 case "g":
