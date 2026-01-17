@@ -80,7 +80,7 @@ class Mirror
     static private function fix_time_stamp()
     {
         Log::write_log(Language::t("Running %s", __METHOD__), 5, static::$version);
-        $fn = Tools::ds(Config::get('log')['dir'], SUCCESSFUL_TIMESTAMP);
+        $fn = Tools::ds(Config::getDataDir(), SUCCESSFUL_TIMESTAMP);
         $timestamps = [];
 
         if (file_exists($fn)) {

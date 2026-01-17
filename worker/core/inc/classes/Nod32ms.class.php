@@ -37,8 +37,9 @@ class Nod32ms
         global $VERSION;
         Log::write_log(Language::t("Running %s", __METHOD__), 5, null);
         static::$start_time = time();
-        static::$key_valid_file = Tools::ds(Config::get('log')['dir'], KEY_FILE_VALID);
-        static::$key_invalid_file = Tools::ds(Config::get('log')['dir'], KEY_FILE_INVALID);
+        $dataDir = Config::getDataDir();
+        static::$key_valid_file = Tools::ds($dataDir, KEY_FILE_VALID);
+        static::$key_invalid_file = Tools::ds($dataDir, KEY_FILE_INVALID);
         Log::write_log(Language::t("Run script %s", $VERSION), 0);
         $this->run_script();
     }
@@ -60,7 +61,7 @@ class Nod32ms
     private function check_time_stamp($version, $return_time_stamp = false)
     {
         Log::write_log(Language::t("Running %s", __METHOD__), 5, $version);
-        $fn = Tools::ds(Config::get('log')['dir'], SUCCESSFUL_TIMESTAMP);
+        $fn = Tools::ds(Config::getDataDir(), SUCCESSFUL_TIMESTAMP);
         $timestamps = array();
 
         if (file_exists($fn)) {
@@ -89,7 +90,7 @@ class Nod32ms
     private function set_database_size($size)
     {
         Log::write_log(Language::t("Running %s", __METHOD__), 5, Mirror::$version);
-        $fn = Tools::ds(Config::get('log')['dir'], DATABASES_SIZE);
+        $fn = Tools::ds(Config::getDataDir(), DATABASES_SIZE);
         $sizes = [];
 
         if (file_exists($fn)) {
@@ -117,7 +118,7 @@ class Nod32ms
     private function get_databases_size()
     {
         Log::write_log(Language::t("Running %s", __METHOD__), 5, Mirror::$version);
-        $fn = Tools::ds(Config::get('log')['dir'], DATABASES_SIZE);
+        $fn = Tools::ds(Config::getDataDir(), DATABASES_SIZE);
         $sizes = [];
 
         if (file_exists($fn)) {
@@ -340,7 +341,7 @@ class Nod32ms
         $scriptConfig = Config::get('script');
         if (!empty($scriptConfig['debug_html'])) {
             $path_info = pathinfo($this_link);
-            $dir = Tools::ds(Config::get('log')['dir'], DEBUG_DIR, $path_info['basename']);
+            $dir = Tools::ds(Config::getDataDir(), DEBUG_DIR, $path_info['basename']);
             @mkdir($dir, 0755, true);
             $filename = Tools::ds($dir, $path_info['filename'] . ".log");
             file_put_contents($filename, $this->strip_tags_and_css($search));
@@ -408,7 +409,7 @@ class Nod32ms
             $maxAttempts = 1;
         }
 
-        if (empty($FIND['auto']))
+        if (!$FIND['enabled'])
             return null;
 
         if (empty($FIND['system'])) {

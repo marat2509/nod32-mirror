@@ -94,7 +94,7 @@ class Config
             }
         }
 
-        foreach (['auto', 'remove_invalid_keys'] as $opt) {
+        foreach (['enabled', 'remove_invalid_keys'] as $opt) {
             if (isset(static::$CONF['find'][$opt])) {
                 static::$CONF['find'][$opt] = (bool) static::$CONF['find'][$opt];
             }
@@ -120,9 +120,23 @@ class Config
             static::$CONF['script']['web_dir'] = "www";
         }
 
+        if (empty(static::$CONF['log']['dir'])) {
+            static::$CONF['log']['dir'] = "log";
+        }
+
+        if (empty(static::$CONF['data']['dir'])) {
+            static::$CONF['data']['dir'] = "data";
+        }
+
         if (preg_match("/^win/i", PHP_OS) == false) {
             if (substr(static::$CONF['script']['web_dir'], 0, 1) != DS) {
                 static::$CONF['script']['web_dir'] = Tools::ds(SELF, static::$CONF['script']['web_dir']);
+            }
+            if (substr(static::$CONF['log']['dir'], 0, 1) != DS) {
+                static::$CONF['log']['dir'] = Tools::ds(SELF, static::$CONF['log']['dir']);
+            }
+            if (substr(static::$CONF['data']['dir'], 0, 1) != DS) {
+                static::$CONF['data']['dir'] = Tools::ds(SELF, static::$CONF['data']['dir']);
             }
         }
         static::check_config();
@@ -184,7 +198,8 @@ class Config
 
         $config['script'] = static::normalizeSection($config, 'script');
         $config['connection'] = static::normalizeSection($config, 'connection');
-        $config['log'] = static::normalizeSection($config, 'log');
+        $config['log'] = static::normalizeLog(static::normalizeSection($config, 'log'));
+        $config['data'] = static::normalizeSection($config, 'data');
         $config['find'] = static::normalizeSection($config, 'find');
         $config['eset'] = static::normalizeSection($config, 'eset');
 
@@ -334,6 +349,18 @@ class Config
     }
 
     /**
+     * @return string
+     */
+    static public function getDataDir()
+    {
+        if (!static::$initialized) {
+            static::init();
+        }
+
+        return static::$CONF['data']['dir'] ?? Tools::ds(SELF, 'data');
+    }
+
+    /**
      * @param array $array
      * @param string $needle
      * @return string|null
@@ -398,20 +425,26 @@ class Config
         while (substr(static::$CONF['script']['web_dir'], -1) == DS)
             static::$CONF['script']['web_dir'] = substr(static::$CONF['script']['web_dir'], 0, -1);
 
+        while (substr(static::$CONF['data']['dir'], -1) == DS)
+            static::$CONF['data']['dir'] = substr(static::$CONF['data']['dir'], 0, -1);
+
         while (substr(static::$CONF['log']['dir'], -1) == DS)
             static::$CONF['log']['dir'] = substr(static::$CONF['log']['dir'], 0, -1);
 
         @mkdir(PATTERN, 0755, true);
+        @mkdir(static::$CONF['data']['dir'], 0755, true);
         @mkdir(static::$CONF['log']['dir'], 0755, true);
         @mkdir(static::$CONF['script']['web_dir'], 0755, true);
         @mkdir(TMP_PATH, 0755, true);
 
         if (!empty(static::$CONF['script']['debug_html']))
-            @mkdir(Tools::ds(static::$CONF['log']['dir'], DEBUG_DIR), 0755, true);
+            @mkdir(Tools::ds(static::$CONF['data']['dir'], DEBUG_DIR), 0755, true);
 
         if (intval(static::$CONF['find']['errors_quantity'] ?? 0) <= 0) static::$CONF['find']['errors_quantity'] = 1;
 
         if (!is_readable(PATTERN)) throw new ConfigException("Pattern directory is not readable. Check your permissions!");
+
+        if (!is_writable(static::$CONF['data']['dir'])) throw new ConfigException("Data directory is not writable. Check your permissions!");
 
         if (!is_writable(static::$CONF['log']['dir'])) throw new ConfigException("Log directory is not writable. Check your permissions!");
 
