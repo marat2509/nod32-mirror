@@ -71,17 +71,6 @@ class Config
 
         static::loadConfig();
 
-        if (!isset(static::$CONF['script']['generate_json'])) {
-            static::$CONF['script']['generate_json'] = false;
-        }
-
-        // Normalize boolean-like options to real booleans
-        foreach (['generate_html', 'generate_json', 'generate_only_table', 'show_login_password', 'debug_update', 'debug_html'] as $opt) {
-            if (isset(static::$CONF['script'][$opt])) {
-                static::$CONF['script'][$opt] = (bool) static::$CONF['script'][$opt];
-            }
-        }
-
         if (isset(static::$CONF['connection'])) {
             static::$CONF['connection']['multidownload']['enabled'] = !empty(static::$CONF['connection']['multidownload']['enabled']);
             static::$CONF['connection']['proxy']['enabled'] = !empty(static::$CONF['connection']['proxy']['enabled']);
@@ -97,10 +86,6 @@ class Config
             }
         }
 
-        if (empty(static::$CONF['script']['filename_json'])) {
-            static::$CONF['script']['filename_json'] = 'index.json';
-        }
-
         if (empty(static::$CONF['eset']['mirror'])) {
             throw new ConfigException(Language::t("ESET mirrors list is not set!"));
         }
@@ -112,10 +97,6 @@ class Config
             static::$CONF['eset']['mirror'][] = "update.eset.com";
         }
         */
-
-        if (empty(static::$CONF['script']['web_dir'])) {
-            static::$CONF['script']['web_dir'] = "www";
-        }
 
         if (empty(static::$CONF['log']['file']['dir'])) {
             static::$CONF['log']['file']['dir'] = "log";
@@ -193,7 +174,7 @@ class Config
         // Convert all keys to lowercase for consistent access
         $config = static::arrayChangeKeyCaseRecursive($config, CASE_LOWER);
 
-        $config['script'] = static::normalizeSection($config, 'script');
+        $config['script'] = static::normalizeScript($config['script'] ?? []);
         $config['connection'] = static::normalizeConnection($config['connection'] ?? []);
         $config['log'] = static::normalizeLog(static::normalizeSection($config, 'log'));
         $config['data'] = static::normalizeSection($config, 'data');
@@ -218,6 +199,68 @@ class Config
     static private function normalizeSection(array $config, $key)
     {
         return (isset($config[$key]) && is_array($config[$key])) ? $config[$key] : [];
+    }
+
+    /**
+     * Normalize script configuration
+     * @param array $scriptConfig
+     * @return array
+     */
+    static private function normalizeScript(array $scriptConfig)
+    {
+        $defaults = [
+            'language' => 'en',
+            'codepage' => 'utf-8',
+            'timezone' => null,
+            'memory_limit' => '32M',
+            'debug_update' => false,
+            'link_method' => 'hardlink',
+            'generate_only_table' => false,
+            'debug_html' => false,
+            'web_dir' => 'www',
+            'generate' => [
+                'export_credentials' => false,
+                'json' => [
+                    'enabled' => true,
+                    'filename' => 'index.json',
+                ],
+                'html' => [
+                    'enabled' => true,
+                    'filename' => 'index.html',
+                    'codepage' => 'utf-8',
+                    'only_table' => false,
+                ],
+            ],
+        ];
+
+        $script = array_replace_recursive($defaults, $scriptConfig);
+
+        $script['debug_update'] = !empty($script['debug_update']);
+        $script['debug_html'] = !empty($script['debug_html']);
+        $script['generate_only_table'] = !empty($script['generate_only_table']);
+
+        $script['generate']['export_credentials'] = !empty($script['generate']['export_credentials']);
+        $script['generate']['json']['enabled'] = !empty($script['generate']['json']['enabled']);
+        $script['generate']['html']['enabled'] = !empty($script['generate']['html']['enabled']);
+        $script['generate']['html']['only_table'] = !empty($script['generate']['html']['only_table']);
+
+        if (empty($script['generate']['json']['filename'])) {
+            $script['generate']['json']['filename'] = $defaults['generate']['json']['filename'];
+        }
+
+        if (empty($script['generate']['html']['filename'])) {
+            $script['generate']['html']['filename'] = $defaults['generate']['html']['filename'];
+        }
+
+        if (empty($script['generate']['html']['codepage'])) {
+            $script['generate']['html']['codepage'] = $defaults['generate']['html']['codepage'];
+        }
+
+        if (empty($script['web_dir'])) {
+            $script['web_dir'] = $defaults['web_dir'];
+        }
+
+        return $script;
     }
 
     /**

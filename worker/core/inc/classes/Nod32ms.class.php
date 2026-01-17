@@ -706,6 +706,8 @@ class Nod32ms
 
         $scriptConfig = Config::get('script');
         $web_dir = $scriptConfig['web_dir'] ?? SELF . 'www';
+        $generateConfig = $scriptConfig['generate'] ?? [];
+        $exportCredentials = !empty($generateConfig['export_credentials']);
         $enabled_versions = VersionConfig::get_enabled_versions();
         $total_sizes = $this->get_databases_size();
 
@@ -822,7 +824,7 @@ class Nod32ms
                 ]
             ];
 
-            if (!empty($scriptConfig['show_login_password'])) {
+            if ($exportCredentials) {
                 if (file_exists(static::$key_valid_file)) {
                     $keys = Parser::parse_keys(static::$key_valid_file);
                     $credentials = [];
@@ -865,7 +867,11 @@ class Nod32ms
         Log::write_log(Language::t("Generating html..."), 0);
         $scriptConfig = Config::get('script');
         $web_dir = $scriptConfig['web_dir'] ?? SELF . 'www';
-        $generateOnlyTable = !empty($scriptConfig['generate_only_table']);
+        $generateConfig = $scriptConfig['generate'] ?? [];
+        $htmlConfig = $generateConfig['html'] ?? [];
+        $generateOnlyTable = !empty($htmlConfig['only_table']);
+        $exportCredentials = !empty($generateConfig['export_credentials']);
+        $htmlCodepage = $htmlConfig['codepage'] ?? 'utf-8';
         $html_page = '';
         $metadata = $this->build_metadata();
         $versionsMeta = $metadata['versions'];
@@ -875,7 +881,7 @@ class Nod32ms
             $html_page .= '<html>';
             $html_page .= '<head>';
             $html_page .= '<title>' . Language::t("ESET NOD32 update server") . '</title>';
-            $html_page .= '<meta http-equiv="Content-Type" content="text/html; charset=' . ($scriptConfig['html_codepage'] ?? 'utf-8') . '">';
+            $html_page .= '<meta http-equiv="Content-Type" content="text/html; charset=' . $htmlCodepage . '">';
             $html_page .= '<style type="text/css">html,body{height:100%;margin:0;padding:0;width:100%}table#center{border:0;height:100%;width:100%}table td table td{text-align:center;vertical-align:middle;font-weight:bold;padding:10px 15px;border:0}table tr:nth-child(odd){background:#eee}table tr:nth-child(even){background:#fc0}</style>';
             $html_page .= '</head>';
             $html_page .= '<body>';
@@ -920,7 +926,7 @@ class Nod32ms
         $html_page .= '<td colspan="3">' . (static::$start_time ? date("Y-m-d, H:i:s", static::$start_time) : Language::t("n/a")) . '</td>';
         $html_page .= '</tr>';
 
-        if (!empty($scriptConfig['show_login_password'])) {
+        if ($exportCredentials) {
             if (file_exists(static::$key_valid_file)) {
                 $keys = Parser::parse_keys(static::$key_valid_file);
 
@@ -944,7 +950,7 @@ class Nod32ms
         $html_page .= '</table>';
         $html_page .= (!$generateOnlyTable) ? '</td></tr></table></body></html>' : '';
 
-        $file = Tools::ds($web_dir, $scriptConfig['filename_html'] ?? 'index.html');
+        $file = Tools::ds($web_dir, $htmlConfig['filename'] ?? 'index.html');
 
         if (!is_dir (dirname($file))) {
             @mkdir(dirname($file), 0755, true);
@@ -952,7 +958,7 @@ class Nod32ms
 
         if (file_exists($file)) @unlink($file);
 
-        Log::write_to_file($file, Tools::conv($html_page, $scriptConfig['html_codepage'] ?? 'utf-8'));
+        Log::write_to_file($file, Tools::conv($html_page, $htmlCodepage));
     }
 
     private function generate_json()
@@ -960,6 +966,8 @@ class Nod32ms
         Log::write_log(Language::t("Running %s", __METHOD__), 5, null);
         $scriptConfig = Config::get('script');
         $web_dir = $scriptConfig['web_dir'] ?? SELF . 'www';
+        $generateConfig = $scriptConfig['generate'] ?? [];
+        $jsonConfig = $generateConfig['json'] ?? [];
         $summary = $this->build_metadata();
 
         $json = json_encode($summary, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -969,7 +977,7 @@ class Nod32ms
             return;
         }
 
-        $file = Tools::ds($web_dir, $scriptConfig['filename_json'] ?? 'index.json');
+        $file = Tools::ds($web_dir, $jsonConfig['filename'] ?? 'index.json');
 
         if (!is_dir(dirname($file))) {
             @mkdir(dirname($file), 0755, true);
@@ -1081,11 +1089,12 @@ class Nod32ms
             Log::write_log(Language::t("Average speed for all databases: %s/s", Tools::bytesToSize1024(array_sum($average_speed) / count($average_speed))), 3);
 
         $scriptConfig = Config::get('script');
-        if (!empty($scriptConfig['generate_html'])) {
+        $generateConfig = $scriptConfig['generate'] ?? [];
+        if (!empty($generateConfig['html']['enabled'])) {
             $this->generate_html();
         }
 
-        if (!empty($scriptConfig['generate_json'])) {
+        if (!empty($generateConfig['json']['enabled'])) {
             $this->generate_json();
         }
     }
