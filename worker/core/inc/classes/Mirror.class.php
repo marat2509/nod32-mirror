@@ -448,7 +448,7 @@ class Mirror
         ];
         $mh = curl_multi_init();
 
-        $max_threads = !empty($connection['download_threads']) ? $connection['download_threads'] : count($mirrorList);
+        $max_threads = !empty($connection['multidownload']['threads']) ? $connection['multidownload']['threads'] : count($mirrorList);
 
         $chunks = array_chunk($download_files, $max_threads);
         $mirrorIndex = 0;
@@ -586,7 +586,7 @@ class Mirror
         Log::write_log(Language::t("Running %s", __METHOD__), 5, static::$version);
 
         $connection = Config::get('connection');
-        $useMulti = function_exists('curl_multi_init') && !empty($connection['use_multidownload']) && !$onlyCheck;
+        $useMulti = function_exists('curl_multi_init') && !empty($connection['multidownload']['enabled']) && !$onlyCheck;
 
         switch ($useMulti) {
             case true:
