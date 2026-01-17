@@ -253,18 +253,7 @@ class Mirror
                 return;
             }
 
-            if (preg_match("/rar/", Tools::get_file_mimetype($archive))) {
-                Log::write_log(Language::t("Extracting file %s to %s", $archive, $tmp_path), 5, static::$version);
-                $scriptConfig = Config::get('script');
-                Tools::extract_file($scriptConfig['unrar_binary'] ?? '', $archive, $tmp_path);
-                @unlink($archive);
-                if (!empty($scriptConfig['debug_update'])) {
-                    $date = date("Y-m-d-H-i-s-") . explode('.', microtime(1))[1];
-                    copy("{$tmp_path}/update.ver", "{$tmp_path}/update_${mirror}_${date}.ver");
-                }
-            } else {
-                rename($archive, $extracted);
-            }
+            rename($archive, $extracted);
 
             if (!$downloadRandomFile) {
                 return;

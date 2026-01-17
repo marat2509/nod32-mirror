@@ -3,7 +3,6 @@ script:
   codepage: "utf-8"  # Codepage for log/stdout
   timezone: "Europe/Moscow"  # Timezone in format date_default_timezone_set (if supported by PHP)
   memory_limit: "32M"  # Memory limit for php
-  unrar_binary: "C:\\unrar.exe"  # Unrar binary path !! Only for Windows
   debug_update: false  # Debugging update.ver files (0-off; 1-on)
   link_method: "hardlink"  # Method for linking files: hardlink, symlink, copy
   generate_html: true  # Generate index.html in www root
