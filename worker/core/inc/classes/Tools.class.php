@@ -10,16 +10,18 @@ class Tools
      * @param $headers
      * @return mixed
      */
-    static public function download_file($options = array(), &$headers)
+    static public function download_file($options = array(), &$headers = null)
     {
-        Log::write_log(Language::t("Running %s", __METHOD__), 5, Mirror::$version);
+        Log::write_log(Language::t('log.running', __METHOD__), 5, Mirror::$version);
         $out = FALSE;
+        $fileTarget = null;
 
         if (key_exists(CURLOPT_FILE, $options)) {
             $dir = dirname($options[CURLOPT_FILE]);
             if (!@file_exists($dir)) @mkdir($dir, 0755, true);
-            $out = fopen($options[CURLOPT_FILE], "wb");
-	        if (!is_resource($out)) return false;
+            $fileTarget = $options[CURLOPT_FILE];
+            $out = fopen($fileTarget, "wb");
+            if (!is_resource($out)) return false;
             $options[CURLOPT_FILE] = $out;
         }
 
@@ -29,13 +31,24 @@ class Tools
 
         $headers = curl_getinfo($ch);
         if ($out) @fclose($out);
+
+        if ($res === false) {
+            $errorMessage = sprintf("Curl error (%s): %s", curl_errno($ch), curl_error($ch));
+            if ($fileTarget) {
+                @unlink($fileTarget);
+            }
+            if (class_exists('Log')) {
+                Log::write_log($errorMessage, 0, Mirror::$version);
+            }
+        }
+
         curl_close($ch);
 
         if (key_exists(CURLOPT_RETURNTRANSFER, $options)) {
             if ($options[CURLOPT_RETURNTRANSFER] == 1) return $res;
         }
 
-        return false;
+        return $res !== false;
     }
 
     /**
@@ -69,36 +82,6 @@ class Tools
     }
 
     /**
-     * @param $unrar_binary
-     * @param $source
-     * @param $destination
-     * @throws ToolsException
-     */
-    static public function extract_file($unrar_binary, $source, $destination)
-    {
-        if (PHP_OS != 'WINNT')
-            $unrar_binary = exec('which unrar');
-
-        if (!file_exists($unrar_binary))
-            throw new ToolsException("Unrar not exists at %s", $unrar_binary);
-
-        if (!is_executable($unrar_binary))
-            throw new ToolsException("Unrar not executable at %s", $unrar_binary);
-
-        switch (PHP_OS) {
-            case "Darwin":
-            case "Linux":
-            case "FreeBSD":
-            case "OpenBSD":
-                exec(sprintf("%s x -inul -y %s %s", $unrar_binary, $source, $destination));
-                break;
-            case "WINNT":
-                shell_exec(sprintf("%s e -y %s %s", $unrar_binary, $source, $destination));
-                break;
-        }
-    }
-
-    /**
      * @param array $options
      * @param $hostname
      * @param int $port
@@ -125,7 +108,7 @@ class Tools
      */
     static public function bytesToSize1024($bytes, $precision = 2)
     {
-        $unit = [Language::t('Bytes'), Language::t('KBytes'), Language::t('MBytes'), Language::t('GBytes'), Language::t('TBytes'), Language::t('PBytes'), Language::t('EBytes')];
+        $unit = [Language::t('common.bytes'), Language::t('common.kbytes'), Language::t('common.mbytes'), Language::t('common.gbytes'), Language::t('common.tbytes'), Language::t('common.pbytes'), Language::t('common.ebytes')];
         return $bytes > 0 ? @round($bytes / pow(1024, ($i = floor(log($bytes, 1024)))), $precision) . ' ' . $unit[intval($i)] :  '0 ' . $unit[intval(0)];
     }
 
@@ -216,7 +199,12 @@ class Tools
      */
     static public function get_resource_id($resource)
     {
-        return (!is_resource($resource)) ? false : @end(explode('#', (string)$resource));
+        if (!is_resource($resource)) {
+            return false;
+        }
+
+        $parts = explode('#', (string)$resource);
+        return end($parts);
     }
 
     /**
@@ -242,7 +230,7 @@ class Tools
             $str = intval(trim($result[1][0]));
 
             if (count($result) != 3 || $str < 1 || empty($result[1][0]) || empty($result[2][0]))
-                throw new Exception("Please, check set up of (log) rotate_size in your config file!");
+                throw new Exception("Please, check set up of log.file.rotate.size in your config file!");
 
             switch (trim($result[2][0])) {
                 case "g":
