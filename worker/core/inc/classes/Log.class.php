@@ -65,20 +65,24 @@ class Log
             return null;
         }
 
-        if (static::$CONF['type'] == '0') return null;
+        $fileConfig = static::$CONF['file'];
+        $stdoutConfig = static::$CONF['stdout'];
 
-        if (static::$CONF['level'] < $level) return null;
+        $logToFile = (!empty($fileConfig['enabled']) && ($fileConfig['level'] >= $level));
+        $logToStdout = (!empty($stdoutConfig['enabled']) && ($stdoutConfig['level'] >= $level));
 
-        $fn = Tools::ds(static::$CONF['dir'], LOG_FILE);
+        if (!$logToFile && !$logToStdout) return null;
 
-        if (static::$CONF['rotate'] == 1) {
+        $fn = Tools::ds($fileConfig['dir'], LOG_FILE);
+
+        if ($logToFile && !empty($fileConfig['rotate']['enabled'])) {
             if (file_exists($fn) && !$ignore_rotate) {
                 $arch_ext = Tools::get_archive_extension();
-                if (filesize($fn) >= static::$CONF['rotate_size']) {
+                if (filesize($fn) >= ($fileConfig['rotate']['size'] ?? 0)) {
                     static::write_log(Language::t("Log file was cutted due rotation..."), 0, null, true);
                     array_pop(static::$log);
 
-                    for ($i = static::$CONF['rotate_qty']; $i > 1; $i--) {
+                    for ($i = $fileConfig['rotate']['qty']; $i > 1; $i--) {
                         @unlink($fn . "." . strval($i) . $arch_ext);
                         @rename($fn . "." . strval($i - 1) . $arch_ext, $fn . "." . strval($i) . $arch_ext);
                     }
@@ -94,10 +98,10 @@ class Log
 
         $text = sprintf("[%s] %s%s", date("Y-m-d, H:i:s"), ($version ? '[ver. ' . strval($version) . '] ' : ''), $text);
 
-        if (static::$CONF['type'] == '1' || static::$CONF['type'] == '3')
+        if ($logToFile)
             static::write_to_file($fn, Tools::conv($text . "\r\n", static::$CONF['codepage']));
 
-        if (static::$CONF['type'] == '2' || static::$CONF['type'] == '3') echo Tools::conv($text, static::$CONF['codepage']) . chr(10);
+        if ($logToStdout) echo Tools::conv($text, static::$CONF['codepage']) . chr(10);
         static::$log[] = $text;
         return;
     }
@@ -120,12 +124,8 @@ class Log
         static::$CONF = $logConfig;
         static::$CONF['codepage'] = $scriptConfig['codepage'] ?? 'utf-8';
 
-        if (!is_numeric(static::$CONF['rotate_size'])) {
-            static::$CONF['rotate_size'] = Tools::human2bytes((string)(static::$CONF['rotate_size'] ?? '0'));
-        }
-
-        if (!file_exists(static::$CONF['dir'])) {
-            mkdir(static::$CONF['dir'], 0755, true);
+        if (!empty(static::$CONF['file']['enabled']) && !file_exists(static::$CONF['file']['dir'])) {
+            mkdir(static::$CONF['file']['dir'], 0755, true);
         }
 
         static::$initialized = true;
