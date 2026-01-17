@@ -57,32 +57,20 @@ class Nod32ms
     {
         Log::write_log(Language::t('log.running', __METHOD__), 5, $version);
         $fn = Tools::ds(Config::getDataDir(), SUCCESSFUL_TIMESTAMP);
-        $timestamps = [];
-
-        if (file_exists($fn)) {
-            $json = json_decode(@file_get_contents($fn), true);
-
-            if (is_array($json)) {
-                $timestamps = $json;
-            } else {
-                // fallback to legacy format
-                $handle = file_get_contents($fn);
-                $content = Parser::parse_line($handle, false, "/(.+:.+)\n/");
-
-                if (isset($content) && count($content)) {
-                    foreach ($content as $value) {
-                        $result = explode(":", $value);
-                        $timestamps[$result[0]] = $result[1];
-                    }
-                }
-            }
-
-            if (isset($timestamps[$version])) {
-                if ($return_time_stamp) {
-                    return (int)$timestamps[$version];
-                }
-            }
+        if (!file_exists($fn)) {
+            return null;
         }
+
+        $json = json_decode(@file_get_contents($fn), true);
+
+        if (!is_array($json)) {
+            return null;
+        }
+
+        if (isset($json[$version])) {
+            return $return_time_stamp ? (int) $json[$version] : null;
+        }
+
         return null;
     }
 
@@ -99,16 +87,6 @@ class Nod32ms
             $decoded = json_decode(@file_get_contents($fn), true);
             if (is_array($decoded)) {
                 $sizes = $decoded;
-            } else {
-                // legacy fallback
-                $handle = file_get_contents($fn);
-                $content = Parser::parse_line($handle, false, "/(.+:.+)\n/");
-                if (isset($content) && count($content)) {
-                    foreach ($content as $value) {
-                        $result = explode(":", $value);
-                        $sizes[$result[0]] = $result[1];
-                    }
-                }
             }
         }
 
@@ -129,17 +107,6 @@ class Nod32ms
             $decoded = json_decode(@file_get_contents($fn), true);
             if (is_array($decoded)) {
                 $sizes = $decoded;
-            } else {
-                // legacy fallback
-                $handle = file_get_contents($fn);
-                $content = Parser::parse_line($handle, false, "/(.+:.+)\n/");
-
-                if (isset($content) && count($content)) {
-                    foreach ($content as $value) {
-                        $result = explode(":", $value);
-                        $sizes[$result[0]] = $result[1];
-                    }
-                }
             }
         }
 
@@ -211,18 +178,18 @@ class Nod32ms
     private function ensure_data_files($dataDir)
     {
         $files = [
-            SUCCESSFUL_TIMESTAMP => "{}\n",
-            DATABASES_SIZE => "{}\n",
+            SUCCESSFUL_TIMESTAMP,
+            DATABASES_SIZE,
         ];
 
-        foreach ($files as $name => $defaultContent) {
-            $path = Tools::ds($dataDir, $name);
+        foreach ($files as $filename) {
+            $path = Tools::ds($dataDir, $filename);
 
             if (!file_exists($path)) {
                 if (!is_dir(dirname($path))) {
                     @mkdir(dirname($path), 0755, true);
                 }
-                @file_put_contents($path, $defaultContent);
+                @file_put_contents($path, "{}\n");
             }
         }
     }

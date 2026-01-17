@@ -88,17 +88,6 @@ class Mirror
 
             if (is_array($json)) {
                 $timestamps = $json;
-            } else {
-                // legacy fallback
-                $handle = file_get_contents($fn);
-                $content = Parser::parse_line($handle, false, "/(.+:.+)\n/");
-
-                if (isset($content) && count($content)) {
-                    foreach ($content as $value) {
-                        $result = explode(":", $value);
-                        $timestamps[$result[0]] = $result[1];
-                    }
-                }
             }
         }
 
