@@ -1,5 +1,8 @@
 <?php
 
+use Symfony\Component\Yaml\Exception\ParseException;
+use Symfony\Component\Yaml\Yaml;
+
 /**
  * Class Config
  */
@@ -9,6 +12,16 @@ class Config
      * @var
      */
     static private $CONF;
+
+    /**
+     * @var bool
+     */
+    static private $initialized = false;
+
+    /**
+     * @var string|null
+     */
+    static private $configPath = null;
 
     /**
      * @var array
@@ -52,42 +65,244 @@ class Config
      */
     static public function init()
     {
-        if (!file_exists(CONF_FILE)) throw new ConfigException(Language::t("Config file does not exist!"));
-
-        if (!is_readable(CONF_FILE)) throw new ConfigException(Language::t("Can't read config file! Check the file and its permissions!"));
-
-        static::$CONF = parse_ini_file(CONF_FILE, true);
-
-        if (!isset(static::$CONF['SCRIPT']['generate_json'])) {
-            static::$CONF['SCRIPT']['generate_json'] = '0';
+        if (static::$initialized) {
+            return;
         }
 
-        if (empty(static::$CONF['SCRIPT']['filename_json'])) {
-            static::$CONF['SCRIPT']['filename_json'] = 'index.json';
+        static::loadConfig();
+
+        if (!isset(static::$CONF['script']['generate_json'])) {
+            static::$CONF['script']['generate_json'] = false;
         }
 
-        if (empty(static::$CONF['ESET']['mirror'])) {
+        // Normalize boolean-like options to real booleans
+        foreach (['generate_html', 'generate_json', 'generate_only_table', 'show_login_password', 'debug_update', 'debug_html'] as $opt) {
+            if (isset(static::$CONF['script'][$opt])) {
+                static::$CONF['script'][$opt] = (bool) static::$CONF['script'][$opt];
+            }
+        }
+
+        foreach (['proxy', 'use_multidownload'] as $opt) {
+            if (isset(static::$CONF['connection'][$opt])) {
+                static::$CONF['connection'][$opt] = (bool) static::$CONF['connection'][$opt];
+            }
+        }
+
+        foreach (['rotate'] as $opt) {
+            if (isset(static::$CONF['log'][$opt])) {
+                static::$CONF['log'][$opt] = (bool) static::$CONF['log'][$opt];
+            }
+        }
+
+        foreach (['auto', 'remove_invalid_keys'] as $opt) {
+            if (isset(static::$CONF['find'][$opt])) {
+                static::$CONF['find'][$opt] = (bool) static::$CONF['find'][$opt];
+            }
+        }
+
+        if (empty(static::$CONF['script']['filename_json'])) {
+            static::$CONF['script']['filename_json'] = 'index.json';
+        }
+
+        if (empty(static::$CONF['eset']['mirror'])) {
             throw new ConfigException(Language::t("ESET mirrors list is not set!"));
         }
 
-        static::$CONF['ESET']['mirror'] = Tools::parse_comma_list(static::$CONF['ESET']['mirror']);
+        static::$CONF['eset']['mirror'] = static::normalizeMirrorList(static::$CONF['eset']['mirror']);
 
         /*
-        if (!in_array("update.eset.com", static::$CONF['ESET']['mirror'])) {
-            static::$CONF['ESET']['mirror'][] = "update.eset.com";
+        if (!in_array("update.eset.com", static::$CONF['eset']['mirror'])) {
+            static::$CONF['eset']['mirror'][] = "update.eset.com";
         }
         */
 
-        if (empty(static::$CONF['SCRIPT']['web_dir'])) {
-            static::$CONF['SCRIPT']['web_dir'] = "www";
+        if (empty(static::$CONF['script']['web_dir'])) {
+            static::$CONF['script']['web_dir'] = "www";
         }
 
         if (preg_match("/^win/i", PHP_OS) == false) {
-            if (substr(static::$CONF['SCRIPT']['web_dir'], 0, 1) != DS) {
-                static::$CONF['SCRIPT']['web_dir'] = Tools::ds(SELF, static::$CONF['SCRIPT']['web_dir']);
+            if (substr(static::$CONF['script']['web_dir'], 0, 1) != DS) {
+                static::$CONF['script']['web_dir'] = Tools::ds(SELF, static::$CONF['script']['web_dir']);
             }
         }
         static::check_config();
+        static::$initialized = true;
+    }
+
+    /**
+     * Locate config file path (supports container and repo root)
+     * @return string
+     */
+    static private function resolveConfigPath()
+    {
+        return CONF_FILE;
+    }
+
+    /**
+     * Parse YAML config and normalize structure
+     * @throws ConfigException
+     */
+    static private function loadConfig()
+    {
+        if (!empty(static::$CONF)) {
+            return;
+        }
+
+        $configPath = static::resolveConfigPath();
+
+        if (!file_exists($configPath)) {
+            throw new ConfigException(Language::t("Config file does not exist!"));
+        }
+
+        if (!is_readable($configPath)) {
+            throw new ConfigException(Language::t("Can't read config file! Check the file and its permissions!"));
+        }
+
+        try {
+            $parsed = Yaml::parseFile($configPath);
+        } catch (ParseException $e) {
+            throw new ConfigException(Language::t("Failed to parse config file: %s", $e->getMessage()));
+        }
+
+        if (empty($parsed) || !is_array($parsed)) {
+            throw new ConfigException(Language::t("Empty config file!"));
+        }
+
+        static::$CONF = static::normalizeConfig($parsed);
+        static::$configPath = $configPath;
+    }
+
+    /**
+     * Normalize YAML config to legacy-friendly structure
+     * @param array $config
+     * @return array
+     */
+    static private function normalizeConfig(array $config)
+    {
+        // Convert all keys to lowercase for consistent access
+        $config = static::arrayChangeKeyCaseRecursive($config, CASE_LOWER);
+
+        $config['script'] = static::normalizeSection($config, 'script');
+        $config['connection'] = static::normalizeSection($config, 'connection');
+        $config['log'] = static::normalizeSection($config, 'log');
+        $config['find'] = static::normalizeSection($config, 'find');
+        $config['eset'] = static::normalizeSection($config, 'eset');
+
+        if (!isset($config['eset']['mirror'])) {
+            $config['eset']['mirror'] = [];
+        }
+
+        // Normalize versions block
+        $config['eset']['versions'] = static::normalizeVersions($config['eset']['versions'] ?? []);
+
+        return $config;
+    }
+
+    /**
+     * @param array $config
+     * @param string $key
+     * @return array
+     */
+    static private function normalizeSection(array $config, $key)
+    {
+        return (isset($config[$key]) && is_array($config[$key])) ? $config[$key] : [];
+    }
+
+    /**
+     * @param mixed $mirrorList
+     * @return array
+     */
+    static private function normalizeMirrorList($mirrorList)
+    {
+        if (is_array($mirrorList)) {
+            return array_values(array_filter(array_map('trim', $mirrorList), 'strlen'));
+        }
+
+        if (is_string($mirrorList)) {
+            return Tools::parse_comma_list($mirrorList);
+        }
+
+        return [];
+    }
+
+    /**
+     * Normalize list values into array or "all" marker (true)
+     * @param mixed $value
+     * @return array|bool
+     */
+    static private function normalizeList($value)
+    {
+        if ($value === true) {
+            return true;
+        }
+
+        if ($value === null || $value === '' || $value === false) {
+            return [];
+        }
+
+        if (is_array($value)) {
+            return array_values(array_filter(array_map('trim', $value), 'strlen'));
+        }
+
+        if (is_string($value)) {
+            return Tools::parse_comma_list($value);
+        }
+
+        return [];
+    }
+
+    /**
+     * Normalize version configuration structure
+     * @param array $versionsConfig
+     * @return array
+     */
+    static private function normalizeVersions(array $versionsConfig)
+    {
+        // Accept both "version_overrides" (new YAML) and "overrides" (fallback)
+        $overrides = [];
+        if (!empty($versionsConfig['version_overrides']) && is_array($versionsConfig['version_overrides'])) {
+            $overrides = $versionsConfig['version_overrides'];
+        } elseif (!empty($versionsConfig['overrides']) && is_array($versionsConfig['overrides'])) {
+            $overrides = $versionsConfig['overrides'];
+        }
+
+        $normalized = [
+            'platforms' => static::normalizeList($versionsConfig['platforms'] ?? []),
+            'channels' => static::normalizeList($versionsConfig['channels'] ?? []),
+            'overrides' => [],
+        ];
+
+        if (!empty($overrides)) {
+            foreach ($overrides as $version => $settings) {
+                $settings = is_array($settings) ? $settings : [];
+                $settings['platforms'] = static::normalizeList($settings['platforms'] ?? []);
+                $settings['channels'] = static::normalizeList($settings['channels'] ?? []);
+                $settings['mirror'] = isset($settings['mirror']) ? (bool)$settings['mirror'] : false;
+                $normalized['overrides'][$version] = $settings;
+            }
+        }
+
+        // Keep original key for direct access mirroring YAML name
+        $normalized['version_overrides'] = $normalized['overrides'];
+
+        return $normalized;
+    }
+
+    /**
+     * Recursively convert array keys to lower/upper case
+     * @param array $input
+     * @param int $case
+     * @return array
+     */
+    static private function arrayChangeKeyCaseRecursive(array $input, $case = CASE_LOWER)
+    {
+        $output = [];
+        foreach ($input as $key => $value) {
+            $newKey = ($case === CASE_LOWER) ? strtolower($key) : strtoupper($key);
+            $output[$newKey] = is_array($value) ? static::arrayChangeKeyCaseRecursive($value, $case) : $value;
+        }
+
+        return $output;
     }
 
     /**
@@ -96,7 +311,42 @@ class Config
      */
     static function get($nm)
     {
-        return isset(static::$CONF[$nm]) ? static::$CONF[$nm] : null;
+        if (!static::$initialized) {
+            static::init();
+        }
+
+        if (isset(static::$CONF[$nm])) {
+            return static::$CONF[$nm];
+        }
+
+        $parts = explode('.', $nm);
+        $current = static::$CONF;
+
+        foreach ($parts as $part) {
+            $key = static::findArrayKey($current, $part);
+            if ($key === null || !isset($current[$key])) {
+                return null;
+            }
+            $current = $current[$key];
+        }
+
+        return $current;
+    }
+
+    /**
+     * @param array $array
+     * @param string $needle
+     * @return string|null
+     */
+    static private function findArrayKey(array $array, $needle)
+    {
+        foreach ($array as $key => $value) {
+            if (strcasecmp($key, $needle) === 0) {
+                return $key;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -105,7 +355,7 @@ class Config
      */
     static public function upd_version_is_set($i)
     {
-        return (isset(static::$CONF['ESET']['version_' . strval($i)]) ? static::$CONF['ESET']['version_' . strval($i)] : 0);
+        return (isset(static::$CONF['eset']['version_' . strval($i)]) ? static::$CONF['eset']['version_' . strval($i)] : 0);
     }
 
     /**
@@ -118,50 +368,54 @@ class Config
             throw new ConfigException(Language::t("This script doesn't support your OS. Please, contact developer!"));
 
         if (function_exists("date_default_timezone_set") and function_exists("date_default_timezone_get")) {
-            if (empty(static::$CONF['SCRIPT']['timezone'])) {
+            if (empty(static::$CONF['script']['timezone'])) {
                 date_default_timezone_set(@date_default_timezone_get());
             } else {
-                if (@date_default_timezone_set(static::$CONF['SCRIPT']['timezone']) === false) {
-                    static::$CONF['LOG']['rotate'] = 0;
+                if (@date_default_timezone_set(static::$CONF['script']['timezone']) === false) {
+                    static::$CONF['log']['rotate'] = 0;
                     throw new ConfigException("Error in timezone settings! Please, check your config file!");
                 }
             }
         }
 
-        if (static::$CONF['LOG']['rotate'] == 1) {
-            static::$CONF['LOG']['rotate_size'] = Tools::human2bytes(static::$CONF['LOG']['rotate_size']);
+        $logConfig = static::$CONF['log'];
+        $rotateEnabled = !empty($logConfig['rotate']);
 
-            if (intval(static::$CONF['LOG']['rotate_qty']) < 1) {
+        if ($rotateEnabled) {
+            $logConfig['rotate_size'] = Tools::human2bytes((string)($logConfig['rotate_size'] ?? '0'));
+
+            if (intval($logConfig['rotate_qty'] ?? 0) < 1) {
                 throw new ConfigException("Please, check set up of (log) rotate_qty in your config file!");
             } else {
-                static::$CONF['LOG']['rotate_qty'] = intval(static::$CONF['LOG']['rotate_qty']);
+                $logConfig['rotate_qty'] = intval($logConfig['rotate_qty']);
             }
 
-            if (intval(static::$CONF['LOG']['type']) < 0 || intval(static::$CONF['LOG']['type']) > 3)
+            if (intval($logConfig['type'] ?? -1) < 0 || intval($logConfig['type']) > 3)
                 throw new ConfigException("Please, check set up of (log) type in your config file!");
         }
+        static::$CONF['log'] = $logConfig;
 
-        while (substr(static::$CONF['SCRIPT']['web_dir'], -1) == DS)
-            static::$CONF['SCRIPT']['web_dir'] = substr(static::$CONF['SCRIPT']['web_dir'], 0, -1);
+        while (substr(static::$CONF['script']['web_dir'], -1) == DS)
+            static::$CONF['script']['web_dir'] = substr(static::$CONF['script']['web_dir'], 0, -1);
 
-        while (substr(static::$CONF['LOG']['dir'], -1) == DS)
-            static::$CONF['LOG']['dir'] = substr(static::$CONF['LOG']['dir'], 0, -1);
+        while (substr(static::$CONF['log']['dir'], -1) == DS)
+            static::$CONF['log']['dir'] = substr(static::$CONF['log']['dir'], 0, -1);
 
         @mkdir(PATTERN, 0755, true);
-        @mkdir(static::$CONF['LOG']['dir'], 0755, true);
-        @mkdir(static::$CONF['SCRIPT']['web_dir'], 0755, true);
+        @mkdir(static::$CONF['log']['dir'], 0755, true);
+        @mkdir(static::$CONF['script']['web_dir'], 0755, true);
         @mkdir(TMP_PATH, 0755, true);
 
-        if (static::$CONF['SCRIPT']['debug_html'] == 1)
-            @mkdir(Tools::ds(static::$CONF['LOG']['dir'], DEBUG_DIR), 0755, true);
+        if (!empty(static::$CONF['script']['debug_html']))
+            @mkdir(Tools::ds(static::$CONF['log']['dir'], DEBUG_DIR), 0755, true);
 
-        if (intval(static::$CONF['FIND']['errors_quantity']) <= 0) static::$CONF['FIND']['errors_quantity'] = 1;
+        if (intval(static::$CONF['find']['errors_quantity'] ?? 0) <= 0) static::$CONF['find']['errors_quantity'] = 1;
 
         if (!is_readable(PATTERN)) throw new ConfigException("Pattern directory is not readable. Check your permissions!");
 
-        if (!is_writable(static::$CONF['LOG']['dir'])) throw new ConfigException("Log directory is not writable. Check your permissions!");
+        if (!is_writable(static::$CONF['log']['dir'])) throw new ConfigException("Log directory is not writable. Check your permissions!");
 
-        if (!is_writable(static::$CONF['SCRIPT']['web_dir'])) throw new ConfigException("Web directory is not writable. Check your permissions!");
+        if (!is_writable(static::$CONF['script']['web_dir'])) throw new ConfigException("Web directory is not writable. Check your permissions!");
     }
 
     /**
@@ -169,25 +423,32 @@ class Config
      */
     static public function getConnectionInfo()
     {
+        if (!static::$initialized) {
+            static::init();
+        }
+
         Log::write_log(Language::t("Running %s", __METHOD__), 5);
+
+        $connection = static::$CONF['connection'];
 
         $options = [
             CURLOPT_BINARYTRANSFER => true,
-            CURLOPT_CONNECTTIMEOUT => static::$CONF['CONNECTION']['timeout'],
+            CURLOPT_CONNECTTIMEOUT => intval($connection['timeout'] ?? 5),
             CURLOPT_HEADER => false,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_MAXREDIRS => 5,
         ];
 
-        if (static::$CONF['CONNECTION']['download_speed_limit'] != 0) {
-            $options[CURLOPT_MAX_RECV_SPEED_LARGE] = static::$CONF['CONNECTION']['download_speed_limit'];
+        if (!empty($connection['download_speed_limit'])) {
+            $options[CURLOPT_MAX_RECV_SPEED_LARGE] = $connection['download_speed_limit'];
         }
 
-        if (static::$CONF['CONNECTION']['proxy'] != 0) {
-            $options[CURLOPT_PROXY] = static::$CONF['CONNECTION']['server'];
-            $options[CURLOPT_PROXYPORT] = static::$CONF['CONNECTION']['port'];
+        if (!empty($connection['proxy'])) {
+            $options[CURLOPT_PROXY] = $connection['server'] ?? '';
+            $options[CURLOPT_PROXYPORT] = $connection['port'] ?? 80;
 
-            switch (static::$CONF['CONNECTION']['type']) {
+            $proxyType = $connection['type'] ?? 'http';
+            switch ($proxyType) {
                 case 'socks4':
                     $options[CURLOPT_PROXYTYPE] = CURLPROXY_SOCKS4;
                     break;
@@ -203,9 +464,9 @@ class Config
                     break;
             }
 
-            if (!empty(static::$CONF['CONNECTION']['user'])) {
-                $options[CURLOPT_PROXYUSERNAME] = static::$CONF['CONNECTION']['user'];
-                $options[CURLOPT_PROXYPASSWORD] = static::$CONF['CONNECTION']['password'];
+            if (!empty($connection['user'])) {
+                $options[CURLOPT_PROXYUSERNAME] = $connection['user'];
+                $options[CURLOPT_PROXYPASSWORD] = $connection['password'];
             }
         }
 

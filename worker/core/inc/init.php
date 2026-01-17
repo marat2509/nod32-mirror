@@ -10,7 +10,7 @@ $VERSION = '20250919';
 @define('INC', SELF . "inc" . DS);
 @define('CLASSES', INC . "classes" . DS);
 @define('PATTERN', SELF . "patterns" . DS);
-@define('CONF_FILE', SELF . "nod32ms.conf");
+@define('CONF_FILE', SELF . "nod32-mirror.yaml");
 @define('LANGPACKS_DIR', SELF . 'langpacks' . DS);
 @define('DEBUG_DIR', SELF . 'debug' . DS);
 @define('TMP_PATH', SELF . 'tmp' . DS);

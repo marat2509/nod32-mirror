@@ -35,18 +35,11 @@ class Language
      */
     static public function init()
     {
-        if (!file_exists(CONF_FILE))
-            throw new ConfigException("Config file does not exist!");
+        Config::init();
 
-        if (!is_readable(CONF_FILE))
-            throw new ConfigException("Can't read config file! Check the file and its permissions!");
+        $scriptConfig = Config::get('script');
 
-        $ini = parse_ini_file(CONF_FILE, true);
-
-        if (empty($ini))
-            throw new ConfigException("Empty config file!");
-
-        static::$language = $ini['SCRIPT']['language'];
+        static::$language = $scriptConfig['language'] ?? 'en';
         static::$language_file = Tools::ds(LANGPACKS_DIR, static::$language . '.lng');
         static::$default_language_file = Tools::ds(LANGPACKS_DIR, 'en.lng');
 

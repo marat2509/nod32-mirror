@@ -4,9 +4,9 @@ Script for importing keys from an existing config file.
 """
 
 import argparse
-import configparser
 import os
 import re
+from typing import Any, Dict
 
 
 def add_keys_to_file(keys_file_path: str, keys: list[str], versions: list[str]) -> None:
@@ -39,8 +39,8 @@ def main() -> None:
     where mirror=1, and adds the specified keys for those versions.
 
     Args:
-        --config (str, optional): Path to nod32ms.conf.
-                                  Defaults to 'nod32ms.conf'.
+        --config (str, optional): Path to nod32-mirror.yaml.
+                                  Defaults to 'nod32-mirror.yaml'.
         --keys_file (str, optional): Path to keys file.
                                      Defaults to 'docker-data/log/nod_keys.valid'.
         --key (str): Key in format LOGIN:PASSWORD, can be used multiple times
@@ -49,7 +49,11 @@ def main() -> None:
     """
 
     parser = argparse.ArgumentParser(description="Add a key to ESET config.")
-    parser.add_argument("--config", default="nod32ms.conf", help="Path to nod32ms.conf")
+    parser.add_argument(
+        "--config",
+        default="nod32-mirror.yaml",
+        help="Path to nod32-mirror.yaml",
+    )
     parser.add_argument(
         "--keys_file",
         type=str,
@@ -71,16 +75,28 @@ def main() -> None:
     )
 
     args = parser.parse_args()
-    config = configparser.ConfigParser(inline_comment_prefixes=";")
-    config.read(args.config, encoding="utf-8")
 
-    # Get versions from ESET.VERSIONS section
-    versions = []
-    for section_name in config.sections():
-        if section_name.startswith("ESET.VERSIONS."):
-            version = section_name.replace("ESET.VERSIONS.", "")
-            if config[section_name].get("mirror") == "1":
-                versions.append(version)
+    try:
+        import yaml  # type: ignore
+    except ImportError as exc:
+        raise ImportError(
+            "PyYAML is required to read nod32-mirror.yaml. Install via `pip install pyyaml`."
+        ) from exc
+
+    with open(args.config, "r", encoding="utf-8") as fh:
+        raw_config: Dict[str, Any] = yaml.safe_load(fh) or {}
+
+    versions_block = (
+        raw_config.get("eset", {})
+        .get("versions", {})
+        .get("overrides", {})
+    )
+
+    versions = [
+        version
+        for version, settings in versions_block.items()
+        if settings and str(settings.get("mirror", 0)) in {"1", "true", "True"}
+    ]
 
     if not versions:
         print("Warning: No enabled versions found in configuration.")

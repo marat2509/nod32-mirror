@@ -15,6 +15,11 @@ class Log
      */
     static private $CONF;
 
+    /**
+     * @var bool
+     */
+    static private $initialized = false;
+
 
     /**
      * @param $filename
@@ -54,6 +59,11 @@ class Log
     static public function write_log($text, $level, $version = null, $ignore_rotate = false)
     {
         if (empty($text)) return null;
+
+        if (!static::$initialized) {
+            error_log($text);
+            return null;
+        }
 
         if (static::$CONF['type'] == '0') return null;
 
@@ -98,24 +108,34 @@ class Log
      */
     static public function init()
     {
-        if (!file_exists(CONF_FILE))
-            throw new ConfigException("Config file does not exist!");
+        Config::init();
 
-        if (!is_readable(CONF_FILE))
-            throw new ConfigException("Can't read config file! Check the file and its permissions!");
+        $logConfig = Config::get('log');
+        $scriptConfig = Config::get('script');
 
-        $ini = parse_ini_file(CONF_FILE, true);
-
-        if (empty($ini))
-            throw new ConfigException("Empty config file!");
-
-        static::$CONF = $ini['LOG'];
-        if (!file_exists(static::$CONF['dir']))
-            mkdir(static::$CONF['dir']);
-        static::$CONF['rotate_size'] = Tools::human2bytes(static::$CONF['rotate_size']);
-        static::$CONF['codepage'] = $ini['SCRIPT']['codepage'];
-
-        if (empty(static::$CONF))
+        if (empty($logConfig)) {
             throw new ConfigException("Log parameters don't set!");
+        }
+
+        static::$CONF = $logConfig;
+        static::$CONF['codepage'] = $scriptConfig['codepage'] ?? 'utf-8';
+
+        if (!is_numeric(static::$CONF['rotate_size'])) {
+            static::$CONF['rotate_size'] = Tools::human2bytes((string)(static::$CONF['rotate_size'] ?? '0'));
+        }
+
+        if (!file_exists(static::$CONF['dir'])) {
+            mkdir(static::$CONF['dir'], 0755, true);
+        }
+
+        static::$initialized = true;
+    }
+
+    /**
+     * @return bool
+     */
+    static public function isInitialized()
+    {
+        return static::$initialized;
     }
 }

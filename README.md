@@ -13,7 +13,7 @@ wget https://raw.githubusercontent.com/marat2509/nod32-mirror/main/docker-compos
 Get the configuration file:
 
 ```sh
-wget https://raw.githubusercontent.com/marat2509/nod32-mirror/main/nod32ms.conf
+wget https://raw.githubusercontent.com/marat2509/nod32-mirror/main/nod32-mirror.yaml
 ```
 
 ## Run
