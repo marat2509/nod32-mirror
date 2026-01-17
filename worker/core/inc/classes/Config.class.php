@@ -87,7 +87,7 @@ class Config
         }
 
         if (empty(static::$CONF['eset']['mirror'])) {
-            throw new ConfigException(Language::t("ESET mirrors list is not set!"));
+            throw new ConfigException(Language::t('config.mirror_list_missing'));
         }
 
         static::$CONF['eset']['mirror'] = static::normalizeMirrorList(static::$CONF['eset']['mirror']);
@@ -143,21 +143,21 @@ class Config
         $configPath = static::resolveConfigPath();
 
         if (!file_exists($configPath)) {
-            throw new ConfigException(Language::t("Config file does not exist!"));
+            throw new ConfigException(Language::t('config.file_missing'));
         }
 
         if (!is_readable($configPath)) {
-            throw new ConfigException(Language::t("Can't read config file! Check the file and its permissions!"));
+            throw new ConfigException(Language::t('config.cant_read_file'));
         }
 
         try {
             $parsed = Yaml::parseFile($configPath);
         } catch (ParseException $e) {
-            throw new ConfigException(Language::t("Failed to parse config file: %s", $e->getMessage()));
+            throw new ConfigException(Language::t('config.failed_parse', $e->getMessage()));
         }
 
         if (empty($parsed) || !is_array($parsed)) {
-            throw new ConfigException(Language::t("Empty config file!"));
+            throw new ConfigException(Language::t('config.file_empty'));
         }
 
         static::$CONF = static::normalizeConfig($parsed);
@@ -535,7 +535,7 @@ class Config
     static private function check_config()
     {
         if (array_search(PHP_OS, array("Darwin", "Linux", "FreeBSD", "OpenBSD", "WINNT")) === false)
-            throw new ConfigException(Language::t("This script doesn't support your OS. Please, contact developer!"));
+            throw new ConfigException(Language::t('script.unsupported_os'));
 
         if (function_exists("date_default_timezone_set") and function_exists("date_default_timezone_get")) {
             if (empty(static::$CONF['script']['timezone'])) {
@@ -608,7 +608,7 @@ class Config
             static::init();
         }
 
-        Log::write_log(Language::t("Running %s", __METHOD__), 5);
+        Log::write_log(Language::t('log.running', __METHOD__), 5);
 
         $connection = static::$CONF['connection'];
 

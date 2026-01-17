@@ -35,12 +35,12 @@ class Nod32ms
     public function __construct()
     {
         global $VERSION;
-        Log::write_log(Language::t("Running %s", __METHOD__), 5, null);
+        Log::write_log(Language::t('log.running', __METHOD__), 5, null);
         static::$start_time = time();
         $dataDir = Config::getDataDir();
         static::$key_valid_file = Tools::ds($dataDir, KEY_FILE_VALID);
         static::$key_invalid_file = Tools::ds($dataDir, KEY_FILE_INVALID);
-        Log::write_log(Language::t("Run script %s", $VERSION), 0);
+        Log::write_log(Language::t('script.run', $VERSION), 0);
         $this->run_script();
     }
 
@@ -48,9 +48,9 @@ class Nod32ms
      */
     public function __destruct()
     {
-        Log::write_log(Language::t("Running %s", __METHOD__), 5, null);
-        Log::write_log(Language::t("Total working time: %s", Tools::secondsToHumanReadable(time() - static::$start_time)), 0);
-        Log::write_log(Language::t("Stopping script."), 0);
+        Log::write_log(Language::t('log.running', __METHOD__), 5, null);
+        Log::write_log(Language::t('script.total_working_time', Tools::secondsToHumanReadable(time() - static::$start_time)), 0);
+        Log::write_log(Language::t('script.stopping'), 0);
     }
 
     /**
@@ -60,7 +60,7 @@ class Nod32ms
      */
     private function check_time_stamp($version, $return_time_stamp = false)
     {
-        Log::write_log(Language::t("Running %s", __METHOD__), 5, $version);
+        Log::write_log(Language::t('log.running', __METHOD__), 5, $version);
         $fn = Tools::ds(Config::getDataDir(), SUCCESSFUL_TIMESTAMP);
         $timestamps = array();
 
@@ -89,7 +89,7 @@ class Nod32ms
      */
     private function set_database_size($size)
     {
-        Log::write_log(Language::t("Running %s", __METHOD__), 5, Mirror::$version);
+        Log::write_log(Language::t('log.running', __METHOD__), 5, Mirror::$version);
         $fn = Tools::ds(Config::getDataDir(), DATABASES_SIZE);
         $sizes = [];
 
@@ -117,7 +117,7 @@ class Nod32ms
      */
     private function get_databases_size()
     {
-        Log::write_log(Language::t("Running %s", __METHOD__), 5, Mirror::$version);
+        Log::write_log(Language::t('log.running', __METHOD__), 5, Mirror::$version);
         $fn = Tools::ds(Config::getDataDir(), DATABASES_SIZE);
         $sizes = [];
 
@@ -142,7 +142,7 @@ class Nod32ms
      */
     private function get_all_patterns($directory = PATTERN)
     {
-        Log::write_log(Language::t("Running %s", __METHOD__), 5, null);
+        Log::write_log(Language::t('log.running', __METHOD__), 5, null);
 
         $ar_patterns = [];
 
@@ -165,11 +165,11 @@ class Nod32ms
      */
     private function validate_key($key)
     {
-        Log::write_log(Language::t("Running %s", __METHOD__), 5, Mirror::$version);
+        Log::write_log(Language::t('log.running', __METHOD__), 5, Mirror::$version);
         $result = explode(":", $key);
 
         if ($this->key_exists_in_file($result[0], $result[1], static::$key_invalid_file)) return false;
-        Log::write_log(Language::t("Validating key [%s:%s] for version %s", $result[0], $result[1], Mirror::$version), 4, Mirror::$version);
+        Log::write_log(Language::t('mirror.validating_key_version', $result[0], $result[1], Mirror::$version), 4, Mirror::$version);
 
         Mirror::set_key(array($result[0], $result[1]));
         $ret = Mirror::test_key();
@@ -183,7 +183,7 @@ class Nod32ms
                 $this->delete_key($result[0], $result[1]);
             }
         } else {
-            Log::write_log(Language::t("Unhandled exception [%s]", $ret), 4);
+            Log::write_log(Language::t('script.unhandled_exception', $ret), 4);
         }
         return false;
     }
@@ -193,7 +193,7 @@ class Nod32ms
      */
     private function read_keys()
     {
-        Log::write_log(Language::t("Running %s", __METHOD__), 5, Mirror::$version);
+        Log::write_log(Language::t('log.running', __METHOD__), 5, Mirror::$version);
 
         if (!file_exists(static::$key_valid_file)) {
             $h = fopen(static::$key_valid_file, 'x');
@@ -203,14 +203,14 @@ class Nod32ms
         $keys = Parser::parse_keys(static::$key_valid_file);
 
         if (!isset($keys) || !count($keys)) {
-            Log::write_log(Language::t("Keys file is empty!"), 4, Mirror::$version);
+            Log::write_log(Language::t('mirror.keys_file_empty'), 4, Mirror::$version);
         }
 
         foreach ($keys as $value) {
             if ($this->validate_key($value)) return explode(":", $value);
         }
 
-        Log::write_log(Language::t("No working keys were found!"), 4, Mirror::$version);
+        Log::write_log(Language::t('mirror.no_working_keys'), 4, Mirror::$version);
         return null;
     }
 
@@ -220,11 +220,11 @@ class Nod32ms
      */
     private function write_key($login, $password)
     {
-        Log::write_log(Language::t("Running %s", __METHOD__), 5, Mirror::$version);
-        Log::write_log(Language::t("Found valid key [%s:%s]", $login, $password), 4, Mirror::$version);
+        Log::write_log(Language::t('log.running', __METHOD__), 5, Mirror::$version);
+        Log::write_log(Language::t('mirror.found_valid_key', $login, $password), 4, Mirror::$version);
         ($this->key_exists_in_file($login, $password, static::$key_valid_file) == false) ?
             Log::write_to_file(static::$key_valid_file, "$login:$password:" . Mirror::$version . "\r\n") :
-            Log::write_log(Language::t("Key [%s:%s:%s] already exists", $login, $password, Mirror::$version), 4, Mirror::$version);
+            Log::write_log(Language::t('mirror.key_version_exists', $login, $password, Mirror::$version), 4, Mirror::$version);
     }
 
     /**
@@ -233,13 +233,13 @@ class Nod32ms
      */
     private function delete_key($login, $password)
     {
-        Log::write_log(Language::t("Running %s", __METHOD__), 5, Mirror::$version);
-        Log::write_log(Language::t("Invalid key [%s:%s]", $login, $password), 4, Mirror::$version);
+        Log::write_log(Language::t('log.running', __METHOD__), 5, Mirror::$version);
+        Log::write_log(Language::t('mirror.invalid_key', $login, $password), 4, Mirror::$version);
         //$log_dir = Config::get('LOG')['dir'];
 
         ($this->key_exists_in_file($login, $password, static::$key_invalid_file) == false) ?
             Log::write_to_file(static::$key_invalid_file, "$login:$password:" . Mirror::$version . "\r\n") :
-            Log::write_log(Language::t("Key [%s:%s] already exists", $login, $password), 4, Mirror::$version);
+            Log::write_log(Language::t('mirror.key_exists', $login, $password), 4, Mirror::$version);
 
         $findConfig = Config::get('find');
         if (!empty($findConfig['remove_invalid_keys']))
@@ -254,7 +254,7 @@ class Nod32ms
      */
     private function key_exists_in_file($login, $password, $file)
     {
-        Log::write_log(Language::t("Running %s", __METHOD__), 5, Mirror::$version);
+        Log::write_log(Language::t('log.running', __METHOD__), 5, Mirror::$version);
         $keys = Parser::parse_keys($file);
 
         if (isset($keys) && count($keys)) {
@@ -275,7 +275,7 @@ class Nod32ms
      */
     private function strip_tags_and_css($search)
     {
-        Log::write_log(Language::t("Running %s", __METHOD__), 5, null);
+        Log::write_log(Language::t('log.running', __METHOD__), 5, null);
         $document = array(
             "'<script[^>]*?>.*?<\/script>'si",
             "'<[\/\!]*?[^<>]*?>'si",
@@ -317,7 +317,7 @@ class Nod32ms
      */
     private function parse_www_page($this_link, $level, $pattern)
     {
-        Log::write_log(Language::t("Running %s", __METHOD__), 5, Mirror::$version);
+        Log::write_log(Language::t('log.running', __METHOD__), 5, Mirror::$version);
         static::$foundValidKey = false;
         $search = Tools::download_file(
             ([
@@ -330,11 +330,11 @@ class Nod32ms
         );
 
         if ($search === false) {
-            Log::write_log(Language::t("Link wasn't found [%s]", $this_link), 4, Mirror::$version);
+            Log::write_log(Language::t('mirror.link_not_found', $this_link), 4, Mirror::$version);
             return false;
         }
 
-        Log::write_log(Language::t("Link was found [%s]", $this_link), 4, Mirror::$version);
+        Log::write_log(Language::t('mirror.link_found', $this_link), 4, Mirror::$version);
         $login = array();
         $password = array();
 
@@ -352,7 +352,7 @@ class Nod32ms
         $logins = count($login);
 
         if ($logins > 0) {
-            Log::write_log(Language::t("Found keys: %s", $logins), 4, Mirror::$version);
+            Log::write_log(Language::t('mirror.found_keys', $logins), 4, Mirror::$version);
 
             for ($b = 0; $b < $logins; $b++) {
                 if (preg_match("/script|googleuser/i", $password[$b]) and
@@ -381,7 +381,7 @@ class Nod32ms
                         $links[] = $res[0];
                 }
             }
-            Log::write_log(Language::t("Found links: %s", count($links)), 4, Mirror::$version);
+            Log::write_log(Language::t('mirror.found_links', count($links)), 4, Mirror::$version);
 
             foreach ($links as $url) {
                 $this->parse_www_page($url, $level - 1, $pattern);
@@ -400,7 +400,7 @@ class Nod32ms
      */
     private function find_keys()
     {
-        Log::write_log(Language::t("Running %s", __METHOD__), 5, Mirror::$version);
+        Log::write_log(Language::t('log.running', __METHOD__), 5, Mirror::$version);
         $FIND = Config::get('find');
 
         $attempts = 0;
@@ -423,11 +423,11 @@ class Nod32ms
             if ($attempts >= $maxAttempts) {
                 break;
             }
-            Log::write_log(Language::t("Begining search at %s", str_replace(realpath(PATTERN) . DIRECTORY_SEPARATOR, '', $elem)), 4, Mirror::$version);
+            Log::write_log(Language::t('mirror.begin_search', str_replace(realpath(PATTERN) . DIRECTORY_SEPARATOR, '', $elem)), 4, Mirror::$version);
             $find = @file_get_contents($elem);
 
             if (!$find) {
-                Log::write_log(Language::t("File %s doesn't exist!", str_replace(realpath(PATTERN) . DIRECTORY_SEPARATOR, '', $elem)), 4, Mirror::$version);
+                Log::write_log(Language::t('common.file_not_found', str_replace(realpath(PATTERN) . DIRECTORY_SEPARATOR, '', $elem)), 4, Mirror::$version);
                 continue;
             }
 
@@ -438,7 +438,7 @@ class Nod32ms
             $recursion_level = Parser::parse_line($find, "recursion_level");
 
             if (empty($link)) {
-                Log::write_log(Language::t("[link] doesn't set up in %s file!", $elem), 4, Mirror::$version);
+                Log::write_log(Language::t('mirror.link_not_set', $elem), 4, Mirror::$version);
                 continue;
             }
 
@@ -669,13 +669,13 @@ class Nod32ms
         }
 
         $units = [
-            Language::t("Bytes"),
-            Language::t("KBytes"),
-            Language::t("MBytes"),
-            Language::t("GBytes"),
-            Language::t("TBytes"),
-            Language::t("PBytes"),
-            Language::t("EBytes")
+            Language::t('common.bytes'),
+            Language::t('common.kbytes'),
+            Language::t('common.mbytes'),
+            Language::t('common.gbytes'),
+            Language::t('common.tbytes'),
+            Language::t('common.pbytes'),
+            Language::t('common.ebytes')
         ];
         $value = (float) $bytes;
         $index = 0;
@@ -854,7 +854,7 @@ class Nod32ms
         }
 
         return [
-            'title' => Language::t("ESET NOD32 update server"),
+            'title' => Language::t('report.title_update_server'),
             'last_update' => $latest_update ? date('c', $latest_update) : date('c', static::$start_time ?: time()),
             'last_update_ts' => $latest_update ?: (static::$start_time ?: time()),
             'total_size' => [
@@ -867,8 +867,8 @@ class Nod32ms
 
     private function generate_html()
     {
-        Log::write_log(Language::t("Running %s", __METHOD__), 5, null);
-        Log::write_log(Language::t("Generating html..."), 0);
+        Log::write_log(Language::t('log.running', __METHOD__), 5, null);
+        Log::write_log(Language::t('report.generating_html'), 0);
         $scriptConfig = Config::get('script');
         $web_dir = $scriptConfig['web_dir'] ?? SELF . 'www';
         $generateConfig = $scriptConfig['generate'] ?? [];
@@ -884,7 +884,7 @@ class Nod32ms
             $html_page .= '<!DOCTYPE HTML>';
             $html_page .= '<html>';
             $html_page .= '<head>';
-            $html_page .= '<title>' . Language::t("ESET NOD32 update server") . '</title>';
+            $html_page .= '<title>' . Language::t('report.title_update_server') . '</title>';
             $html_page .= '<meta http-equiv="Content-Type" content="text/html; charset=' . $htmlCodepage . '">';
             $html_page .= '<style type="text/css">html,body{height:100%;margin:0;padding:0;width:100%}table#center{border:0;height:100%;width:100%}table td table td{text-align:center;vertical-align:middle;font-weight:bold;padding:10px 15px;border:0}table tr:nth-child(odd){background:#eee}table tr:nth-child(even){background:#fc0}</style>';
             $html_page .= '</head>';
@@ -895,13 +895,13 @@ class Nod32ms
         }
 
         $html_page .= '<table>';
-        $html_page .= '<tr><td colspan="5">' . Language::t("ESET NOD32 update server") . '</td></tr>';
+        $html_page .= '<tr><td colspan="5">' . Language::t('report.title_update_server') . '</td></tr>';
         $html_page .= '<tr>';
-        $html_page .= '<td>' . Language::t("Version") . '</td>';
-        $html_page .= '<td>' . Language::t("Platforms") . '</td>';
-        $html_page .= '<td>' . Language::t("Database version") . '</td>';
-        $html_page .= '<td>' . Language::t("Database size") . '</td>';
-        $html_page .= '<td>' . Language::t("Last update") . '</td>';
+        $html_page .= '<td>' . Language::t('common.version') . '</td>';
+        $html_page .= '<td>' . Language::t('report.platforms') . '</td>';
+        $html_page .= '<td>' . Language::t('report.database_version') . '</td>';
+        $html_page .= '<td>' . Language::t('report.database_size') . '</td>';
+        $html_page .= '<td>' . Language::t('report.last_update') . '</td>';
         $html_page .= '</tr>';
 
         global $DIRECTORIES;
@@ -911,7 +911,7 @@ class Nod32ms
 
             $dir = $DIRECTORIES[$ver];
 
-            $platforms_display = !empty($info['platforms']) ? implode(', ', $info['platforms']) : Language::t("n/a");
+            $platforms_display = !empty($info['platforms']) ? implode(', ', $info['platforms']) : Language::t('common.na');
             $version = $info['database']['version'];
             $timestamp = $info['database']['last_update_ts'];
             $size_bytes = $info['database']['size']['bytes'];
@@ -920,14 +920,14 @@ class Nod32ms
             $html_page .= '<td>' . Language::t($dir['name']) . '</td>';
             $html_page .= '<td>' . $platforms_display . '</td>';
             $html_page .= '<td>' . $version . '</td>';
-            $html_page .= '<td>' . ($size_bytes !== null ? Tools::bytesToSize1024($size_bytes) : Language::t("n/a")) . '</td>';
-            $html_page .= '<td>' . ($timestamp ? date("Y-m-d, H:i:s", $timestamp) : Language::t("n/a")) . '</td>';
+            $html_page .= '<td>' . ($size_bytes !== null ? Tools::bytesToSize1024($size_bytes) : Language::t('common.na')) . '</td>';
+            $html_page .= '<td>' . ($timestamp ? date("Y-m-d, H:i:s", $timestamp) : Language::t('common.na')) . '</td>';
             $html_page .= '</tr>';
         }
 
         $html_page .= '<tr>';
-        $html_page .= '<td colspan="2">' . Language::t("Last execution of the script") . '</td>';
-        $html_page .= '<td colspan="3">' . (static::$start_time ? date("Y-m-d, H:i:s", static::$start_time) : Language::t("n/a")) . '</td>';
+        $html_page .= '<td colspan="2">' . Language::t('report.last_execution') . '</td>';
+        $html_page .= '<td colspan="3">' . (static::$start_time ? date("Y-m-d, H:i:s", static::$start_time) : Language::t('common.na')) . '</td>';
         $html_page .= '</tr>';
 
         if ($exportCredentials) {
@@ -936,9 +936,9 @@ class Nod32ms
 
 
                 $html_page .= '<tr>';
-                $html_page .= '<td>' . Language::t("Version") . '</td>';
-                $html_page .= '<td>' . Language::t("Used login") . '</td>';
-                $html_page .= '<td>' . Language::t("Used password") . '</td>';
+                $html_page .= '<td>' . Language::t('common.version') . '</td>';
+                $html_page .= '<td>' . Language::t('report.used_login') . '</td>';
+                $html_page .= '<td>' . Language::t('report.used_password') . '</td>';
                 $html_page .= '</tr>';
 
                 foreach ($keys as $k) {
@@ -967,7 +967,7 @@ class Nod32ms
 
     private function generate_json()
     {
-        Log::write_log(Language::t("Running %s", __METHOD__), 5, null);
+        Log::write_log(Language::t('log.running', __METHOD__), 5, null);
         $scriptConfig = Config::get('script');
         $web_dir = $scriptConfig['web_dir'] ?? SELF . 'www';
         $generateConfig = $scriptConfig['generate'] ?? [];
@@ -997,7 +997,7 @@ class Nod32ms
      */
     private function run_script()
     {
-        Log::write_log(Language::t("Running %s", __METHOD__), 5, null);
+        Log::write_log(Language::t('log.running', __METHOD__), 5, null);
         global $DIRECTORIES;
         $total_size = array();
         $total_downloads = array();
@@ -1015,13 +1015,13 @@ class Nod32ms
 
         foreach ($enabled_versions as $version) {
             if (!isset($DIRECTORIES[$version])) {
-                Log::write_log(Language::t("Version %s not found in directories configuration", $version), 1, $version);
+                Log::write_log(Language::t('config.version_not_in_directories', $version), 1, $version);
                 continue;
             }
 
             $dir = $DIRECTORIES[$version];
 
-            Log::write_log(Language::t("Init Mirror for version %s in %s", $version, $dir['name']), 5, $version);
+            Log::write_log(Language::t('mirror.init_for_version_in_dir', $version, $dir['name']), 5, $version);
             Mirror::init($version, $dir);
 
             static::$foundValidKey = false;
@@ -1031,7 +1031,7 @@ class Nod32ms
                 $this->find_keys();
 
                 if (static::$foundValidKey == false) {
-                    Log::write_log(Language::t("The script has been stopped!"), 1, Mirror::$version);
+                    Log::write_log(Language::t('script.stopped'), 1, Mirror::$version);
                     continue;
                 }
             }
@@ -1046,7 +1046,7 @@ class Nod32ms
                 }
 
                 if ($old_version && $this->compare_versions($old_version, $mirror['db_version'])) {
-                    Log::informer(Language::t("Your version of database is relevant %s", $old_version), Mirror::$version, 2);
+                    Log::informer(Language::t('report.database_relevant', $old_version), Mirror::$version, 2);
                 } else {
                     list($size, $downloads, $speed) = Mirror::download_signature();
                     $this->set_database_size($size);
@@ -1057,7 +1057,7 @@ class Nod32ms
                     }
 
                     if (!Mirror::$updated && $old_version != 0 && !$this->compare_versions($old_version, $mirror['db_version'])) {
-                        Log::informer(Language::t("Your database has not been updated!"), Mirror::$version, 1);
+                        Log::informer(Language::t('report.database_not_updated'), Mirror::$version, 1);
                     } else {
                         $total_size[Mirror::$version] = $size;
                         $total_downloads[Mirror::$version] = $downloads;
@@ -1066,14 +1066,14 @@ class Nod32ms
                         }
 
                         if ($old_version && !$this->compare_versions($old_version, $mirror['db_version'])) {
-                            Log::informer(Language::t("Your database was successfully updated from %s to %s", $old_version, $mirror['db_version']), Mirror::$version, 2);
+                            Log::informer(Language::t('report.database_updated_from_to', $old_version, $mirror['db_version']), Mirror::$version, 2);
                         } else {
-                            Log::informer(Language::t("Your database was successfully updated to %s", $mirror['db_version']), Mirror::$version, 2);
+                            Log::informer(Language::t('report.database_updated_to', $mirror['db_version']), Mirror::$version, 2);
                         }
                     }
                 }
             } else {
-                Log::write_log(Language::t("All mirrors is down!"), 1, Mirror::$version);
+                Log::write_log(Language::t('mirror.all_down'), 1, Mirror::$version);
             }
 
             Mirror::destruct();
@@ -1084,13 +1084,13 @@ class Nod32ms
             @rmdir($folder);
         }
 
-        Log::write_log(Language::t("Total size for all databases: %s", Tools::bytesToSize1024(array_sum($total_size))), 3);
+        Log::write_log(Language::t('report.total_size_all_databases', Tools::bytesToSize1024(array_sum($total_size))), 3);
 
         if (array_sum($total_downloads) > 0)
-            Log::write_log(Language::t("Total downloaded for all databases: %s", Tools::bytesToSize1024(array_sum($total_downloads))), 3);
+            Log::write_log(Language::t('report.total_downloaded_all_databases', Tools::bytesToSize1024(array_sum($total_downloads))), 3);
 
         if (array_sum($average_speed) > 0)
-            Log::write_log(Language::t("Average speed for all databases: %s/s", Tools::bytesToSize1024(array_sum($average_speed) / count($average_speed))), 3);
+            Log::write_log(Language::t('report.average_speed_all_databases', Tools::bytesToSize1024(array_sum($average_speed) / count($average_speed))), 3);
 
         $scriptConfig = Config::get('script');
         $generateConfig = $scriptConfig['generate'] ?? [];
@@ -1131,8 +1131,8 @@ class Nod32ms
      */
     private function compare_versions($old_version, $new_version)
     {
-        Log::write_log(Language::t("Running %s", __METHOD__), 5, Mirror::$version);
-        Log::write_log(Language::t("Compare %s >= %s", $old_version, $new_version), 5, Mirror::$version);
+        Log::write_log(Language::t('log.running', __METHOD__), 5, Mirror::$version);
+        Log::write_log(Language::t('common.compare_versions', $old_version, $new_version), 5, Mirror::$version);
         return (intval($old_version) >= intval($new_version));
     }
 }
