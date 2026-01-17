@@ -1213,6 +1213,10 @@ class Nod32ms
 
                 if ($old_version && $this->compare_versions($old_version, $mirror['db_version'])) {
                     Log::informer(Language::t('report.database_relevant', $old_version), Mirror::$version, 2);
+                    $prevSize = $stored_sizes[Mirror::$version] ?? 0;
+                    $this->set_database_size($prevSize);
+                    $total_size[Mirror::$version] = $prevSize;
+                    Mirror::touch_time_stamp();
                 } else {
                     list($size, $downloads, $speed) = Mirror::download_signature();
                     $this->set_database_size($size);
@@ -1237,6 +1241,7 @@ class Nod32ms
                             Log::informer(Language::t('report.database_updated_to', $mirror['db_version']), Mirror::$version, 2);
                         }
                     }
+                    Mirror::touch_time_stamp();
                 }
             } else {
                 Log::write_log(Language::t('mirror.all_down'), 1, Mirror::$version);
