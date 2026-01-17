@@ -371,7 +371,7 @@ class Nod32ms
             preg_match_all('/href *= *"([^\s"]+)/', $search, $results);
 
             foreach ($results[1] as $result) {
-                str_replace('webcache.googleusercontent.com/search?q=cache:', '', $result);
+                $result = str_replace('webcache.googleusercontent.com/search?q=cache:', '', $result);
 
                 if (!preg_match("/youtube.com|ocialcomments.org/", $result)) {
                     preg_match('/https?:\/\/(?(?!\&amp).)*/', $result, $res);
@@ -403,6 +403,10 @@ class Nod32ms
         $FIND = Config::get('FIND');
 
         $attempts = 0;
+        $maxAttempts = isset($FIND['number_attempts']) ? intval($FIND['number_attempts']) : 0;
+        if ($maxAttempts <= 0) {
+            $maxAttempts = 1;
+        }
 
         if ($FIND['auto'] != 1)
             return null;
@@ -415,6 +419,9 @@ class Nod32ms
         }
 
         while ($elem = array_shift($patterns)) {
+            if ($attempts >= $maxAttempts) {
+                break;
+            }
             Log::write_log(Language::t("Begining search at %s", str_replace(realpath(PATTERN) . DIRECTORY_SEPARATOR, '', $elem)), 4, Mirror::$version);
             $find = @file_get_contents($elem);
 
@@ -448,10 +455,19 @@ class Nod32ms
                 $pages = substr_count($link[0], "#PAGE#") ? $page_qty[0] : 1;
 
                 for ($i = 0; $i < $pages; $i++) {
+                    if ($attempts >= $maxAttempts) {
+                        break 3;
+                    }
+
                     $this_link = str_replace("#QUERY#", str_replace(" ", "+", trim($query)), $link[0]);
                     $this_link = str_replace("#PAGE#", ($i * $pageindex[0]), $this_link);
 
+                    $attempts++;
+
                     if ($this->parse_www_page($this_link, $recursion_level[0], $pattern) == true) break(3);
+
+                    // simple linear backoff to avoid hammering sources
+                    usleep(min($attempts, 5) * 200000);
                 }
             }
         }
@@ -679,14 +695,176 @@ class Nod32ms
         return $formatted . ' ' . $units[$index];
     }
 
+    /**
+     * Build unified metadata for HTML/JSON generation
+     * @return array
+     */
+    private function build_metadata()
+    {
+        global $DIRECTORIES;
+
+        $web_dir = Config::get('SCRIPT')['web_dir'];
+        $enabled_versions = VersionConfig::get_enabled_versions();
+        $total_sizes = $this->get_databases_size();
+
+        if (!is_array($total_sizes)) {
+            $total_sizes = [];
+        } else {
+            $total_sizes = array_map('intval', $total_sizes);
+        }
+
+        $versions = [];
+        $latest_update = null;
+
+        foreach ($enabled_versions as $version) {
+            if (!isset($DIRECTORIES[$version])) {
+                continue;
+            }
+
+            $dir = $DIRECTORIES[$version];
+
+            $channelsInfo = [];
+            if (isset($dir['channels'])) {
+                foreach ($dir['channels'] as $channelName => $channelData) {
+                    $filePath = (isset($channelData['file']) && $channelData['file'] !== false)
+                        ? $this->get_update_file_path($dir, $web_dir, $channelName, 'file')
+                        : null;
+                    $dllPath = (isset($channelData['dll']) && $channelData['dll'] !== false)
+                        ? $this->get_update_file_path($dir, $web_dir, $channelName, 'dll')
+                        : null;
+
+                    $channelUpdatePath = $filePath ?: $dllPath;
+                    $channelDbVersion = null;
+
+                    if ($channelUpdatePath) {
+                        $channelDbVersion = Mirror::get_DB_version($channelUpdatePath);
+                        if ($channelDbVersion !== null) $channelDbVersion = (int) $channelDbVersion;
+                    }
+
+                    $channelsInfo[$channelName] = [
+                        'database_version' => $channelDbVersion,
+                        'files' => [
+                             'file' => $this->get_public_update_path($filePath, $web_dir),
+                             'dll' => $this->get_public_update_path($dllPath, $web_dir),
+                         ]
+                    ];
+                }
+            } else {
+                 $filePath = (isset($dir['file']) && $dir['file'] !== false)
+                     ? $this->get_update_file_path($dir, $web_dir, null, 'file')
+                     : null;
+                 $dllPath = (isset($dir['dll']) && $dir['dll'] !== false)
+                     ? $this->get_update_file_path($dir, $web_dir, null, 'dll')
+                     : null;
+                 $channelsInfo['default'] = [
+                     'database_version' => null,
+                     'files' => [
+                        'file' => $this->get_public_update_path($filePath, $web_dir),
+                        'dll' => $this->get_public_update_path($dllPath, $web_dir),
+                     ]
+                 ];
+            }
+
+            $update_path = $this->find_best_update_path($dir, $web_dir);
+            $found_platforms = $this->get_platforms_for_version($version, $dir, $web_dir, $update_path);
+            $display_platforms = $found_platforms;
+
+            $version_platforms = VersionConfig::get_version_platforms($version);
+            if ($version_platforms !== true && $version_platforms !== null) {
+                $allowed_platforms = is_array($version_platforms) ? $version_platforms : Tools::parse_comma_list($version_platforms);
+
+                if (!empty($allowed_platforms)) {
+                    $filtered_platforms = array_values(array_intersect($found_platforms, $allowed_platforms));
+
+                    if (!empty($filtered_platforms)) {
+                        $display_platforms = $filtered_platforms;
+                    }
+                }
+            }
+
+            if (!empty($display_platforms)) {
+                natcasesort($display_platforms);
+                $display_platforms = array_values(array_unique($display_platforms));
+            } else {
+                $display_platforms = [];
+            }
+
+            $db_version = null;
+            if ($update_path) {
+                $db_version = Mirror::get_DB_version($update_path);
+                if ($db_version !== null) {
+                    $db_version = (int) $db_version;
+                }
+            }
+
+            $size_bytes = isset($total_sizes[$version]) ? (int) $total_sizes[$version] : null;
+            $timestamp = $this->check_time_stamp($version, true);
+            $last_update = $timestamp ? date('c', $timestamp) : null;
+
+            if ($timestamp && ($latest_update === null || $timestamp > $latest_update)) {
+                $latest_update = $timestamp;
+            }
+
+            $versions[$version] = [
+                'name' => $dir['name'],
+                'platforms' => $display_platforms,
+                'channels' => $channelsInfo,
+                'database' => [
+                    'version' => $db_version,
+                    'size' => [
+                        'bytes' => $size_bytes,
+                        'pretty' => $size_bytes !== null ? $this->format_size_decimal($size_bytes) : null,
+                    ],
+                    'last_update' => $last_update,
+                    'last_update_ts' => $timestamp,
+                ]
+            ];
+
+            if (Config::get('SCRIPT')['show_login_password']) {
+                if (file_exists(static::$key_valid_file)) {
+                    $keys = Parser::parse_keys(static::$key_valid_file);
+                    $credentials = [];
+                    foreach ($keys as $k) {
+                        $key = explode(":", $k);
+                        if (!isset($key[2]) || $key[2] == $version) {
+                            $credentials[] = [
+                                "login" => $key[0],
+                                "password" => $key[1],
+                                "version" => $key[2]
+                            ];
+                        }
+                    }
+                    $versions[$version]['credentials'] = $credentials;
+                }
+            }
+        }
+
+        $total_bytes = 0;
+
+        if (!empty($total_sizes) && !empty($enabled_versions)) {
+            $total_bytes = array_sum(array_intersect_key($total_sizes, array_flip($enabled_versions)));
+        }
+
+        return [
+            'title' => Language::t("ESET NOD32 update server"),
+            'last_update' => $latest_update ? date('c', $latest_update) : date('c', static::$start_time ?: time()),
+            'last_update_ts' => $latest_update ?: (static::$start_time ?: time()),
+            'total_size' => [
+                'bytes' => $total_bytes,
+                'pretty' => $this->format_size_decimal($total_bytes),
+            ],
+            'versions' => $versions,
+        ];
+    }
+
     private function generate_html()
     {
         Log::write_log(Language::t("Running %s", __METHOD__), 5, null);
         Log::write_log(Language::t("Generating html..."), 0);
-        $total_size = $this->get_databases_size();
         $web_dir = Config::get('SCRIPT')['web_dir'];
-        $ESET = Config::get('ESET');
         $html_page = '';
+        $metadata = $this->build_metadata();
+        $versionsMeta = $metadata['versions'];
 
         if (Config::get('SCRIPT')['generate_only_table'] == '0') {
             $html_page .= '<!DOCTYPE HTML>';
@@ -714,51 +892,21 @@ class Nod32ms
 
         global $DIRECTORIES;
 
-        // Get enabled versions from new config structure
-        $enabled_versions = VersionConfig::get_enabled_versions();
-
-        foreach ($enabled_versions as $ver) {
+        foreach ($versionsMeta as $ver => $info) {
             if (!isset($DIRECTORIES[$ver])) continue;
 
             $dir = $DIRECTORIES[$ver];
-            $version_platforms = VersionConfig::get_version_platforms($ver);
 
-            // Use best available file for HTML view
-            $update_ver = $this->find_best_update_path($dir, $web_dir);
-
-            if (!$update_ver) continue;
-
-            $found_platforms = $this->get_platforms_for_version($ver, $dir, $web_dir, $update_ver);
-            $display_platforms = $found_platforms;
-
-            if ($version_platforms !== true) {
-                $allowed_platforms = is_array($version_platforms) ? $version_platforms : Tools::parse_comma_list($version_platforms);
-
-                if (!empty($allowed_platforms)) {
-                    $filtered_platforms = array_values(array_intersect($found_platforms, $allowed_platforms));
-
-                    if (!empty($filtered_platforms)) {
-                        $display_platforms = $filtered_platforms;
-                    }
-                }
-            }
-
-            if (!empty($display_platforms)) {
-                natcasesort($display_platforms);
-                $display_platforms = array_values($display_platforms);
-            }
-
-            $platforms_display = !empty($display_platforms) ? implode(', ', $display_platforms) : Language::t("n/a");
-
-            $version = Mirror::get_DB_version($update_ver);
-            $timestamp = $this->check_time_stamp($ver, true);
-            $size_key = $ver;
+            $platforms_display = !empty($info['platforms']) ? implode(', ', $info['platforms']) : Language::t("n/a");
+            $version = $info['database']['version'];
+            $timestamp = $info['database']['last_update_ts'];
+            $size_bytes = $info['database']['size']['bytes'];
 
             $html_page .= '<tr>';
             $html_page .= '<td>' . Language::t($dir['name']) . '</td>';
             $html_page .= '<td>' . $platforms_display . '</td>';
             $html_page .= '<td>' . $version . '</td>';
-            $html_page .= '<td>' . (isset($total_size[$size_key]) ? Tools::bytesToSize1024($total_size[$size_key]) : Language::t("n/a")) . '</td>';
+            $html_page .= '<td>' . ($size_bytes !== null ? Tools::bytesToSize1024($size_bytes) : Language::t("n/a")) . '</td>';
             $html_page .= '<td>' . ($timestamp ? date("Y-m-d, H:i:s", $timestamp) : Language::t("n/a")) . '</td>';
             $html_page .= '</tr>';
         }
@@ -806,164 +954,7 @@ class Nod32ms
     private function generate_json()
     {
         Log::write_log(Language::t("Running %s", __METHOD__), 5, null);
-        global $DIRECTORIES;
-
-        $web_dir = Config::get('SCRIPT')['web_dir'];
-        $enabled_versions = VersionConfig::get_enabled_versions();
-        $total_sizes = $this->get_databases_size();
-
-        if (!is_array($total_sizes)) {
-            $total_sizes = [];
-        } else {
-            $total_sizes = array_map('intval', $total_sizes);
-        }
-
-        $versions = [];
-        $latest_update = null;
-
-        foreach ($enabled_versions as $version) {
-            if (!isset($DIRECTORIES[$version])) {
-                continue;
-            }
-
-            $dir = $DIRECTORIES[$version];
-
-            // Generate detailed channels info
-            $channelsInfo = [];
-            $channelsList = isset($dir['channels']) ? array_keys($dir['channels']) : ['default'];
-
-            if (isset($dir['channels'])) {
-                foreach ($dir['channels'] as $channelName => $channelData) {
-                    $filePath = (isset($channelData['file']) && $channelData['file'] !== false)
-                        ? $this->get_update_file_path($dir, $web_dir, $channelName, 'file')
-                        : null;
-                    $dllPath = (isset($channelData['dll']) && $channelData['dll'] !== false)
-                        ? $this->get_update_file_path($dir, $web_dir, $channelName, 'dll')
-                        : null;
-                    $channelUpdatePath = $filePath ?: $dllPath;
-
-                    $channelDbVersion = null;
-                    if ($channelUpdatePath) {
-                        $channelDbVersion = Mirror::get_DB_version($channelUpdatePath);
-                        if ($channelDbVersion !== null) $channelDbVersion = (int) $channelDbVersion;
-                    }
-
-                    $channelsInfo[$channelName] = [
-                        'database_version' => $channelDbVersion,
-                        'files' => [
-                             'file' => $this->get_public_update_path($filePath, $web_dir),
-                             'dll' => $this->get_public_update_path($dllPath, $web_dir),
-                         ]
-                    ];
-                }
-            } else {
-                 // Legacy support in JSON
-                 $filePath = (isset($dir['file']) && $dir['file'] !== false)
-                     ? $this->get_update_file_path($dir, $web_dir, null, 'file')
-                     : null;
-                 $dllPath = (isset($dir['dll']) && $dir['dll'] !== false)
-                     ? $this->get_update_file_path($dir, $web_dir, null, 'dll')
-                     : null;
-                 $channelsInfo['default'] = [
-                     'database_version' => null, // Will be filled below if needed
-                     'files' => [
-                        'file' => $this->get_public_update_path($filePath, $web_dir),
-                        'dll' => $this->get_public_update_path($dllPath, $web_dir),
-                     ]
-                 ];
-            }
-
-            // Main info (best available file)
-            $update_path = $this->find_best_update_path($dir, $web_dir);
-            $found_platforms = $this->get_platforms_for_version($version, $dir, $web_dir, $update_path);
-            $display_platforms = $found_platforms;
-
-            $version_platforms = VersionConfig::get_version_platforms($version);
-            if ($version_platforms !== true && $version_platforms !== null) {
-                $allowed_platforms = is_array($version_platforms) ? $version_platforms : Tools::parse_comma_list($version_platforms);
-
-                if (!empty($allowed_platforms)) {
-                    $filtered_platforms = array_values(array_intersect($found_platforms, $allowed_platforms));
-
-                    if (!empty($filtered_platforms)) {
-                        $display_platforms = $filtered_platforms;
-                    }
-                }
-            }
-
-            if (!empty($display_platforms)) {
-                natcasesort($display_platforms);
-                $display_platforms = array_values(array_unique($display_platforms));
-            } else {
-                $display_platforms = [];
-            }
-
-            $db_version = null;
-            if ($update_path) {
-                $db_version = Mirror::get_DB_version($update_path);
-                if ($db_version !== null) {
-                    $db_version = (int) $db_version;
-                }
-            }
-
-            $size_bytes = isset($total_sizes[$version]) ? (int) $total_sizes[$version] : null;
-            $timestamp = $this->check_time_stamp($version, true);
-            $last_update = $timestamp ? date('c', $timestamp) : null;
-
-            if ($timestamp && ($latest_update === null || $timestamp > $latest_update)) {
-                $latest_update = $timestamp;
-            }
-
-            $versions[$version] = [
-                'name' => $dir['name'],
-                'platforms' => $display_platforms,
-                'channels' => $channelsInfo, // Added channels info
-                'database' => [
-                    'version' => $db_version,
-                    'size' => [
-                        'bytes' => $size_bytes,
-                        'pretty' => $size_bytes !== null ? $this->format_size_decimal($size_bytes) : null,
-                    ],
-                    'last_update' => $last_update,
-                ]
-            ];
-
-            if (Config::get('SCRIPT')['show_login_password']) {
-                if (file_exists(static::$key_valid_file)) {
-                    $keys = Parser::parse_keys(static::$key_valid_file);
-                    $credentials = [];
-                    foreach ($keys as $k) {
-                        $key = explode(":", $k);
-                        // Check if the version of the key matches the current version being processed
-                        // If version is not specified in key, or it matches the current version, include it
-                        if (!isset($key[2]) || $key[2] == $version) {
-                            $credentials[] = [
-                                "login" => $key[0],
-                                "password" => $key[1],
-                                "version" => $key[2]
-                            ];
-                        }
-                    }
-                    $versions[$version]['credentials'] = $credentials;
-                }
-            }
-        }
-
-        $total_bytes = 0;
-
-        if (!empty($total_sizes) && !empty($enabled_versions)) {
-            $total_bytes = array_sum(array_intersect_key($total_sizes, array_flip($enabled_versions)));
-        }
-
-        $summary = [
-            'title' => Language::t("ESET NOD32 update server"),
-            'last_update' => $latest_update ? date('c', $latest_update) : date('c', static::$start_time ?: time()),
-            'total_size' => [
-                'bytes' => $total_bytes,
-                'pretty' => $this->format_size_decimal($total_bytes),
-            ],
-            'versions' => $versions,
-        ];
+        $summary = $this->build_metadata();
 
         $json = json_encode($summary, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
