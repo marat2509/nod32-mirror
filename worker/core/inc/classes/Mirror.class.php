@@ -100,6 +100,14 @@ class Mirror
     }
 
     /**
+     * Public wrapper to update lastupdate.json even when database is up to date.
+     */
+    static public function touch_time_stamp()
+    {
+        static::fix_time_stamp();
+    }
+
+    /**
      * @return bool
      */
     static public function test_key()
