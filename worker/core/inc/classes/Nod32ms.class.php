@@ -13,12 +13,7 @@ class Nod32ms
     /**
      * @var
      */
-    static private $key_valid_file;
-
-    /**
-     * @var
-     */
-    static private $key_invalid_file;
+    static private $keys_file;
 
     static private $foundValidKey = false;
 
@@ -38,8 +33,7 @@ class Nod32ms
         Log::write_log(Language::t('log.running', __METHOD__), 5, null);
         static::$start_time = time();
         $dataDir = Config::getDataDir();
-        static::$key_valid_file = Tools::ds($dataDir, KEY_FILE_VALID);
-        static::$key_invalid_file = Tools::ds($dataDir, KEY_FILE_INVALID);
+        static::$keys_file = Tools::ds($dataDir, KEY_FILE);
         Log::write_log(Language::t('script.run', $VERSION), 0);
         $this->run_script();
     }
@@ -62,22 +56,29 @@ class Nod32ms
     {
         Log::write_log(Language::t('log.running', __METHOD__), 5, $version);
         $fn = Tools::ds(Config::getDataDir(), SUCCESSFUL_TIMESTAMP);
-        $timestamps = array();
+        $timestamps = [];
 
         if (file_exists($fn)) {
-            $handle = file_get_contents($fn);
-            $content = Parser::parse_line($handle, false, "/(.+:.+)\n/");
+            $json = json_decode(@file_get_contents($fn), true);
 
-            if (isset($content) && count($content)) {
-                foreach ($content as $value) {
-                    $result = explode(":", $value);
-                    $timestamps[$result[0]] = $result[1];
+            if (is_array($json)) {
+                $timestamps = $json;
+            } else {
+                // fallback to legacy format
+                $handle = file_get_contents($fn);
+                $content = Parser::parse_line($handle, false, "/(.+:.+)\n/");
+
+                if (isset($content) && count($content)) {
+                    foreach ($content as $value) {
+                        $result = explode(":", $value);
+                        $timestamps[$result[0]] = $result[1];
+                    }
                 }
             }
 
             if (isset($timestamps[$version])) {
                 if ($return_time_stamp) {
-                    return $timestamps[$version];
+                    return (int)$timestamps[$version];
                 }
             }
         }
@@ -94,22 +95,24 @@ class Nod32ms
         $sizes = [];
 
         if (file_exists($fn)) {
-            $handle = file_get_contents($fn);
-            $content = Parser::parse_line($handle, false, "/(.+:.+)\n/");
-
-            if (isset($content) && count($content)) {
-                foreach ($content as $value) {
-                    $result = explode(":", $value);
-                    $sizes[$result[0]] = $result[1];
+            $decoded = json_decode(@file_get_contents($fn), true);
+            if (is_array($decoded)) {
+                $sizes = $decoded;
+            } else {
+                // legacy fallback
+                $handle = file_get_contents($fn);
+                $content = Parser::parse_line($handle, false, "/(.+:.+)\n/");
+                if (isset($content) && count($content)) {
+                    foreach ($content as $value) {
+                        $result = explode(":", $value);
+                        $sizes[$result[0]] = $result[1];
+                    }
                 }
             }
         }
 
         $sizes[Mirror::$version] = $size;
-        @unlink($fn);
-
-        foreach ($sizes as $key => $name)
-            Log::write_to_file($fn, "$key:$name\r\n");
+        file_put_contents($fn, json_encode($sizes, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
 
     /**
@@ -122,13 +125,19 @@ class Nod32ms
         $sizes = [];
 
         if (file_exists($fn)) {
-            $handle = file_get_contents($fn);
-            $content = Parser::parse_line($handle, false, "/(.+:.+)\n/");
+            $decoded = json_decode(@file_get_contents($fn), true);
+            if (is_array($decoded)) {
+                $sizes = $decoded;
+            } else {
+                // legacy fallback
+                $handle = file_get_contents($fn);
+                $content = Parser::parse_line($handle, false, "/(.+:.+)\n/");
 
-            if (isset($content) && count($content)) {
-                foreach ($content as $value) {
-                    $result = explode(":", $value);
-                    $sizes[$result[0]] = $result[1];
+                if (isset($content) && count($content)) {
+                    foreach ($content as $value) {
+                        $result = explode(":", $value);
+                        $sizes[$result[0]] = $result[1];
+                    }
                 }
             }
         }
@@ -158,6 +167,65 @@ class Nod32ms
         return $ar_patterns;
     }
 
+    /**
+     * Load keys.json structure, ensuring required buckets exist.
+     *
+     * @return array{valid: array, invalid: array}
+     */
+    private function load_keys_data()
+    {
+        Log::write_log(Language::t('log.running', __METHOD__), 5, Mirror::$version);
+
+        $default = ['valid' => [], 'invalid' => []];
+
+        if (!file_exists(static::$keys_file)) {
+            $this->save_keys_data($default);
+            return $default;
+        }
+
+        $content = @file_get_contents(static::$keys_file);
+        $data = json_decode($content, true);
+
+        if (!is_array($data)) {
+            return $default;
+        }
+
+        if (!isset($data['valid']) || !is_array($data['valid'])) {
+            $data['valid'] = [];
+        }
+
+        if (!isset($data['invalid']) || !is_array($data['invalid'])) {
+            $data['invalid'] = [];
+        }
+
+        return $data;
+    }
+
+    /**
+     * Persist keys.json structure back to disk.
+     *
+     * @param array $data
+     * @return void
+     */
+    private function save_keys_data(array $data)
+    {
+        Log::write_log(Language::t('log.running', __METHOD__), 5, Mirror::$version);
+
+        $data['valid'] = array_values(is_array($data['valid'] ?? null) ? $data['valid'] : []);
+        $data['invalid'] = array_values(is_array($data['invalid'] ?? null) ? $data['invalid'] : []);
+
+        $dir = dirname(static::$keys_file);
+
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+
+        file_put_contents(
+            static::$keys_file,
+            json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+        );
+    }
+
 
     /**
      * @param $key
@@ -168,7 +236,7 @@ class Nod32ms
         Log::write_log(Language::t('log.running', __METHOD__), 5, Mirror::$version);
         $result = explode(":", $key);
 
-        if ($this->key_exists_in_file($result[0], $result[1], static::$key_invalid_file)) return false;
+        if ($this->key_exists_in_file($result[0], $result[1], 'invalid')) return false;
         Log::write_log(Language::t('mirror.validating_key_version', $result[0], $result[1], Mirror::$version), 4, Mirror::$version);
 
         Mirror::set_key(array($result[0], $result[1]));
@@ -195,12 +263,11 @@ class Nod32ms
     {
         Log::write_log(Language::t('log.running', __METHOD__), 5, Mirror::$version);
 
-        if (!file_exists(static::$key_valid_file)) {
-            $h = fopen(static::$key_valid_file, 'x');
-            fclose($h);
+        if (!file_exists(static::$keys_file)) {
+            $this->save_keys_data(['valid' => [], 'invalid' => []]);
         }
 
-        $keys = Parser::parse_keys(static::$key_valid_file);
+        $keys = Parser::parse_keys(static::$keys_file, 'valid', Mirror::$version);
 
         if (!isset($keys) || !count($keys)) {
             Log::write_log(Language::t('mirror.keys_file_empty'), 4, Mirror::$version);
@@ -222,9 +289,51 @@ class Nod32ms
     {
         Log::write_log(Language::t('log.running', __METHOD__), 5, Mirror::$version);
         Log::write_log(Language::t('mirror.found_valid_key', $login, $password), 4, Mirror::$version);
-        ($this->key_exists_in_file($login, $password, static::$key_valid_file) == false) ?
-            Log::write_to_file(static::$key_valid_file, "$login:$password:" . Mirror::$version . "\r\n") :
+
+        $data = $this->load_keys_data();
+        $bucket = &$data['valid'];
+        $versionAlreadyPresent = false;
+        $entryFound = false;
+
+        foreach ($bucket as &$entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            if (($entry['login'] ?? null) === $login && ($entry['password'] ?? null) === $password) {
+                $entryFound = true;
+                $versions = $entry['versions'] ?? [];
+
+                if (!is_array($versions)) {
+                    $versions = [$versions];
+                }
+
+                if (in_array(Mirror::$version, $versions, true)) {
+                    $versionAlreadyPresent = true;
+                    break;
+                }
+
+                $versions[] = Mirror::$version;
+                $entry['versions'] = array_values(array_unique($versions));
+                break;
+            }
+        }
+
+        unset($entry);
+
+        if (!$entryFound) {
+            $bucket[] = [
+                'login' => $login,
+                'password' => $password,
+                'versions' => [Mirror::$version],
+            ];
+        }
+
+        $this->save_keys_data($data);
+
+        if ($versionAlreadyPresent) {
             Log::write_log(Language::t('mirror.key_version_exists', $login, $password, Mirror::$version), 4, Mirror::$version);
+        }
     }
 
     /**
@@ -237,13 +346,79 @@ class Nod32ms
         Log::write_log(Language::t('mirror.invalid_key', $login, $password), 4, Mirror::$version);
         //$log_dir = Config::get('LOG')['dir'];
 
-        ($this->key_exists_in_file($login, $password, static::$key_invalid_file) == false) ?
-            Log::write_to_file(static::$key_invalid_file, "$login:$password:" . Mirror::$version . "\r\n") :
+        $data = $this->load_keys_data();
+
+        $invalidBucket = &$data['invalid'];
+        $alreadyInvalid = false;
+
+        foreach ($invalidBucket as &$entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            if (($entry['login'] ?? null) === $login && ($entry['password'] ?? null) === $password) {
+                $versions = $entry['versions'] ?? [];
+
+                if (!is_array($versions)) {
+                    $versions = [$versions];
+                }
+
+                if (in_array(Mirror::$version, $versions, true)) {
+                    $alreadyInvalid = true;
+                    break;
+                }
+
+                $versions[] = Mirror::$version;
+                $entry['versions'] = array_values(array_unique($versions));
+                break;
+            }
+        }
+
+        unset($entry);
+
+        if ($alreadyInvalid) {
             Log::write_log(Language::t('mirror.key_exists', $login, $password), 4, Mirror::$version);
+        } else {
+            $invalidBucket[] = [
+                'login' => $login,
+                'password' => $password,
+                'versions' => [Mirror::$version],
+            ];
+        }
 
         $findConfig = Config::get('find');
-        if (!empty($findConfig['remove_invalid_keys']))
-            Parser::delete_parse_line_in_file($login . ':' . $password . ':' . Mirror::$version, static::$key_valid_file);
+        if (!empty($findConfig['remove_invalid_keys'])) {
+            $validBucket = &$data['valid'];
+
+            foreach ($validBucket as $idx => &$entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+
+                if (($entry['login'] ?? null) === $login && ($entry['password'] ?? null) === $password) {
+                    $versions = $entry['versions'] ?? [];
+
+                    if (!is_array($versions)) {
+                        $versions = [$versions];
+                    }
+
+                    $versions = array_values(array_filter($versions, function ($v) {
+                        return $v !== Mirror::$version;
+                    }));
+
+                    if (empty($versions)) {
+                        unset($validBucket[$idx]);
+                    } else {
+                        $entry['versions'] = $versions;
+                    }
+                }
+            }
+
+            unset($entry);
+            $data['valid'] = array_values($validBucket);
+        }
+
+        $this->save_keys_data($data);
     }
 
     /**
@@ -252,16 +427,16 @@ class Nod32ms
      * @param $file
      * @return bool
      */
-    private function key_exists_in_file($login, $password, $file)
+    private function key_exists_in_file($login, $password, $bucket = 'valid')
     {
         Log::write_log(Language::t('log.running', __METHOD__), 5, Mirror::$version);
-        $keys = Parser::parse_keys($file);
+        $keys = Parser::parse_keys(static::$keys_file, $bucket, Mirror::$version);
 
         if (isset($keys) && count($keys)) {
             foreach ($keys as $value) {
-                $result = explode(":", $value);
+                $result = explode(":", $value, 3);
 
-                if ($result[0] == $login && $result[1] == $password && $result[2] == Mirror::$version)
+                if ($result[0] == $login && $result[1] == $password && (count($result) < 3 || $result[2] == Mirror::$version))
                     return true;
             }
         }
@@ -356,7 +531,7 @@ class Nod32ms
 
             for ($b = 0; $b < $logins; $b++) {
                 if (preg_match("/script|googleuser/i", $password[$b]) and
-                    $this->key_exists_in_file($login[$b], $password[$b], static::$key_valid_file)
+                    $this->key_exists_in_file($login[$b], $password[$b], 'valid')
                 )
                     continue;
 
@@ -829,18 +1004,16 @@ class Nod32ms
             ];
 
             if ($exportCredentials) {
-                if (file_exists(static::$key_valid_file)) {
-                    $keys = Parser::parse_keys(static::$key_valid_file);
+                if (file_exists(static::$keys_file)) {
+                    $keys = Parser::parse_keys(static::$keys_file, 'valid', $version);
                     $credentials = [];
                     foreach ($keys as $k) {
                         $key = explode(":", $k);
-                        if (!isset($key[2]) || $key[2] == $version) {
-                            $credentials[] = [
-                                "login" => $key[0],
-                                "password" => $key[1],
-                                "version" => $key[2]
-                            ];
-                        }
+                        $credentials[] = [
+                            "login" => $key[0],
+                            "password" => $key[1],
+                            "version" => $key[2] ?? null
+                        ];
                     }
                     $versions[$version]['credentials'] = $credentials;
                 }
@@ -931,8 +1104,8 @@ class Nod32ms
         $html_page .= '</tr>';
 
         if ($exportCredentials) {
-            if (file_exists(static::$key_valid_file)) {
-                $keys = Parser::parse_keys(static::$key_valid_file);
+            if (file_exists(static::$keys_file)) {
+                $keys = Parser::parse_keys(static::$keys_file);
 
 
                 $html_page .= '<tr>';

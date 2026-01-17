@@ -84,22 +84,30 @@ class Mirror
         $timestamps = [];
 
         if (file_exists($fn)) {
-            $handle = file_get_contents($fn);
-            $content = Parser::parse_line($handle, false, "/(.+:.+)\n/");
+            $json = json_decode(@file_get_contents($fn), true);
 
-            if (isset($content) && count($content)) {
-                foreach ($content as $value) {
-                    $result = explode(":", $value);
-                    $timestamps[$result[0]] = $result[1];
+            if (is_array($json)) {
+                $timestamps = $json;
+            } else {
+                // legacy fallback
+                $handle = file_get_contents($fn);
+                $content = Parser::parse_line($handle, false, "/(.+:.+)\n/");
+
+                if (isset($content) && count($content)) {
+                    foreach ($content as $value) {
+                        $result = explode(":", $value);
+                        $timestamps[$result[0]] = $result[1];
+                    }
                 }
             }
         }
 
         $timestamps[static::$version] = time();
-        @unlink($fn);
 
-        foreach ($timestamps as $key => $name)
-            Log::write_to_file($fn, "$key:$name\r\n");
+        file_put_contents(
+            $fn,
+            json_encode($timestamps, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+        );
     }
 
     /**

@@ -9,6 +9,7 @@ services:
         volumes:
             - ./nod32-mirror.yaml:/app/nod32-mirror.yaml
             - ./docker-data/www:/app/www
+            - ./docker-data/data:/app/data
             - ./docker-data/log:/app/log
 
     nod32-mirror-nginx:
