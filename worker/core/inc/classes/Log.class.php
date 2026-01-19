@@ -43,20 +43,22 @@ class Log
      * @param $str
      * @param $ver
      * @param int $level
+     * @param null|string $channel
      */
-    static public function informer($str, $ver, $level = 0)
+    static public function informer($str, $ver, $level = 0, $channel = null)
     {
-        static::write_log($str, $level, $ver);
+        static::write_log($str, $level, $ver, $channel);
     }
 
     /**
      * @param $text
      * @param $level
      * @param null $version
+     * @param null|string $channel
      * @param bool $ignore_rotate
      * @return null
      */
-    static public function write_log($text, $level, $version = null, $ignore_rotate = false)
+    static public function write_log($text, $level, $version = null, $channel = null, $ignore_rotate = false)
     {
         if (empty($text)) return null;
 
@@ -79,7 +81,7 @@ class Log
             if (file_exists($fn) && !$ignore_rotate) {
                 $arch_ext = Tools::get_archive_extension();
                 if (filesize($fn) >= ($fileConfig['rotate']['size'] ?? 0)) {
-                    static::write_log(Language::t('log.rotated'), 0, null, true);
+                    static::write_log(Language::t('log.rotated'), 0, null, null, true);
                     array_pop(static::$log);
 
                     for ($i = $fileConfig['rotate']['qty']; $i > 1; $i--) {
@@ -90,13 +92,26 @@ class Log
                     @unlink($fn . ".1" . $arch_ext);
                     Tools::archive_file($fn);
                     @unlink($fn);
-                    static::write_log(Language::t('log.rotated'), 0, null, true);
+                    static::write_log(Language::t('log.rotated'), 0, null, null, true);
                     array_pop(static::$log);
                 }
             }
         }
 
-        $text = sprintf("[%s] %s%s", date("Y-m-d, H:i:s"), ($version ? '[ver. ' . strval($version) . '] ' : ''), $text);
+        if ($channel === null && $version !== null && class_exists('Mirror', false) && property_exists('Mirror', 'channel')) {
+            $channel = Mirror::$channel;
+        }
+
+        $versionLabel = '';
+        if ($version) {
+            $versionLabel = '[ver. ' . strval($version);
+            if (!empty($channel)) {
+                $versionLabel .= ' (' . strval($channel) . ')';
+            }
+            $versionLabel .= '] ';
+        }
+
+        $text = sprintf("[%s] %s%s", date("Y-m-d, H:i:s"), $versionLabel, $text);
 
         if ($logToFile)
             static::write_to_file($fn, Tools::conv($text . "\r\n", static::$CONF['codepage']));
