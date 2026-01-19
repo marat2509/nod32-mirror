@@ -456,8 +456,7 @@ class Nod32ms
             "'&(iexcl|#161);'i",
             "'&(cent|#162);'i",
             "'&(pound|#163);'i",
-            "'&(copy|#169);'i",
-            "'&#(\d+);'e"
+            "'&(copy|#169);'i"
         );
         $replace = array(
             "",
@@ -471,10 +470,15 @@ class Nod32ms
             chr(161),
             chr(162),
             chr(163),
-            chr(169),
-            "chr(\\1)"
+            chr(169)
         );
-        return trim(preg_replace($document, $replace, $search));
+        $clean = preg_replace($document, $replace, $search);
+        $clean = preg_replace_callback("/&#(\d+);/", function ($matches) {
+            $code = intval($matches[1]);
+            return ($code >= 0 && $code <= 255) ? chr($code) : '';
+        }, $clean);
+
+        return trim($clean);
     }
 
     /**
