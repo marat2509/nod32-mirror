@@ -1211,12 +1211,15 @@ class Nod32ms
                     $mirror = Mirror::$mirrors[0];
                 }
 
-                if ($old_version && $this->compare_versions($old_version, $mirror['db_version'])) {
-                    Log::informer(Language::t('report.database_relevant', $old_version), Mirror::$version, 2);
+                $allChannelsRelevant = Mirror::all_channels_up_to_date($mirror['host']);
+
+                if ($allChannelsRelevant) {
+                    $relevantVersion = $old_version ?: $mirror['db_version'];
+                    Log::informer(Language::t('report.database_relevant', $relevantVersion), Mirror::$version, 2);
                     $prevSize = $stored_sizes[Mirror::$version] ?? 0;
                     $this->set_database_size($prevSize);
                     $total_size[Mirror::$version] = $prevSize;
-                    Mirror::touch_time_stamp();
+                    // Mirror::touch_time_stamp(); // Don't touch time stamp if all channels are relevant
                 } else {
                     list($size, $downloads, $speed) = Mirror::download_signature();
                     $this->set_database_size($size);
