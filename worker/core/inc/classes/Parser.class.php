@@ -13,7 +13,7 @@ class Parser
      */
     static public function parse_line($handle, $tag, $pattern = false)
     {
-        Log::write_log(Language::t('log.running', __METHOD__), 5, Mirror::$version);
+        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, Mirror::$version);
         $arr = [];
 
         if (preg_match_all(($pattern ? $pattern : "/$tag *=(.+)/"), $handle, $result, PREG_PATTERN_ORDER)) {
@@ -30,7 +30,7 @@ class Parser
      */
     static public function parse_keys($file, $bucket = 'valid', $versionFilter = null)
     {
-        Log::write_log(Language::t('log.running', __METHOD__), 5, Mirror::$version);
+        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, Mirror::$version);
         $content = @file_get_contents($file);
 
         if ($content === false) {
@@ -91,7 +91,7 @@ class Parser
      */
     static public function delete_parse_line_in_file($str_line, $filename, $bucket = 'valid')
     {
-        Log::write_log(Language::t('log.running', __METHOD__), 5, Mirror::$version);
+        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, Mirror::$version);
         $content = @file_get_contents($filename);
         $data = json_decode($content, true);
 
@@ -167,7 +167,7 @@ class Parser
      */
     static public function parse_template($handle, $template, &$logins, &$passwds)
     {
-        Log::write_log(Language::t('log.running', __METHOD__), 5, Mirror::$version);
+        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, Mirror::$version);
 
         if (preg_match_all("/$template/s", $handle, $result, PREG_PATTERN_ORDER)) {
             $count = count($result[1]);
@@ -187,7 +187,7 @@ class Parser
      */
     static public function parse_header($http_response_header)
     {
-        Log::write_log(Language::t('log.running', __METHOD__), 5, Mirror::$version);
+        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, Mirror::$version);
         $header = [];
 
         foreach ($http_response_header as $line) {

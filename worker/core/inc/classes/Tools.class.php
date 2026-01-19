@@ -12,7 +12,7 @@ class Tools
      */
     static public function download_file($options = array(), &$headers = null)
     {
-        Log::write_log(Language::t('log.running', __METHOD__), 5, Mirror::$version);
+        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, Mirror::$version);
         $out = FALSE;
         $fileTarget = null;
 
@@ -38,7 +38,7 @@ class Tools
                 @unlink($fileTarget);
             }
             if (class_exists('Log')) {
-                Log::write_log($errorMessage, 0, Mirror::$version);
+                Log::write_log($errorMessage, Log::LEVEL_ERROR, Mirror::$version);
             }
         }
 
