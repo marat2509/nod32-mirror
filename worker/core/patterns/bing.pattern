@@ -1,2 +1,5 @@
-link = http://www.bing.com/search?tbs=qdr:d3&count=100&q=#QUERY#&first=#PAGE#
-pageindex = 100
+link: http://www.bing.com/search?tbs=qdr:d3&count=100&q=#QUERY#&first=#PAGE#
+pageindex: 100
+useragent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36
+header:
+  - "Accept-Language: ru,en;q=0.9"
