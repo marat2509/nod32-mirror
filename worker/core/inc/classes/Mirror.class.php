@@ -327,7 +327,7 @@ class Mirror
 
         if ($logDetails && !empty($details)) {
             $detailsStr = implode('; ', $details);
-            Log::write_log(Language::t('mirror.channel_status', $detailsStr), 3, static::$version, 'all');
+            Log::write_log(Language::t('mirror.channel_status', $detailsStr), 5, static::$version, 'all');
         }
 
         return $allUpToDate;
