@@ -1211,7 +1211,7 @@ class Nod32ms
                     $mirror = Mirror::$mirrors[0];
                 }
 
-                $allChannelsRelevant = Mirror::all_channels_up_to_date($mirror['host']);
+                $allChannelsRelevant = Mirror::all_channels_up_to_date($mirror['host'], true);
 
                 if ($allChannelsRelevant) {
                     $relevantVersion = $old_version ?: $mirror['db_version'];
