@@ -1,4 +1,4 @@
-{
+﻿{
   "common.all": "Всі",
   "common.bytes": "Байт",
   "common.compare_versions": "Порівняння %s >= %s",
@@ -24,6 +24,7 @@
   "mirror.average_speed": "Середня швидкість: %s/s",
   "mirror.begin_search": "Початок пошуку в %s",
   "mirror.checking_with_key": "Перевірка дзеркала %s із ключем [%s:%s]",
+  "mirror.channel_status": "Статус каналів: %s",
   "mirror.copied_file": "Скопійовано файл %s",
   "mirror.created_hardlink": "Створено жорстке посилання для %s",
   "mirror.created_symlink": "Створено символічне посилання для %s",

@@ -1,4 +1,4 @@
-{
+﻿{
   "common.all": "Все",
   "common.bytes": "Байт",
   "common.compare_versions": "Сравнение %s >= %s",
@@ -24,6 +24,7 @@
   "mirror.average_speed": "Средняя скорость: %s/s",
   "mirror.begin_search": "Начало поиска в %s",
   "mirror.checking_with_key": "Проверка зеркала %s с ключом [%s:%s]",
+  "mirror.channel_status": "Статус каналов: %s",
   "mirror.copied_file": "Скопирован файл %s",
   "mirror.created_hardlink": "Создана жесткая ссылка для %s",
   "mirror.created_symlink": "Создана символическая ссылка для %s",
