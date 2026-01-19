@@ -1,5 +1,10 @@
 link: http://www.bing.com/search?tbs=qdr:d3&count=100&q=#QUERY#&first=#PAGE#
 pageindex: 100
-useragent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36
+user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36
 header:
   - "Accept-Language: ru,en;q=0.9"
+# Local overrides (optional):
+# query:
+#   - "nod32+key"
+# number_attempts: 10
+# page_qty: 5

@@ -493,7 +493,7 @@ class Nod32ms
         static::$foundValidKey = false;
         $findConfig = Config::get('find');
         $defaultUa = $findConfig['user_agent'] ?? "Mozilla/5.0 (Windows; U; Windows NT 6.1; rv:2.2) Gecko/20110201";
-        $ua = !empty($requestOptions['useragent']) ? $requestOptions['useragent'] : $defaultUa;
+        $ua = !empty($requestOptions['user_agent']) ? $requestOptions['user_agent'] : $defaultUa;
         $headersList = [];
         if (!empty($findConfig['headers']) && is_array($findConfig['headers'])) {
             $headersList = array_merge($headersList, array_filter(array_map('trim', $findConfig['headers']), 'strlen'));
@@ -589,10 +589,9 @@ class Nod32ms
         Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, Mirror::$version);
         $FIND = Config::get('find');
 
-        $attempts = 0;
-        $maxAttempts = isset($FIND['number_attempts']) ? intval($FIND['number_attempts']) : 0;
-        if ($maxAttempts <= 0) {
-            $maxAttempts = 1;
+        $globalMaxAttempts = isset($FIND['number_attempts']) ? intval($FIND['number_attempts']) : 0;
+        if ($globalMaxAttempts <= 0) {
+            $globalMaxAttempts = 1;
         }
 
         if (!$FIND['enabled'])
@@ -605,18 +604,21 @@ class Nod32ms
             $patterns = [PATTERN . $FIND['system'] . '.pattern'];
         }
 
+        $globalQueries = Config::normalizeQueryList($FIND['query'] ?? []);
+
         while ($elem = array_shift($patterns)) {
-            if ($attempts >= $maxAttempts) {
-                break;
-            }
             Log::write_log(Language::t('mirror.begin_search', str_replace(realpath(PATTERN) . DIRECTORY_SEPARATOR, '', $elem)), Log::LEVEL_DEBUG, Mirror::$version);
             $patternData = Parser::parse_pattern_file($elem, [
                 'pageindex' => $FIND['pageindex'],
                 'pattern' => [$FIND['pattern']],
                 'page_qty' => $FIND['page_qty'],
                 'recursion_level' => $FIND['recursion_level'],
-                'useragent' => $FIND['user_agent'] ?? null,
+                'user_agent' => $FIND['user_agent'] ?? null,
                 'headers' => $FIND['headers'] ?? [],
+                'query' => $globalQueries,
+                'number_attempts' => $globalMaxAttempts,
+                'count_keys' => $FIND['count_keys'] ?? 1,
+                'errors_quantity' => $FIND['errors_quantity'] ?? 5,
             ]);
 
             if (empty($patternData) || empty($patternData['link'])) {
@@ -624,14 +626,23 @@ class Nod32ms
                 continue;
             }
 
-            $queries = Tools::parse_comma_list($FIND['query'], ', ');
+            // Use pattern-local settings or fallback to global
+            $maxAttempts = $patternData['number_attempts'] ?? $globalMaxAttempts;
+            $queries = !empty($patternData['query']) ? $patternData['query'] : $globalQueries;
+
+            if (empty($queries)) {
+                Log::write_log(Language::t('mirror.query_not_set', $elem), Log::LEVEL_DEBUG, Mirror::$version);
+                continue;
+            }
+
+            $attempts = 0;
 
             foreach ($queries as $query) {
                 $pages = substr_count($patternData['link'], "#PAGE#") ? $patternData['page_qty'] : 1;
 
                 for ($i = 0; $i < $pages; $i++) {
                     if ($attempts >= $maxAttempts) {
-                        break 3;
+                        break 2;
                     }
 
                     $this_link = str_replace("#QUERY#", str_replace(" ", "+", trim($query)), $patternData['link']);
@@ -640,11 +651,11 @@ class Nod32ms
                     $attempts++;
 
                     $requestOptions = [
-                        'useragent' => $patternData['useragent'] ?? null,
+                        'user_agent' => $patternData['user_agent'] ?? null,
                         'headers' => $patternData['headers'] ?? [],
                     ];
 
-                    if ($this->parse_www_page($this_link, $patternData['recursion_level'], $patternData['pattern'], $requestOptions) == true) break(3);
+                    if ($this->parse_www_page($this_link, $patternData['recursion_level'], $patternData['pattern'], $requestOptions) == true) return null;
 
                     // simple linear backoff to avoid hammering sources
                     usleep(min($attempts, 5) * 200000);

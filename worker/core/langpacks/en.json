@@ -51,6 +51,7 @@
   "mirror.link_found": "Link was found [%s]",
   "mirror.link_not_found": "Link wasn't found [%s]",
   "mirror.link_not_set": "[link] doesn't set up in %s file!",
+  "mirror.query_not_set": "[query] is not set for pattern %s!",
   "mirror.no_working_keys": "No working keys were found!",
   "mirror.skipped_unreadable_update_ver": "Mirror %s skipped: unable to read update.ver",
   "mirror.testing_key": "Testing key [%s:%s]",

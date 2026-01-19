@@ -610,6 +610,23 @@ class Config
     }
 
     /**
+     * Normalize query config value to array.
+     * Supports string or array input.
+     * @param mixed $value
+     * @return array
+     */
+    static public function normalizeQueryList($value)
+    {
+        if (is_array($value)) {
+            return array_values(array_filter(array_map('trim', $value), 'strlen'));
+        }
+        if (is_string($value) && strlen(trim($value)) > 0) {
+            return [trim($value)];
+        }
+        return [];
+    }
+
+    /**
      * @return array
      */
     static public function getConnectionInfo()
