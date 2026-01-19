@@ -532,15 +532,26 @@ class Mirror
             $before_download = static::$total_downloads;
             $start_time = microtime(true);
 
+            $downloadSuccess = true;
             if (!empty($download_files)) {
-                static::download_files($download_files);
-                if (!static::$unAuthorized) {
+                $downloadSuccess = static::download_files($download_files);
+                if ($downloadSuccess && !static::$unAuthorized) {
                     static::$updated = true;
                 }
             }
 
             $duration = (!empty($download_files)) ? (microtime(true) - $start_time) : 0;
             $downloaded = static::$total_downloads - $before_download;
+
+            if (!$downloadSuccess) {
+                Log::write_log(
+                    Language::t('mirror.required_files_not_downloaded'),
+                    Log::LEVEL_WARNING,
+                    static::$version
+                );
+                @unlink($tmp_update_ver);
+                return $result;
+            }
 
             @file_put_contents($local_update_ver, $new_content);
             @unlink($tmp_update_ver);
@@ -781,6 +792,7 @@ class Mirror
 
     /**
      * @param $download_files
+     * @return bool True when all requested files are present and match expected size
      * @throws ToolsException
      */
     static protected function download_files($download_files)
@@ -790,6 +802,41 @@ class Mirror
         Log::write_log(Language::t('mirror.downloading_files', count($download_files)), Log::LEVEL_INFO, static::$version);
 
         static::download($download_files);
+
+        $scriptConfig = Config::get('script');
+        $web_dir = $scriptConfig['web_dir'] ?? SELF . 'www';
+        $allOk = true;
+
+        foreach ($download_files as $file) {
+            $path = Tools::ds($web_dir, $file['file']);
+            $expectedSize = isset($file['size']) ? intval($file['size']) : null;
+
+            if (!file_exists($path)) {
+                $allOk = false;
+                Log::write_log(
+                    sprintf('Download missing: %s', $file['file']),
+                    Log::LEVEL_WARNING,
+                    static::$version
+                );
+                continue;
+            }
+
+            if ($expectedSize !== null) {
+                clearstatcache(true, $path);
+                $actual = filesize($path);
+                if ($actual !== $expectedSize) {
+                    $allOk = false;
+                    @unlink($path);
+                    Log::write_log(
+                        sprintf('Download size mismatch for %s (%s of %s bytes)', $file['file'], $actual, $expectedSize),
+                        Log::LEVEL_WARNING,
+                        static::$version
+                    );
+                }
+            }
+        }
+
+        return $allOk;
     }
 
     /**
