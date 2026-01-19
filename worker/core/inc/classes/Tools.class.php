@@ -264,4 +264,23 @@ class Tools
 
         return array_map('trim', explode($delimiter, $string));
     }
+
+    /**
+     * Append text to file (creates directories if missing).
+     * @param string $filename
+     * @param string $text
+     */
+    static public function write_to_file($filename, $text)
+    {
+        $dir = dirname($filename);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+
+        $result = @file_put_contents($filename, $text, FILE_APPEND | LOCK_EX);
+
+        if ($result === false) {
+            error_log(sprintf("Failed to write file: %s", $filename));
+        }
+    }
 }
