@@ -292,7 +292,7 @@ class Mirror
      * @return bool
      * @throws ToolsException
      */
-    static public function all_channels_up_to_date($mirrorHost)
+    static public function all_channels_up_to_date($mirrorHost, $logDetails = false)
     {
         Log::write_log(Language::t('log.running', __METHOD__), 5, static::$version);
 
@@ -304,20 +304,32 @@ class Mirror
             return true;
         }
 
+        $allUpToDate = true;
+        $details = array();
+
         foreach (static::$update_variants as $variantKey => $paths) {
             $localVersion = static::get_DB_version($paths['local']);
             $remoteVersion = static::get_remote_variant_version($mirrorHost, $variantKey);
 
-            if ($remoteVersion === null) {
-                return false;
-            }
+            $upToDate = ($remoteVersion !== null && $localVersion !== null && intval($localVersion) >= intval($remoteVersion));
+            $allUpToDate = $allUpToDate && $upToDate;
 
-            if ($localVersion === null || intval($localVersion) < intval($remoteVersion)) {
-                return false;
+            if ($logDetails) {
+                $details[] = sprintf(
+                    '[%s] local=%s remote=%s status=%s',
+                    $variantKey,
+                    $localVersion !== null ? $localVersion : 'n/a',
+                    $remoteVersion !== null ? $remoteVersion : 'n/a',
+                    $upToDate ? 'ok' : 'update'
+                );
             }
         }
 
-        return true;
+        if ($logDetails && !empty($details)) {
+            Log::write_log('Channel status: ' . implode('; ', $details), 4, static::$version);
+        }
+
+        return $allUpToDate;
     }
 
     /**
