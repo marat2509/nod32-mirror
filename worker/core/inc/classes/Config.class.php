@@ -370,11 +370,11 @@ class Config
         $defaults = [
             'stdout' => [
                 'enabled' => true,
-                'level' => 4
+                'level' => Log::LEVEL_DEBUG
             ],
             'file' => [
                 'enabled' => true,
-                'level' => 4,
+                'level' => Log::LEVEL_DEBUG,
                 'dir' => 'log',
                 'rotate' => [
                     'enabled' => true,
@@ -389,10 +389,10 @@ class Config
 
         // Normalize booleans/ints and rotate sizing
         $merged['stdout']['enabled'] = !empty($merged['stdout']['enabled']);
-        $merged['stdout']['level'] = intval($merged['stdout']['level'] ?? 4);
+        $merged['stdout']['level'] = Log::normalizeLevel($merged['stdout']['level'] ?? Log::LEVEL_DEBUG);
 
         $merged['file']['enabled'] = !empty($merged['file']['enabled']);
-        $merged['file']['level'] = intval($merged['file']['level'] ?? 4);
+        $merged['file']['level'] = Log::normalizeLevel($merged['file']['level'] ?? Log::LEVEL_DEBUG);
         $merged['file']['dir'] = $merged['file']['dir'] ?? 'log';
 
         $merged['file']['rotate']['enabled'] = !empty($merged['file']['rotate']['enabled']);
@@ -608,7 +608,7 @@ class Config
             static::init();
         }
 
-        Log::write_log(Language::t('log.running', __METHOD__), 5);
+        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE);
 
         $connection = static::$CONF['connection'];
 
