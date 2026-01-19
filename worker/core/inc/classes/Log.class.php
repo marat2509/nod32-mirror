@@ -350,13 +350,13 @@ class Log
      * @param string|null $channel
      * @return string
      */
-    private static function formatVersionLabel($version, $channel)
+    private static function formatVersionLabel($version, $channel = null)
     {
         if ($version === null || $version === '') {
             return '';
         }
 
-        $versionLabel = '[ver. ' . strval($version);
+        $versionLabel = '[' . strval($version);
         if (!empty($channel)) {
             $versionLabel .= ' (' . strval($channel) . ')';
         }
