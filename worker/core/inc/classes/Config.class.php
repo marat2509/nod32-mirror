@@ -215,7 +215,6 @@ class Config
             'memory_limit' => '32M',
             'debug_update' => false,
             'link_method' => 'hardlink',
-            'generate_only_table' => false,
             'debug_html' => false,
             'web_dir' => 'www',
             'generate' => [
@@ -237,7 +236,6 @@ class Config
 
         $script['debug_update'] = !empty($script['debug_update']);
         $script['debug_html'] = !empty($script['debug_html']);
-        $script['generate_only_table'] = !empty($script['generate_only_table']);
 
         $script['generate']['export_credentials'] = !empty($script['generate']['export_credentials']);
         $script['generate']['json']['enabled'] = !empty($script['generate']['json']['enabled']);

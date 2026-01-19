@@ -1,68 +1,73 @@
+# nod32-mirror configuration
+# - All keys are lowercase and match the worker defaults.
+# - Paths can be relative to repo root or absolute.
+# - Log levels accept names (error, warning, notice, info, debug, trace) or numbers 0–5.
+
 script:
-  language: "en"  # Program language. Can be en, ru, ukr
-  codepage: "utf-8"  # Codepage for log/stdout
-  timezone: "Europe/Moscow"  # Timezone in format date_default_timezone_set (if supported by PHP)
-  memory_limit: "32M"  # Memory limit for php
-  debug_update: false  # Debugging update.ver files (0-off; 1-on)
-  link_method: "hardlink"  # Method for linking files: hardlink, symlink, copy
-  generate_only_table: false  # Generate only table for injection in another HTML page
-  debug_html: false  # Dump all downloaded pages to text files for debugging patterns
+  language: "en"              # CLI/UI language (en, ru, ukr)
+  codepage: "utf-8"           # Codepage for stdout/log encoding
+  timezone: "Europe/Moscow"   # PHP timezone identifier; leave empty for system default
+  memory_limit: "32M"         # PHP memory_limit
+  debug_update: false         # Dump raw update.ver files for debugging
+  link_method: "hardlink"     # How to publish files: hardlink, symlink, copy
+  debug_html: false           # Dump all downloaded pages for pattern debugging
   generate:
-    export_credentials: false  # Export credentials in JSON/HTML
+    export_credentials: false # Include credentials in generated JSON/HTML
     json:
-      enabled: true  # Generate JSON file
-      filename: "index.json"  # JSON file name
+      enabled: true           # Emit JSON report
+      filename: "index.json"  # JSON filename
     html:
-      enabled: true  # Generate HTML file
-      filename: "index.html"  # HTML file name
-      codepage: "utf-8"  # HTML codepage
-      only_table: false  # Generate only table for injection in another HTML page
+      enabled: true           # Emit HTML report
+      filename: "index.html"  # HTML filename
+      codepage: "utf-8"       # HTML codepage
+      only_table: false       # Export only table (for embedding elsewhere)
 
 connection:
   multidownload:
-    enabled: false  # Use multidownload if installed php-curl and compatible
-    threads: 32  # Number of concurrent download threads
-  speed_limit: 0  # Download speed limit n bytes/s (0=unlimit)
-  timeout: 5  # Timeout in seconds
+    enabled: false            # Enable multi-threaded downloads (curl required)
+    threads: 32               # Number of concurrent download threads
+  speed_limit: 0              # Bytes per second limit (0 = unlimited)
+  timeout: 5                  # Request timeout in seconds
   proxy:
-    enabled: false  # Proxy usage: 0-disable, 1-enable
-    type: "http"  # Proxy type: http, socks4, socks4a, socks5
-    server: "proxy.example.com"  # Proxy server
-    port: 3128  # Proxy port
-    user: "username"  # Proxy user
-    password: "pass"  # Proxy password
+    enabled: false            # Enable proxy for all requests
+    type: "http"              # Proxy type: http, socks4, socks4a, socks5
+    server: "proxy.example.com"
+    port: 3128
+    user: "username"
+    password: "pass"
 
 log:
+  # Level: error|warning|notice|info|debug|trace or 0–5 (higher = more verbose)
   stdout:
-    enabled: true  # Enable stdout logging
-    level: 4  # Logging level for stdout: 0-5
+    enabled: true
+    level: "info"             # Console verbosity
   file:
-    enabled: false  # Enable file logging
-    level: 4  # Logging level for file: 0-5
-    dir: "log"  # Log directory
+    enabled: false            # Enable file logging
+    level: "debug"            # File verbosity
+    dir: "log"                # Log directory (will be created if missing)
     rotate:
-      enabled: true  # Enable log rotation
-      size: "100K"  # Log file rotation size (with B, K, M, G postfixes)
-      qty: 5  # How many files will be rotated
+      enabled: true
+      size: "100K"            # Rotate when file >= size (supports K/M/G suffix)
+      qty: 5                  # Keep N rotated archives (*.log.N.gz)
 
 data:
-  dir: "data"  # Directory for runtime data (keys, timestamps, debug dumps)
+  dir: "data"                 # Runtime data directory (keys, timestamps, debug)
 
 find:
-  enabled: true  # Enable internal key autosearch module
-  number_attempts: 5  # Number of attempts to request new key if previous invalid
-  system: ""  # Which system pattern to use ("" for all patterns in pattern dir)
-  count_keys: 1  # Count validated keys
-  remove_invalid_keys: true  # Remove invalid keys
-  query: "nod32+username+password"  # Search query for engines (comma-separated)
-  pageindex: 1  # Step for ;PAGE; variable in patterns
-  page_qty: 5  # How many times to substitute ;PAGE; variable
-  pattern: "((EAV|TRIAL)-[0-9]{10}).+?([a-z0-9]{10})"  # Regex for ESET keys (fallback, pattern file overrides)
-  recursion_level: 2  # Recursion level for searching keys
-  errors_quantity: 5  # Number of tries if downloading was unsuccessful
+  enabled: true               # Enable built-in key searcher
+  number_attempts: 5          # Attempts to request new key if last one fails
+  system: ""                  # Pattern name to force; empty means use all patterns
+  count_keys: 1               # How many valid keys to find before stopping
+  remove_invalid_keys: true   # Delete invalid keys from storage
+  query: "nod32+username+password"  # Search query list (comma-separated for multiple)
+  pageindex: 1                # Starting page index for ;PAGE; placeholder
+  page_qty: 5                 # Pages to iterate for ;PAGE; placeholder
+  pattern: "((EAV|TRIAL)-[0-9]{10}).+?([a-z0-9]{10})"  # Fallback regex if pattern file lacks it
+  recursion_level: 2          # Depth for recursive link scanning
+  errors_quantity: 5          # Retry count for failed downloads
 
 eset:
-  mirror:
+  mirror:                     # Primary mirror pool to iterate
     - "update.eset.com"
     - "um01.eset.com"
     - "um02.eset.com"
@@ -80,9 +85,9 @@ eset:
     - "um23.eset.com"
 
   versions:
-    platforms: []
-    channels: []
-    overrides:
+    platforms: []             # Limit processing to these platforms (empty = all)
+    channels: []              # Limit to these channels (production, deferred, pre-release, etc.)
+    overrides:                # Per-version overrides (mirror=true enables handling)
       ep6:
         mirror: true
         platforms: []
