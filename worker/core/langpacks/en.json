@@ -24,6 +24,7 @@
   "mirror.average_speed": "Average speed: %s/s",
   "mirror.begin_search": "Begining search at %s",
   "mirror.checking_with_key": "Checking mirror %s with key [%s:%s]",
+  "mirror.channel_status": "Channel status: %s",
   "mirror.copied_file": "Copied file %s",
   "mirror.created_hardlink": "Created hard link for %s",
   "mirror.created_symlink": "Created symbolic link for %s",
