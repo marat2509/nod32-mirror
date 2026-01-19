@@ -336,7 +336,7 @@ class Mirror
                 $del_files = static::del_files($file, $all_needed_files);
                 if ($del_files > 0) {
                     static::$updated = true;
-                    Log::write_log(Language::t('mirror.deleted_files', $del_files), 3, static::$version);
+                    Log::write_log(Language::t('mirror.deleted_files', $del_files) . " [" . basename($file) . "]", 3, static::$version);
                 }
             }
 
@@ -344,7 +344,7 @@ class Mirror
                 $del_folders = static::del_folders($folder);
                 if ($del_folders > 0) {
                     static::$updated = true;
-                    Log::write_log(Language::t('mirror.deleted_folders', $del_folders), 3, static::$version);
+                    Log::write_log(Language::t('mirror.deleted_folders', $del_folders) . " [" . basename($folder) . "]", 3, static::$version);
                 }
             }
 
