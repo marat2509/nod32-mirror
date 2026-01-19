@@ -61,7 +61,8 @@ find:
   remove_invalid_keys: true   # Delete invalid keys from storage
   user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" # UA for searching keys (overridable in pattern)
   headers: []                 # Extra HTTP headers for key search (array of "Name: value"); overridable in pattern
-  query: "nod32+username+password"  # Search query list (comma-separated for multiple)
+  query:                      # Search queries (string or list); overridable in pattern
+    - "nod32+username+password"
   pageindex: 1                # Starting page index for ;PAGE; placeholder
   page_qty: 5                 # Pages to iterate for ;PAGE; placeholder
   pattern: "((EAV|TRIAL)-[0-9]{10}).+?([a-z0-9]{10})"  # Fallback regex if pattern file lacks it

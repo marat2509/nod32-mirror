@@ -51,6 +51,7 @@
   "mirror.link_found": "Посилання знайдено [%s]",
   "mirror.link_not_found": "Посилання не знайдено [%s]",
   "mirror.link_not_set": "[link] не встановлено у файлі %s!",
+  "mirror.query_not_set": "[query] не встановлено для патерну %s!",
   "mirror.no_working_keys": "Не знайдено жодного робочого ключа!",
   "mirror.skipped_unreadable_update_ver": "Mirror %s skipped: unable to read update.ver",
   "mirror.testing_key": "Тестування ключа [%s:%s]",

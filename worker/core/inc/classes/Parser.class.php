@@ -90,6 +90,7 @@ class Parser
 
     /**
      * Parse pattern file (YAML preferred, legacy key=value fallback).
+     * All find.* parameters from config can be overridden locally in pattern files.
      * @param string $file
      * @param array $defaults
      * @return array|null
@@ -128,15 +129,20 @@ class Parser
             $parsed = Yaml::parse($content);
             if (is_array($parsed)) {
                 $patterns = $normalizeList($parsed['pattern'] ?? null, $normalizeList($defaults['pattern'] ?? []));
-                $headers = $normalizeList($parsed['header'] ?? null, $normalizeList($defaults['headers'] ?? []));
+                $headers = $normalizeList($parsed['header'] ?? $parsed['headers'] ?? null, $normalizeList($defaults['headers'] ?? []));
+                $queries = $normalizeList($parsed['query'] ?? null, $normalizeList($defaults['query'] ?? []));
                 return [
                     'link' => $parsed['link'] ?? null,
                     'pageindex' => intval($parsed['pageindex'] ?? ($defaults['pageindex'] ?? 1)),
                     'pattern' => $patterns,
                     'page_qty' => intval($parsed['page_qty'] ?? ($defaults['page_qty'] ?? 1)),
                     'recursion_level' => intval($parsed['recursion_level'] ?? ($defaults['recursion_level'] ?? 1)),
-                    'useragent' => $parsed['useragent'] ?? ($defaults['useragent'] ?? null),
+                    'user_agent' => $parsed['user_agent'] ?? ($defaults['user_agent'] ?? null),
                     'headers' => $headers,
+                    'query' => $queries,
+                    'number_attempts' => isset($parsed['number_attempts']) ? intval($parsed['number_attempts']) : ($defaults['number_attempts'] ?? null),
+                    'count_keys' => isset($parsed['count_keys']) ? intval($parsed['count_keys']) : ($defaults['count_keys'] ?? null),
+                    'errors_quantity' => isset($parsed['errors_quantity']) ? intval($parsed['errors_quantity']) : ($defaults['errors_quantity'] ?? null),
                 ];
             }
         } catch (ParseException $e) {
@@ -148,8 +154,12 @@ class Parser
         $pattern = static::parse_line($content, "pattern");
         $page_qty = static::parse_line($content, "page_qty");
         $recursion_level = static::parse_line($content, "recursion_level");
-        $pattern_useragent = static::parse_line($content, "useragent");
+        $pattern_useragent = static::parse_line($content, "user_agent");
         $pattern_headers = static::parse_line($content, "header");
+        $pattern_query = static::parse_line($content, "query");
+        $number_attempts = static::parse_line($content, "number_attempts");
+        $count_keys = static::parse_line($content, "count_keys");
+        $errors_quantity = static::parse_line($content, "errors_quantity");
 
         return [
             'link' => $link[0] ?? null,
@@ -157,8 +167,12 @@ class Parser
             'pattern' => !empty($pattern) ? $pattern : $normalizeList($defaults['pattern'] ?? []),
             'page_qty' => isset($page_qty[0]) ? intval($page_qty[0]) : intval($defaults['page_qty'] ?? 1),
             'recursion_level' => isset($recursion_level[0]) ? intval($recursion_level[0]) : intval($defaults['recursion_level'] ?? 1),
-            'useragent' => $pattern_useragent[0] ?? ($defaults['useragent'] ?? null),
+            'user_agent' => $pattern_useragent[0] ?? ($defaults['user_agent'] ?? null),
             'headers' => $normalizeList($pattern_headers ?? [], $normalizeList($defaults['headers'] ?? [])),
+            'query' => !empty($pattern_query) ? $pattern_query : $normalizeList($defaults['query'] ?? []),
+            'number_attempts' => isset($number_attempts[0]) ? intval($number_attempts[0]) : ($defaults['number_attempts'] ?? null),
+            'count_keys' => isset($count_keys[0]) ? intval($count_keys[0]) : ($defaults['count_keys'] ?? null),
+            'errors_quantity' => isset($errors_quantity[0]) ? intval($errors_quantity[0]) : ($defaults['errors_quantity'] ?? null),
         ];
     }
 

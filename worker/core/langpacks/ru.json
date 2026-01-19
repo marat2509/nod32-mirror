@@ -51,6 +51,7 @@
   "mirror.link_found": "Ссылка найдена [%s]",
   "mirror.link_not_found": "Ссылка не найдена [%s]",
   "mirror.link_not_set": "[link] не задан в файле %s!",
+  "mirror.query_not_set": "[query] не задан для паттерна %s!",
   "mirror.no_working_keys": "Рабочие ключи не найдены!",
   "mirror.skipped_unreadable_update_ver": "Зеркало %s пропущено: не удалось прочитать update.ver",
   "mirror.testing_key": "Проверка ключа [%s:%s]",
