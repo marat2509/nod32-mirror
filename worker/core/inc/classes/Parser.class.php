@@ -1,5 +1,8 @@
 <?php
 
+use Symfony\Component\Yaml\Exception\ParseException;
+use Symfony\Component\Yaml\Yaml;
+
 /**
  * Class Parser
  */
@@ -83,6 +86,80 @@ class Parser
         }
 
         return $legacy;
+    }
+
+    /**
+     * Parse pattern file (YAML preferred, legacy key=value fallback).
+     * @param string $file
+     * @param array $defaults
+     * @return array|null
+     */
+    static public function parse_pattern_file($file, array $defaults = [])
+    {
+        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, Mirror::$version);
+
+        if (!file_exists($file) || !is_readable($file)) {
+            return null;
+        }
+
+        $content = @file_get_contents($file);
+        if ($content === false) {
+            return null;
+        }
+
+        $normalizeList = function ($value, $fallback = []) {
+            if (is_array($value)) {
+                $normalized = [];
+                foreach ($value as $v) {
+                    if (is_array($v) || is_object($v)) {
+                        continue;
+                    }
+                    $normalized[] = trim((string)$v);
+                }
+                return array_values(array_filter($normalized, 'strlen'));
+            }
+            if (is_string($value)) {
+                return [trim($value)];
+            }
+            return $fallback;
+        };
+
+        try {
+            $parsed = Yaml::parse($content);
+            if (is_array($parsed)) {
+                $patterns = $normalizeList($parsed['pattern'] ?? null, $normalizeList($defaults['pattern'] ?? []));
+                $headers = $normalizeList($parsed['header'] ?? null, $normalizeList($defaults['headers'] ?? []));
+                return [
+                    'link' => $parsed['link'] ?? null,
+                    'pageindex' => intval($parsed['pageindex'] ?? ($defaults['pageindex'] ?? 1)),
+                    'pattern' => $patterns,
+                    'page_qty' => intval($parsed['page_qty'] ?? ($defaults['page_qty'] ?? 1)),
+                    'recursion_level' => intval($parsed['recursion_level'] ?? ($defaults['recursion_level'] ?? 1)),
+                    'useragent' => $parsed['useragent'] ?? ($defaults['useragent'] ?? null),
+                    'headers' => $headers,
+                ];
+            }
+        } catch (ParseException $e) {
+            // Fallback to legacy format parsing
+        }
+
+        $link = static::parse_line($content, "link");
+        $pageindex = static::parse_line($content, "pageindex");
+        $pattern = static::parse_line($content, "pattern");
+        $page_qty = static::parse_line($content, "page_qty");
+        $recursion_level = static::parse_line($content, "recursion_level");
+        $pattern_useragent = static::parse_line($content, "useragent");
+        $pattern_headers = static::parse_line($content, "header");
+
+        return [
+            'link' => $link[0] ?? null,
+            'pageindex' => isset($pageindex[0]) ? intval($pageindex[0]) : intval($defaults['pageindex'] ?? 1),
+            'pattern' => !empty($pattern) ? $pattern : $normalizeList($defaults['pattern'] ?? []),
+            'page_qty' => isset($page_qty[0]) ? intval($page_qty[0]) : intval($defaults['page_qty'] ?? 1),
+            'recursion_level' => isset($recursion_level[0]) ? intval($recursion_level[0]) : intval($defaults['recursion_level'] ?? 1),
+            'useragent' => $pattern_useragent[0] ?? ($defaults['useragent'] ?? null),
+            'headers' => $normalizeList($pattern_headers ?? [], $normalizeList($defaults['headers'] ?? [])),
+        ];
     }
 
     /**

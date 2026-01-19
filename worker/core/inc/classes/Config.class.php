@@ -585,6 +585,18 @@ class Config
             @mkdir(Tools::ds(static::$CONF['data']['dir'], DEBUG_DIR), 0755, true);
 
         if (intval(static::$CONF['find']['errors_quantity'] ?? 0) <= 0) static::$CONF['find']['errors_quantity'] = 1;
+        if (empty(static::$CONF['find']['user_agent'])) {
+            static::$CONF['find']['user_agent'] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+        }
+        if (!isset(static::$CONF['find']['headers'])) {
+            static::$CONF['find']['headers'] = [];
+        } elseif (is_string(static::$CONF['find']['headers'])) {
+            static::$CONF['find']['headers'] = array_filter(array_map('trim', preg_split('/[\r\n,]+/', static::$CONF['find']['headers'])));
+        } elseif (is_array(static::$CONF['find']['headers'])) {
+            static::$CONF['find']['headers'] = array_filter(array_map('trim', static::$CONF['find']['headers']));
+        } else {
+            static::$CONF['find']['headers'] = [];
+        }
 
         if (!is_readable(PATTERN)) throw new ConfigException("Pattern directory is not readable. Check your permissions!");
 

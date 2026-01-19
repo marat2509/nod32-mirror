@@ -59,6 +59,8 @@ find:
   system: ""                  # Pattern name to force; empty means use all patterns
   count_keys: 1               # How many valid keys to find before stopping
   remove_invalid_keys: true   # Delete invalid keys from storage
+  user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" # UA for searching keys (overridable in pattern)
+  headers: []                 # Extra HTTP headers for key search (array of "Name: value"); overridable in pattern
   query: "nod32+username+password"  # Search query list (comma-separated for multiple)
   pageindex: 1                # Starting page index for ;PAGE; placeholder
   page_qty: 5                 # Pages to iterate for ;PAGE; placeholder

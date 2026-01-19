@@ -487,19 +487,33 @@ class Nod32ms
      * @param array $pattern
      * @return bool
      */
-    private function parse_www_page($this_link, $level, $pattern)
+    private function parse_www_page($this_link, $level, $pattern, array $requestOptions = [])
     {
         Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, Mirror::$version);
         static::$foundValidKey = false;
-        $search = Tools::download_file(
-            ([
-                    CURLOPT_URL => $this_link,
-                    CURLOPT_RETURNTRANSFER => 1,
-                    CURLOPT_NOBODY => 0,
-                    CURLOPT_USERAGENT => "Mozilla/5.0 (Windows; U; Windows NT 6.1; rv:2.2) Gecko/20110201"
-                ] + Config::getConnectionInfo()),
-            $headers
-        );
+        $findConfig = Config::get('find');
+        $defaultUa = $findConfig['user_agent'] ?? "Mozilla/5.0 (Windows; U; Windows NT 6.1; rv:2.2) Gecko/20110201";
+        $ua = !empty($requestOptions['useragent']) ? $requestOptions['useragent'] : $defaultUa;
+        $headersList = [];
+        if (!empty($findConfig['headers']) && is_array($findConfig['headers'])) {
+            $headersList = array_merge($headersList, array_filter(array_map('trim', $findConfig['headers']), 'strlen'));
+        }
+        if (!empty($requestOptions['headers']) && is_array($requestOptions['headers'])) {
+            $headersList = array_merge($headersList, array_filter(array_map('trim', $requestOptions['headers']), 'strlen'));
+        }
+
+        $downloadOptions = [
+            CURLOPT_URL => $this_link,
+            CURLOPT_RETURNTRANSFER => 1,
+            CURLOPT_NOBODY => 0,
+            CURLOPT_USERAGENT => $ua,
+        ];
+
+        if (!empty($headersList)) {
+            $downloadOptions[CURLOPT_HTTPHEADER] = $headersList;
+        }
+
+        $search = Tools::download_file($downloadOptions + Config::getConnectionInfo(), $headers);
 
         if ($search === false) {
             Log::write_log(Language::t('mirror.link_not_found', $this_link), Log::LEVEL_DEBUG, Mirror::$version);
@@ -556,7 +570,7 @@ class Nod32ms
             Log::write_log(Language::t('mirror.found_links', count($links)), Log::LEVEL_DEBUG, Mirror::$version);
 
             foreach ($links as $url) {
-                $this->parse_www_page($url, $level - 1, $pattern);
+                $this->parse_www_page($url, $level - 1, $pattern, $requestOptions);
 
                 if (static::$foundValidKey)
                     return true;
@@ -596,48 +610,41 @@ class Nod32ms
                 break;
             }
             Log::write_log(Language::t('mirror.begin_search', str_replace(realpath(PATTERN) . DIRECTORY_SEPARATOR, '', $elem)), Log::LEVEL_DEBUG, Mirror::$version);
-            $find = @file_get_contents($elem);
+            $patternData = Parser::parse_pattern_file($elem, [
+                'pageindex' => $FIND['pageindex'],
+                'pattern' => [$FIND['pattern']],
+                'page_qty' => $FIND['page_qty'],
+                'recursion_level' => $FIND['recursion_level'],
+                'useragent' => $FIND['user_agent'] ?? null,
+                'headers' => $FIND['headers'] ?? [],
+            ]);
 
-            if (!$find) {
-                Log::write_log(Language::t('common.file_not_found', str_replace(realpath(PATTERN) . DIRECTORY_SEPARATOR, '', $elem)), Log::LEVEL_DEBUG, Mirror::$version);
-                continue;
-            }
-
-            $link = Parser::parse_line($find, "link");
-            $pageindex = Parser::parse_line($find, "pageindex");
-            $pattern = Parser::parse_line($find, "pattern");
-            $page_qty = Parser::parse_line($find, "page_qty");
-            $recursion_level = Parser::parse_line($find, "recursion_level");
-
-            if (empty($link)) {
+            if (empty($patternData) || empty($patternData['link'])) {
                 Log::write_log(Language::t('mirror.link_not_set', $elem), Log::LEVEL_DEBUG, Mirror::$version);
                 continue;
             }
 
-            if (empty($pageindex)) $pageindex[] = $FIND['pageindex'];
-
-            if (empty($pattern)) $pattern[] = $FIND['pattern'];
-
-            if (empty($page_qty)) $page_qty[] = $FIND['page_qty'];
-
-            if (empty($recursion_level)) $recursion_level[] = $FIND['recursion_level'];
-
             $queries = Tools::parse_comma_list($FIND['query'], ', ');
 
             foreach ($queries as $query) {
-                $pages = substr_count($link[0], "#PAGE#") ? $page_qty[0] : 1;
+                $pages = substr_count($patternData['link'], "#PAGE#") ? $patternData['page_qty'] : 1;
 
                 for ($i = 0; $i < $pages; $i++) {
                     if ($attempts >= $maxAttempts) {
                         break 3;
                     }
 
-                    $this_link = str_replace("#QUERY#", str_replace(" ", "+", trim($query)), $link[0]);
-                    $this_link = str_replace("#PAGE#", ($i * $pageindex[0]), $this_link);
+                    $this_link = str_replace("#QUERY#", str_replace(" ", "+", trim($query)), $patternData['link']);
+                    $this_link = str_replace("#PAGE#", ($i * $patternData['pageindex']), $this_link);
 
                     $attempts++;
 
-                    if ($this->parse_www_page($this_link, $recursion_level[0], $pattern) == true) break(3);
+                    $requestOptions = [
+                        'useragent' => $patternData['useragent'] ?? null,
+                        'headers' => $patternData['headers'] ?? [],
+                    ];
+
+                    if ($this->parse_www_page($this_link, $patternData['recursion_level'], $patternData['pattern'], $requestOptions) == true) break(3);
 
                     // simple linear backoff to avoid hammering sources
                     usleep(min($attempts, 5) * 200000);
