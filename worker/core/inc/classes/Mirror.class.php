@@ -254,6 +254,73 @@ class Mirror
     }
 
     /**
+     * Download and read remote DB version for a specific variant
+     * @param string $mirrorHost
+     * @param string $variantKey
+     * @return int|null
+     * @throws ToolsException
+     */
+    static private function get_remote_variant_version($mirrorHost, $variantKey)
+    {
+        if (empty(static::$update_variants[$variantKey])) {
+            return null;
+        }
+
+        $previousChannel = static::$channel;
+        static::set_channel_for_variant($variantKey);
+
+        try {
+            static::download_update_ver($mirrorHost, false, $variantKey);
+
+            $tmpPath = static::$update_variants[$variantKey]['tmp'] ?? null;
+            if (!$tmpPath) {
+                return null;
+            }
+
+            return static::get_DB_version($tmpPath);
+        } finally {
+            if (!empty(static::$update_variants[$variantKey]['tmp'])) {
+                @unlink(static::$update_variants[$variantKey]['tmp']);
+            }
+            static::$channel = $previousChannel;
+        }
+    }
+
+    /**
+     * Check if all configured variants/channels are up to date
+     * @param string|null $mirrorHost
+     * @return bool
+     * @throws ToolsException
+     */
+    static public function all_channels_up_to_date($mirrorHost)
+    {
+        Log::write_log(Language::t('log.running', __METHOD__), 5, static::$version);
+
+        if (!$mirrorHost) {
+            return false;
+        }
+
+        if (empty(static::$update_variants)) {
+            return true;
+        }
+
+        foreach (static::$update_variants as $variantKey => $paths) {
+            $localVersion = static::get_DB_version($paths['local']);
+            $remoteVersion = static::get_remote_variant_version($mirrorHost, $variantKey);
+
+            if ($remoteVersion === null) {
+                return false;
+            }
+
+            if ($localVersion === null || intval($localVersion) < intval($remoteVersion)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * @param $mirror
      * @throws ToolsException
      */
