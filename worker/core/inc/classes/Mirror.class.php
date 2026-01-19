@@ -34,6 +34,16 @@ class Mirror
     /**
      * @var null
      */
+    static public $primary_channel = null;
+
+    /**
+     * @var null
+     */
+    static public $channel = null;
+
+    /**
+     * @var null
+     */
     static public $name = null;
 
     /**
@@ -191,6 +201,41 @@ class Mirror
     }
 
     /**
+     * Extract channel name from variant key (e.g., "production:file" -> "production")
+     * @param string|null $variantKey
+     * @return string|null
+     */
+    static private function extract_channel_from_variant($variantKey)
+    {
+        if (empty($variantKey)) {
+            return null;
+        }
+
+        if (strpos($variantKey, ':') !== false) {
+            $parts = explode(':', $variantKey, 2);
+            return $parts[0] !== '' ? $parts[0] : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * Update current channel context
+     * @param string|null $variantKey
+     * @return void
+     */
+    static private function set_channel_for_variant($variantKey)
+    {
+        $channel = static::extract_channel_from_variant($variantKey);
+
+        if ($channel === null) {
+            $channel = static::$primary_channel;
+        }
+
+        static::$channel = $channel;
+    }
+
+    /**
      * @param $mirror
      * @return int|null
      * @throws ToolsException
@@ -214,9 +259,9 @@ class Mirror
      */
     static public function download_update_ver($mirror, $downloadRandomFile = false, $variantKey = null)
     {
-        Log::write_log(Language::t('log.running', __METHOD__), 5, static::$version);
-
         $variantKey = $variantKey ?: static::$primary_variant;
+        static::set_channel_for_variant($variantKey);
+        Log::write_log(Language::t('log.running', __METHOD__), 5, static::$version);
 
         if (empty(static::$update_variants[$variantKey])) {
             return;
@@ -373,62 +418,69 @@ class Mirror
             'downloaded' => 0
         );
 
-        if (!$mirrorHost) {
-            return $result;
-        }
+        $previousChannel = static::$channel;
+        static::set_channel_for_variant($variantKey);
 
-        static::download_update_ver($mirrorHost, false, $variantKey);
-
-        $tmp_update_ver = $paths['tmp'];
-        $local_update_ver = $paths['local'];
-        $content = @file_get_contents($tmp_update_ver);
-
-        if ($content === false) {
-            Log::write_log(Language::t('mirror.update_ver_parse_error', $mirrorHost) . " ({$variantKey})", 3, static::$version);
-            @unlink($tmp_update_ver);
-            return $result;
-        }
-
-        preg_match_all('#\\[\w+\][^\[]+#', $content, $matches);
-
-        if (empty($matches[0])) {
-            Log::write_log(Language::t('mirror.update_ver_parse_error', $mirrorHost) . " ({$variantKey})", 3, static::$version);
-            @unlink($tmp_update_ver);
-            return $result;
-        }
-
-        list($new_files, $total_size, $new_content) = static::parse_update_file($matches[0]);
-        list($download_files, $needed_files) = static::create_links($web_dir, $new_files);
-
-        $before_download = static::$total_downloads;
-        $start_time = microtime(true);
-
-        if (!empty($download_files)) {
-            static::download_files($download_files);
-            if (!static::$unAuthorized) {
-                static::$updated = true;
+        try {
+            if (!$mirrorHost) {
+                return $result;
             }
+
+            static::download_update_ver($mirrorHost, false, $variantKey);
+
+            $tmp_update_ver = $paths['tmp'];
+            $local_update_ver = $paths['local'];
+            $content = @file_get_contents($tmp_update_ver);
+
+            if ($content === false) {
+                Log::write_log(Language::t('mirror.update_ver_parse_error', $mirrorHost) . " ({$variantKey})", 3, static::$version);
+                @unlink($tmp_update_ver);
+                return $result;
+            }
+
+            preg_match_all('#\\[\w+\][^\[]+#', $content, $matches);
+
+            if (empty($matches[0])) {
+                Log::write_log(Language::t('mirror.update_ver_parse_error', $mirrorHost) . " ({$variantKey})", 3, static::$version);
+                @unlink($tmp_update_ver);
+                return $result;
+            }
+
+            list($new_files, $total_size, $new_content) = static::parse_update_file($matches[0]);
+            list($download_files, $needed_files) = static::create_links($web_dir, $new_files);
+
+            $before_download = static::$total_downloads;
+            $start_time = microtime(true);
+
+            if (!empty($download_files)) {
+                static::download_files($download_files);
+                if (!static::$unAuthorized) {
+                    static::$updated = true;
+                }
+            }
+
+            $duration = (!empty($download_files)) ? (microtime(true) - $start_time) : 0;
+            $downloaded = static::$total_downloads - $before_download;
+
+            @file_put_contents($local_update_ver, $new_content);
+            @unlink($tmp_update_ver);
+
+            Log::write_log(Language::t('mirror.total_size', Tools::bytesToSize1024($total_size)) . " ({$variantKey})", 3, static::$version);
+
+            if ($downloaded > 0 && $duration > 0) {
+                $speed = round($downloaded / $duration);
+                Log::write_log(Language::t('mirror.total_downloaded', Tools::bytesToSize1024($downloaded)) . " ({$variantKey})", 3, static::$version);
+                Log::write_log(Language::t('mirror.average_speed', Tools::bytesToSize1024($speed)) . " ({$variantKey})", 3, static::$version);
+            }
+
+            $result['processed'] = true;
+            $result['size'] = $total_size;
+            $result['needed_files'] = $needed_files;
+            $result['duration'] = $duration;
+            $result['downloaded'] = max($downloaded, 0);
+        } finally {
+            static::$channel = $previousChannel;
         }
-
-        $duration = (!empty($download_files)) ? (microtime(true) - $start_time) : 0;
-        $downloaded = static::$total_downloads - $before_download;
-
-        @file_put_contents($local_update_ver, $new_content);
-        @unlink($tmp_update_ver);
-
-        Log::write_log(Language::t('mirror.total_size', Tools::bytesToSize1024($total_size)) . " ({$variantKey})", 3, static::$version);
-
-        if ($downloaded > 0 && $duration > 0) {
-            $speed = round($downloaded / $duration);
-            Log::write_log(Language::t('mirror.total_downloaded', Tools::bytesToSize1024($downloaded)) . " ({$variantKey})", 3, static::$version);
-            Log::write_log(Language::t('mirror.average_speed', Tools::bytesToSize1024($speed)) . " ({$variantKey})", 3, static::$version);
-        }
-
-        $result['processed'] = true;
-        $result['size'] = $total_size;
-        $result['needed_files'] = $needed_files;
-        $result['duration'] = $duration;
-        $result['downloaded'] = max($downloaded, 0);
 
         return $result;
     }
@@ -691,6 +743,8 @@ class Mirror
         static::$source_update_file = null;
         static::$tmp_update_file = null;
         static::$local_update_file = null;
+        static::$primary_channel = null;
+        static::$channel = null;
 
         // Check if we are using the new channel structure
         if (isset($dir['channels'])) {
@@ -772,6 +826,8 @@ class Mirror
             static::$source_update_file = $primary['source'];
             static::$tmp_update_file = $primary['tmp'];
             static::$local_update_file = $primary['local'];
+            static::$primary_channel = static::extract_channel_from_variant(static::$primary_variant);
+            static::$channel = static::$primary_channel;
         }
 
         Log::write_log(Language::t('mirror.initialized', static::$name), 5, static::$version);
@@ -800,6 +856,8 @@ class Mirror
         static::$local_update_file = null;
         static::$update_variants = array();
         static::$primary_variant = null;
+        static::$primary_channel = null;
+        static::$channel = null;
         static::$name = null;
         static::$mirrors = array();
         static::$key = array();
