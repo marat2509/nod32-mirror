@@ -5,7 +5,8 @@
     "license": "MIT",
     "require": {
         "php": ">=7.4",
-        "symfony/yaml": "^5.4"
+        "symfony/yaml": "^5.4",
+        "monolog/monolog": "^2.9"
     },
     "autoload": {
         "classmap": [

@@ -1,7 +1,11 @@
 <?php
 
+use Monolog\Formatter\LineFormatter;
+use Monolog\Handler\StreamHandler;
+use Monolog\Logger as MonologLogger;
+
 /**
- * Class Log
+ * Logging wrapper backed by Monolog.
  */
 class Log
 {
@@ -38,7 +42,7 @@ class Log
     ];
 
     /**
-     * @var array
+     * @var array<string>
      */
     static private $log = array();
 
@@ -53,22 +57,19 @@ class Log
     static private $initialized = false;
 
     /**
-     * @param $filename
-     * @param $text
+     * @var MonologLogger|null
      */
-    static public function write_to_file($filename, $text)
-    {
-        $dir = dirname($filename);
-        if (!is_dir($dir)) {
-            @mkdir($dir, 0755, true);
-        }
+    static private $logger = null;
 
-        $result = @file_put_contents($filename, $text, FILE_APPEND | LOCK_EX);
+    /**
+     * @var StreamHandler|null
+     */
+    static private $fileHandler = null;
 
-        if ($result === false) {
-            error_log(sprintf("Failed to write log file: %s", $filename));
-        }
-    }
+    /**
+     * @var StreamHandler|null
+     */
+    static private $stdoutHandler = null;
 
     /**
      * @param $str
@@ -132,9 +133,11 @@ class Log
     }
 
     /**
-     * @param $text
-     * @param $level
-     * @param null $version
+     * Central logging method (delegates to Monolog).
+     *
+     * @param mixed $text
+     * @param mixed $level
+     * @param mixed $version
      * @param null|string $channel
      * @param bool $ignore_rotate
      * @return null
@@ -146,10 +149,10 @@ class Log
         }
 
         $level = static::normalizeLevel($level);
-        $text = static::stringifyMessage($text);
+        $message = static::stringifyMessage($text);
 
-        if (!static::$initialized) {
-            error_log(static::formatFallback($text, $level, $version, $channel));
+        if (!static::$initialized || static::$logger === null) {
+            error_log(static::formatFallback($message, $level, $version, $channel));
             return null;
         }
 
@@ -163,29 +166,20 @@ class Log
             return null;
         }
 
-        $fn = Tools::ds($fileConfig['dir'], LOG_FILE);
-        $rotated = false;
-
-        if ($logToFile && !empty($fileConfig['rotate']['enabled']) && !$ignore_rotate) {
-            $rotated = static::rotateFile($fn, $fileConfig);
-        }
-
         if ($channel === null && $version !== null && class_exists('Mirror', false) && property_exists('Mirror', 'channel')) {
             $channel = Mirror::$channel;
         }
 
         $versionLabel = static::formatVersionLabel($version, $channel);
+        $monologLevel = static::mapToMonologLevel($level);
+        $finalMessage = $versionLabel . (($level === self::LEVEL_TRACE) ? '[trace] ' . $message : $message);
 
-        if ($rotated) {
-            $rotationMessage = class_exists('Language', false) ? Language::t('log.rotated') : 'Log rotated';
-            $rotationText = static::formatRecord($rotationMessage, static::LEVEL_NOTICE, $versionLabel);
-            static::dispatch($rotationText, $logToFile, $logToStdout, $fn);
-            static::remember($rotationText);
+        if ($logToFile && !empty($fileConfig['rotate']['enabled']) && !$ignore_rotate) {
+            static::rotateIfNeeded($fileConfig);
         }
 
-        $formatted = static::formatRecord($text, $level, $versionLabel);
-        static::dispatch($formatted, $logToFile, $logToStdout, $fn);
-        static::remember($formatted);
+        static::$logger->log($monologLevel, $finalMessage);
+        static::remember(static::formatRecordForMemory($finalMessage, $level));
 
         return null;
     }
@@ -212,6 +206,7 @@ class Log
             mkdir(static::$CONF['file']['dir'], 0755, true);
         }
 
+        static::buildLogger();
         static::$initialized = true;
     }
 
@@ -250,52 +245,102 @@ class Log
     }
 
     /**
-     * Rotate log file if threshold is reached
-     * @param string $filename
-     * @param array $fileConfig
-     * @return bool
+     * Create Monolog logger and handlers from config
      */
-    private static function rotateFile($filename, array $fileConfig)
+    private static function buildLogger()
     {
-        $limit = intval($fileConfig['rotate']['size'] ?? 0);
-        if ($limit <= 0 || !file_exists($filename)) {
-            return false;
+        $logger = new MonologLogger('nod32ms');
+
+        $formatter = new LineFormatter("[%datetime%] [%level_name%] %message%\n", "Y-m-d, H:i:s", true, true);
+
+        static::$fileHandler = null;
+        static::$stdoutHandler = null;
+
+        $fileConfig = static::$CONF['file'] ?? [];
+        if (!empty($fileConfig['enabled'])) {
+            $filePath = Tools::ds($fileConfig['dir'], LOG_FILE);
+            $minLevel = static::mapToMonologLevel(static::normalizeLevel($fileConfig['level'] ?? self::LEVEL_DEBUG));
+            $fileHandler = new StreamHandler($filePath, $minLevel);
+            $fileHandler->setFormatter($formatter);
+            static::$fileHandler = $fileHandler;
+            $logger->pushHandler($fileHandler);
         }
 
-        clearstatcache(true, $filename);
-        if (filesize($filename) < $limit) {
-            return false;
+        $stdoutConfig = static::$CONF['stdout'] ?? [];
+        if (!empty($stdoutConfig['enabled'])) {
+            $minLevel = static::mapToMonologLevel(static::normalizeLevel($stdoutConfig['level'] ?? self::LEVEL_DEBUG));
+            $stdoutHandler = new StreamHandler('php://stdout', $minLevel);
+            $stdoutHandler->setFormatter($formatter);
+            static::$stdoutHandler = $stdoutHandler;
+            $logger->pushHandler($stdoutHandler);
+        }
+
+        static::$logger = $logger;
+    }
+
+    /**
+     * Rotate log file when size threshold reached; rebuild logger to reopen stream.
+     * @param array $fileConfig
+     */
+    private static function rotateIfNeeded(array $fileConfig)
+    {
+        if (empty($fileConfig['enabled'])) {
+            return;
+        }
+
+        $limit = intval($fileConfig['rotate']['size'] ?? 0);
+        if ($limit <= 0) {
+            return;
+        }
+
+        $filePath = Tools::ds($fileConfig['dir'], LOG_FILE);
+        if (!file_exists($filePath)) {
+            return;
+        }
+
+        clearstatcache(true, $filePath);
+        if (filesize($filePath) < $limit) {
+            return;
         }
 
         $arch_ext = Tools::get_archive_extension();
 
         for ($i = $fileConfig['rotate']['qty']; $i > 1; $i--) {
-            @unlink($filename . "." . strval($i) . $arch_ext);
-            @rename($filename . "." . strval($i - 1) . $arch_ext, $filename . "." . strval($i) . $arch_ext);
+            @unlink($filePath . "." . strval($i) . $arch_ext);
+            @rename($filePath . "." . strval($i - 1) . $arch_ext, $filePath . "." . strval($i) . $arch_ext);
         }
 
-        @unlink($filename . ".1" . $arch_ext);
-        Tools::archive_file($filename);
-        @unlink($filename);
+        @unlink($filePath . ".1" . $arch_ext);
+        Tools::archive_file($filePath);
+        @unlink($filePath);
 
-        return true;
+        // Close handlers and rebuild with fresh stream
+        if (static::$fileHandler && method_exists(static::$fileHandler, 'close')) {
+            static::$fileHandler->close();
+        }
+        static::buildLogger();
     }
 
     /**
-     * Send log record to enabled channels
-     * @param string $text
-     * @param bool $logToFile
-     * @param bool $logToStdout
-     * @param string $filename
+     * Map internal level to Monolog level
+     * @param int $level
+     * @return int
      */
-    private static function dispatch($text, $logToFile, $logToStdout, $filename)
+    private static function mapToMonologLevel($level)
     {
-        if ($logToFile) {
-            static::write_to_file($filename, Tools::conv($text . PHP_EOL, static::$CONF['codepage']));
-        }
-
-        if ($logToStdout) {
-            echo Tools::conv($text, static::$CONF['codepage']) . chr(10);
+        switch ($level) {
+            case self::LEVEL_ERROR:
+                return MonologLogger::ERROR;
+            case self::LEVEL_WARNING:
+                return MonologLogger::WARNING;
+            case self::LEVEL_NOTICE:
+                return MonologLogger::NOTICE;
+            case self::LEVEL_INFO:
+                return MonologLogger::INFO;
+            case self::LEVEL_DEBUG:
+            case self::LEVEL_TRACE:
+            default:
+                return MonologLogger::DEBUG;
         }
     }
 
@@ -318,20 +363,6 @@ class Log
         $versionLabel .= '] ';
 
         return $versionLabel;
-    }
-
-    /**
-     * Format final log line with timestamp and level
-     * @param string $message
-     * @param int $level
-     * @param string $versionLabel
-     * @return string
-     */
-    private static function formatRecord($message, $level, $versionLabel)
-    {
-        $levelName = strtoupper(static::levelToName($level));
-
-        return sprintf("[%s] [%s] %s%s", date("Y-m-d, H:i:s"), $levelName, $versionLabel, $message);
     }
 
     /**
@@ -407,4 +438,18 @@ class Log
             array_shift(static::$log);
         }
     }
+
+    /**
+     * Format message for in-memory buffer (best-effort mirror of output)
+     * @param string $message
+     * @param int $level
+     * @return string
+     */
+    private static function formatRecordForMemory($message, $level)
+    {
+        $levelName = strtoupper(static::levelToName($level));
+
+        return sprintf("[%s] [%s] %s", date("Y-m-d, H:i:s"), $levelName, $message);
+    }
+
 }
