@@ -1042,6 +1042,9 @@ class Nod32ms
         $generateOnlyTable = !empty($htmlConfig['only_table']);
         $exportCredentials = !empty($generateConfig['export_credentials']);
         $htmlCodepage = $htmlConfig['codepage'] ?? 'utf-8';
+        $esc = function ($value) use ($htmlCodepage) {
+            return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, $htmlCodepage);
+        };
         $html_page = '';
         $metadata = $this->build_metadata();
         $versionsMeta = $metadata['versions'];
@@ -1050,7 +1053,7 @@ class Nod32ms
             $html_page .= '<!DOCTYPE HTML>';
             $html_page .= '<html>';
             $html_page .= '<head>';
-            $html_page .= '<title>' . Language::t('report.title_update_server') . '</title>';
+            $html_page .= '<title>' . $esc(Language::t('report.title_update_server')) . '</title>';
             $html_page .= '<meta http-equiv="Content-Type" content="text/html; charset=' . $htmlCodepage . '">';
             $html_page .= '<style type="text/css">html,body{height:100%;margin:0;padding:0;width:100%}table#center{border:0;height:100%;width:100%}table td table td{text-align:center;vertical-align:middle;font-weight:bold;padding:10px 15px;border:0}table tr:nth-child(odd){background:#eee}table tr:nth-child(even){background:#fc0}</style>';
             $html_page .= '</head>';
@@ -1061,13 +1064,13 @@ class Nod32ms
         }
 
         $html_page .= '<table>';
-        $html_page .= '<tr><td colspan="5">' . Language::t('report.title_update_server') . '</td></tr>';
+        $html_page .= '<tr><td colspan="5">' . $esc(Language::t('report.title_update_server')) . '</td></tr>';
         $html_page .= '<tr>';
-        $html_page .= '<td>' . Language::t('common.version') . '</td>';
-        $html_page .= '<td>' . Language::t('report.platforms') . '</td>';
-        $html_page .= '<td>' . Language::t('report.database_version') . '</td>';
-        $html_page .= '<td>' . Language::t('report.database_size') . '</td>';
-        $html_page .= '<td>' . Language::t('report.last_update') . '</td>';
+        $html_page .= '<td>' . $esc(Language::t('common.version')) . '</td>';
+        $html_page .= '<td>' . $esc(Language::t('report.platforms')) . '</td>';
+        $html_page .= '<td>' . $esc(Language::t('report.database_version')) . '</td>';
+        $html_page .= '<td>' . $esc(Language::t('report.database_size')) . '</td>';
+        $html_page .= '<td>' . $esc(Language::t('report.last_update')) . '</td>';
         $html_page .= '</tr>';
 
         global $DIRECTORIES;
@@ -1081,19 +1084,22 @@ class Nod32ms
             $version = $info['database']['version'];
             $timestamp = $info['database']['last_update_ts'];
             $size_bytes = $info['database']['size']['bytes'];
+            $size_display = $size_bytes !== null ? Tools::bytesToSize1024($size_bytes) : Language::t('common.na');
+            $timestamp_display = $timestamp ? date("Y-m-d, H:i:s", $timestamp) : Language::t('common.na');
 
             $html_page .= '<tr>';
-            $html_page .= '<td>' . Language::t($dir['name']) . '</td>';
-            $html_page .= '<td>' . $platforms_display . '</td>';
-            $html_page .= '<td>' . $version . '</td>';
-            $html_page .= '<td>' . ($size_bytes !== null ? Tools::bytesToSize1024($size_bytes) : Language::t('common.na')) . '</td>';
-            $html_page .= '<td>' . ($timestamp ? date("Y-m-d, H:i:s", $timestamp) : Language::t('common.na')) . '</td>';
+            $html_page .= '<td>' . $esc(Language::t($dir['name'])) . '</td>';
+            $html_page .= '<td>' . $esc($platforms_display) . '</td>';
+            $html_page .= '<td>' . $esc($version) . '</td>';
+            $html_page .= '<td>' . $esc($size_display) . '</td>';
+            $html_page .= '<td>' . $esc($timestamp_display) . '</td>';
             $html_page .= '</tr>';
         }
 
+        $lastExec = static::$start_time ? date("Y-m-d, H:i:s", static::$start_time) : Language::t('common.na');
         $html_page .= '<tr>';
-        $html_page .= '<td colspan="2">' . Language::t('report.last_execution') . '</td>';
-        $html_page .= '<td colspan="3">' . (static::$start_time ? date("Y-m-d, H:i:s", static::$start_time) : Language::t('common.na')) . '</td>';
+        $html_page .= '<td colspan="2">' . $esc(Language::t('report.last_execution')) . '</td>';
+        $html_page .= '<td colspan="3">' . $esc($lastExec) . '</td>';
         $html_page .= '</tr>';
 
         if ($exportCredentials) {
@@ -1102,17 +1108,20 @@ class Nod32ms
 
 
                 $html_page .= '<tr>';
-                $html_page .= '<td>' . Language::t('common.version') . '</td>';
-                $html_page .= '<td>' . Language::t('report.used_login') . '</td>';
-                $html_page .= '<td>' . Language::t('report.used_password') . '</td>';
+                $html_page .= '<td>' . $esc(Language::t('common.version')) . '</td>';
+                $html_page .= '<td>' . $esc(Language::t('report.used_login')) . '</td>';
+                $html_page .= '<td>' . $esc(Language::t('report.used_password')) . '</td>';
                 $html_page .= '</tr>';
 
                 foreach ($keys as $k) {
                     $key = explode(":", $k);
+                    $keyVersion = $esc($key[2] ?? '');
+                    $keyLogin = $esc($key[0] ?? '');
+                    $keyPassword = $esc($key[1] ?? '');
                     $html_page .= '<tr>';
-                    $html_page .= '<td>' . $key[2] . '</td>';
-                    $html_page .= '<td>' . $key[0] . '</td>';
-                    $html_page .= '<td>' . $key[1] . '</td>';
+                    $html_page .= '<td>' . $keyVersion . '</td>';
+                    $html_page .= '<td>' . $keyLogin . '</td>';
+                    $html_page .= '<td>' . $keyPassword . '</td>';
                     $html_page .= '</tr>';
                 }
             }

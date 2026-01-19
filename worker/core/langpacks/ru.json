@@ -32,6 +32,7 @@
   "mirror.deleted_folders": "Удаленные папки: %s",
   "mirror.downloaded_empty_update_ver": "Downloaded empty update.ver archive from %s",
   "mirror.downloaded_file": "С %s загружено %s [%s] [%s/s]",
+  "mirror.required_files_not_downloaded": "Не удалось скачать обязательные файлы, публикация update.ver пропущена",
   "mirror.downloading_file": "Загрузка файла %s из %s...",
   "mirror.downloading_files": "Загрузка %d файлов",
   "mirror.extracting_file": "Извлечение файла %s в %s",

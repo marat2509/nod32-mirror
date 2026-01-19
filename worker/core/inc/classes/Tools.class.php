@@ -139,7 +139,7 @@ class Tools
         if (preg_match("/utf-8/i", $to_encoding))
             return $text;
         elseif (function_exists('mb_convert_encoding'))
-            return mb_convert_encoding($text, 'UTF-8', $to_encoding);
+            return mb_convert_encoding($text, $to_encoding, 'UTF-8');
         elseif (function_exists('iconv'))
             return iconv('UTF-8', $to_encoding, $text);
         else {
