@@ -680,12 +680,6 @@ class Mirror
         $web_dir = $onlyCheck ? Tools::ds(TMP_PATH) : ($scriptConfig['web_dir'] ?? SELF . 'www');
         $connection = Config::get('connection');
         $timeout = intval($connection['timeout'] ?? 5);
-        $baseOptions = Config::getConnectionInfo() + [
-            CURLOPT_USERPWD => static::$key[0] . ":" . static::$key[1],
-            CURLOPT_TIMEOUT => $timeout,
-            CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
-            CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
-        ];
         $mirrorList = static::$mirrors;
         if ($onlyCheck && $checkedMirror) $mirrorList = [['host' => $checkedMirror]];
 
@@ -699,50 +693,32 @@ class Mirror
 
                 if (!@file_exists($dir)) @mkdir($dir, 0755, true);
 
-                $downloaded = false;
-                $schemes = preg_match('#^https?://#i', $mirror['host'])
-                    ? [$mirror['host']]
-                    : ["https://{$mirror['host']}", "http://{$mirror['host']}"];
+                Tools::download_file(
+                    [
+                        CURLOPT_USERPWD => static::$key[0] . ":" . static::$key[1],
+                        CURLOPT_URL => static::buildMirrorUrl($mirror['host'], $file['file']),
+                        CURLOPT_FILE => $out,
+                        CURLOPT_TIMEOUT => $timeout
+                    ],
+                    $header
+                );
 
-                foreach ($schemes as $baseHost) {
-                    Tools::download_file(
-                        $baseOptions + [
-                            CURLOPT_URL => static::buildMirrorUrl($baseHost, $file['file']),
-                            CURLOPT_FILE => $out,
-                        ],
-                        $header
-                    );
-
-                    if (is_array($header) && $header['http_code'] == 200 && $header['size_download'] == $file['size']) {
-                        $downloaded = true;
-                        break;
-                    }
-
-                    @unlink($out);
-                }
-
-                if ($downloaded) {
+                if (is_array($header) and $header['http_code'] == 200 and $header['size_download'] == $file['size']) {
                     if ($onlyCheck) {
                         @unlink($out);
                         return;
                     }
                     static::$total_downloads += $header['size_download'];
-                    Log::write_log(
-                        Language::t(
-                            'mirror.downloaded_file',
-                            $mirror['host'],
-                            basename($file['file']),
-                            Tools::bytesToSize1024($header['size_download']),
-                            Tools::bytesToSize1024($header['size_download'] / (microtime(true) - $time))
-                        ),
+                    Log::write_log(Language::t('mirror.downloaded_file', $mirror['host'], basename($file['file']),
+                        Tools::bytesToSize1024($header['size_download']),
+                        Tools::bytesToSize1024($header['size_download'] / (microtime(true) - $time))),
                         Log::LEVEL_INFO,
                         static::$version
                     );
                     break;
                 } else {
-                    if ($onlyCheck) {
-                        @unlink(static::$tmp_update_file);
-                    }
+                    if ($onlyCheck) @unlink(static::$tmp_update_file);
+                    @unlink($out);
                 }
             }
         }
@@ -1183,7 +1159,7 @@ class Mirror
     {
         $base = preg_match('#^https?://#i', $mirrorHost)
             ? rtrim($mirrorHost, '/')
-            : 'https://' . ltrim($mirrorHost, '/');
+            : 'http://' . ltrim($mirrorHost, '/');
 
         return $base . '/' . ltrim($path, '/');
     }
