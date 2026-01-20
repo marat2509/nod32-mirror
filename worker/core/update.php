@@ -1,22 +1,38 @@
 <?php
 
-require __DIR__ . "/inc/init.php";
+declare(strict_types=1);
+
+/**
+ * NOD32 Mirror Update Script - Entry Point
+ *
+ * Modern PHP 8.1+ implementation with:
+ * - PSR-4 autoloading
+ * - Dependency Injection
+ * - Strong typing
+ * - Guzzle HTTP client for concurrent downloads
+ */
+
+require_once __DIR__ . '/vendor/autoload.php';
+require_once __DIR__ . '/inc/directories.php';
+
+use Nod32Mirror\Application;
+
+// Ensure DIRECTORIES is available
+if (!isset($DIRECTORIES) || !is_array($DIRECTORIES)) {
+    throw new RuntimeException('$DIRECTORIES configuration not found');
+}
 
 try {
-    Config::init();
-    Log::init();
-    Language::init();
+    $app = new Application($DIRECTORIES);
+    $app->run();
+} catch (Throwable $e) {
+    error_log(sprintf(
+        "[FATAL] %s in %s:%d\n%s",
+        $e->getMessage(),
+        $e->getFile(),
+        $e->getLine(),
+        $e->getTraceAsString()
+    ));
 
-    @ini_set('memory_limit', Config::get('script')['memory_limit']);
-
-    $nod32ms = new Nod32ms();
-}
-catch (ToolsException $e) {
-    Log::isInitialized() ? Log::error($e->getMessage()) : error_log($e->getMessage());
-}
-catch (ConfigException $e) {
-    Log::isInitialized() ? Log::error($e->getMessage()) : error_log($e->getMessage());
-}
-catch (Exception $e) {
-    Log::isInitialized() ? Log::error($e->getMessage()) : error_log($e->getMessage());
+    exit(1);
 }
