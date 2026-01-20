@@ -151,7 +151,6 @@ final class Config
                 'connect' => 5,
             ],
             'retries' => [
-                'enabled' => true,
                 'attempts' => 3,
                 'delay' => 1,
             ],
@@ -188,7 +187,6 @@ final class Config
 
         // retries (new nested format or legacy flat format)
         if (isset($connectionConfig['retries']) && is_array($connectionConfig['retries'])) {
-            $connection['retries']['enabled'] = $connectionConfig['retries']['enabled'] ?? $defaults['retries']['enabled'];
             $connection['retries']['attempts'] = (int) ($connectionConfig['retries']['attempts'] ?? $defaults['retries']['attempts']);
             $connection['retries']['delay'] = (int) ($connectionConfig['retries']['delay'] ?? $defaults['retries']['delay']);
         } elseif (isset($connectionConfig['max_retries'])) {
@@ -552,16 +550,8 @@ final class Config
         return (int) ($this->config['connection']['threads'] ?? 32);
     }
 
-    public function isRetriesEnabled(): bool
-    {
-        return (bool) ($this->config['connection']['retries']['enabled'] ?? true);
-    }
-
     public function getMaxRetries(): int
     {
-        if (!$this->isRetriesEnabled()) {
-            return 1;
-        }
         return (int) ($this->config['connection']['retries']['attempts'] ?? 3);
     }
 
