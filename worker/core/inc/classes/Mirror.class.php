@@ -647,8 +647,12 @@ class Mirror
             {
 
                 $header = curl_getinfo($tmp2['curlH']);
+                $expected = $tmp2['file']['size'];
+                $gotCode = is_array($header) && isset($header['http_code']) ? $header['http_code'] : 'n/a';
+                $gotSize = is_array($header) && isset($header['size_download']) ? $header['size_download'] : null;
+                $gotType = is_array($header) && isset($header['content_type']) ? $header['content_type'] : 'n/a';
 
-                if (is_array($header) and $header['http_code'] == 200 and $header['size_download'] == $tmp2['file']['size']) {
+                if (is_array($header) and $header['http_code'] == 200 and $header['size_download'] == $expected) {
 
                     Log::write_log(Language::t('mirror.downloaded_file', $tmp2['mirror']['host'], basename($tmp2['file']['file']),
                         Tools::bytesToSize1024($header['size_download']),
@@ -659,6 +663,12 @@ class Mirror
                     static::$total_downloads += $header['size_download'];
                 } else {
                     @unlink($tmp2['out']);
+                    $sizeInfo = ($gotSize === null ? 'unknown' : $gotSize) . '/' . $expected;
+                    Log::write_log(
+                        sprintf('Download failed (%s, size %s, type %s): %s from %s', $gotCode, $sizeInfo, $gotType, $tmp2['file']['file'], $tmp2['mirror']['host']),
+                        Log::LEVEL_WARNING,
+                        static::$version
+                    );
                 }
                 curl_multi_remove_handle($mh, $tmp2['curlH']);
             }
@@ -706,15 +716,20 @@ class Mirror
                     $header
                 );
 
-                if (is_array($header) && $header['http_code'] == 200 && $header['size_download'] == $file['size']) {
+                $expectedSize = $file['size'];
+                $code = is_array($header) && isset($header['http_code']) ? $header['http_code'] : 'n/a';
+                $gotSize = is_array($header) && isset($header['size_download']) ? $header['size_download'] : null;
+                $gotType = is_array($header) && isset($header['content_type']) ? $header['content_type'] : 'n/a';
+
+                if (is_array($header) && $header['http_code'] == 200 && $gotSize == $expectedSize) {
                     if ($onlyCheck) {
                         @unlink($out);
                         return;
                     }
-                    static::$total_downloads += $header['size_download'];
+                    static::$total_downloads += $gotSize;
                     Log::write_log(Language::t('mirror.downloaded_file', $mirror['host'], basename($file['file']),
-                        Tools::bytesToSize1024($header['size_download']),
-                        Tools::bytesToSize1024($header['size_download'] / (microtime(true) - $time))),
+                        Tools::bytesToSize1024($gotSize),
+                        Tools::bytesToSize1024($gotSize / (microtime(true) - $time))),
                         Log::LEVEL_INFO,
                         static::$version
                     );
@@ -722,9 +737,9 @@ class Mirror
                 } else {
                     if ($onlyCheck) @unlink(static::$tmp_update_file);
                     @unlink($out);
-                    $code = is_array($header) && isset($header['http_code']) ? $header['http_code'] : 'n/a';
+                    $sizeInfo = ($gotSize === null ? 'unknown' : $gotSize) . '/' . $expectedSize;
                     Log::write_log(
-                        sprintf('Download failed (%s): %s', $code, $file['file']),
+                        sprintf('Download failed (%s, size %s, type %s): %s from %s', $code, $sizeInfo, $gotType, $file['file'], $mirror['host']),
                         Log::LEVEL_WARNING,
                         static::$version
                     );
