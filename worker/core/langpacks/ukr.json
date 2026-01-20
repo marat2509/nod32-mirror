@@ -79,7 +79,7 @@
   "mirror.variant_skipped": "Варіант %s пропущено - немає даних",
   "parser.failed_load_pattern": "Не вдалося завантажити файл патерну: %s",
   "parser.invalid_json": "Некоректний JSON у файлі: %s",
-  "parser.keys_loaded": "Завантажено %d ключів з файлу",
+  "parser.keys_loaded": "Завантажено %d валідних ключів для версії",
   "parser.pattern_loaded": "Патерн завантажено: %s",
   "report.average_speed_all_databases": "Середня швидкість для всіх баз даних: %s/с",
   "report.database_not_updated": "Ваша база даних не була оновлена!",

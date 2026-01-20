@@ -79,7 +79,7 @@
   "mirror.variant_skipped": "Variant %s skipped - no data",
   "parser.failed_load_pattern": "Failed to load pattern file: %s",
   "parser.invalid_json": "Invalid JSON in file: %s",
-  "parser.keys_loaded": "Loaded %d keys from file",
+  "parser.keys_loaded": "Loaded %d valid keys for version",
   "parser.pattern_loaded": "Pattern loaded: %s",
   "report.average_speed_all_databases": "Average speed for all databases: %s/s",
   "report.database_not_updated": "Your database has not been updated!",
