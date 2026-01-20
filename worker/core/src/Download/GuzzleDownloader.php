@@ -26,7 +26,10 @@ final class GuzzleDownloader implements DownloaderInterface
     private Client $client;
     private int $concurrency = 32;
     private int $timeout = 5;
+    private int $connectTimeout = 5;
     private int $speedLimit = 0;
+    private int $maxRetries = 3;
+    private int $retryDelay = 1000; // milliseconds
 
     /** @var array<string, mixed> */
     private array $defaultOptions = [];
@@ -42,11 +45,14 @@ final class GuzzleDownloader implements DownloaderInterface
     private function initClient(): void
     {
         $this->timeout = $this->config->getTimeout();
+        $this->connectTimeout = $this->config->getConnectTimeout();
         $this->concurrency = $this->config->getMaxThreads();
+        $this->maxRetries = $this->config->getMaxRetries();
+        $this->retryDelay = $this->config->getRetryDelay();
 
         $options = [
             RequestOptions::TIMEOUT => $this->timeout,
-            RequestOptions::CONNECT_TIMEOUT => $this->timeout,
+            RequestOptions::CONNECT_TIMEOUT => $this->connectTimeout,
             RequestOptions::HTTP_ERRORS => false,
             RequestOptions::ALLOW_REDIRECTS => [
                 'max' => 5,
@@ -218,7 +224,122 @@ final class GuzzleDownloader implements DownloaderInterface
         }
 
         $results = [];
+        $filesToDownload = $files;
         $requestOptions = $this->buildRequestOptions($auth);
+
+        // Create file size map for validation
+        $fileSizeMap = [];
+        $fileMap = [];
+        foreach ($files as $file) {
+            $fileSizeMap[$file->path] = $file->size;
+            $fileMap[$file->path] = $file;
+        }
+
+        for ($attempt = 1; $attempt <= $this->maxRetries; $attempt++) {
+            if (empty($filesToDownload)) {
+                break;
+            }
+
+            if ($attempt > 1) {
+                $delay = $this->retryDelay * pow(2, $attempt - 2); // exponential backoff
+                $this->log->debug(
+                    $this->language->t('mirror.retry_batch_download', count($filesToDownload), $attempt, $this->maxRetries)
+                );
+                usleep($delay * 1000);
+            }
+
+            $currentResults = $this->executeDownloadBatch(
+                $filesToDownload,
+                $baseUrl,
+                $targetDir,
+                $requestOptions,
+                $fileSizeMap
+            );
+
+            // Merge results and find failed downloads for retry
+            $failedFiles = [];
+            foreach ($currentResults as $filePath => $result) {
+                if ($result->isSuccessful()) {
+                    $results[$filePath] = $result;
+                } else {
+                    // Only retry on timeout or network errors, not on 4xx/5xx HTTP errors
+                    if ($this->isRetryableError($result)) {
+                        if (isset($fileMap[$filePath])) {
+                            $failedFiles[] = $fileMap[$filePath];
+                        }
+                    } else {
+                        $results[$filePath] = $result;
+                    }
+                }
+            }
+
+            $filesToDownload = $failedFiles;
+        }
+
+        // Add remaining failed files to results
+        foreach ($filesToDownload as $file) {
+            if (!isset($results[$file->path])) {
+                $results[$file->path] = DownloadResult::failure(
+                    httpCode: 0,
+                    error: $this->language->t('mirror.retries_exhausted', $this->maxRetries),
+                    totalTime: 0.0
+                );
+            }
+        }
+
+        return $results;
+    }
+
+    /**
+     * Check if the error is retryable (timeout, network error, etc.)
+     */
+    private function isRetryableError(DownloadResult $result): bool
+    {
+        // Retry on network errors (HTTP 0) or server errors (5xx)
+        if ($result->httpCode === 0) {
+            return true;
+        }
+
+        if ($result->httpCode >= 500 && $result->httpCode < 600) {
+            return true;
+        }
+
+        // Check for timeout or connection errors in error message
+        if ($result->error !== null) {
+            $retryablePatterns = [
+                'timed out',
+                'timeout',
+                'connection reset',
+                'connection refused',
+                'could not resolve',
+                'network is unreachable',
+            ];
+
+            $errorLower = strtolower($result->error);
+            foreach ($retryablePatterns as $pattern) {
+                if (str_contains($errorLower, $pattern)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param DownloadableFile[] $files
+     * @param array<string, mixed> $requestOptions
+     * @param array<string, int> $fileSizeMap
+     * @return array<string, DownloadResult>
+     */
+    private function executeDownloadBatch(
+        array $files,
+        string $baseUrl,
+        string $targetDir,
+        array $requestOptions,
+        array $fileSizeMap
+    ): array {
+        $results = [];
 
         // Create requests generator
         $requests = function () use ($files, $baseUrl, $targetDir, $requestOptions): \Generator {
@@ -236,12 +357,6 @@ final class GuzzleDownloader implements DownloaderInterface
                 };
             }
         };
-
-        // Create file size map for validation
-        $fileSizeMap = [];
-        foreach ($files as $file) {
-            $fileSizeMap[$file->path] = $file->size;
-        }
 
         $startTimes = [];
         foreach ($files as $file) {

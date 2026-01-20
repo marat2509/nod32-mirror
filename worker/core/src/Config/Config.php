@@ -145,9 +145,17 @@ final class Config
     private function normalizeConnection(array $connectionConfig): array
     {
         $defaults = [
-            'multidownload' => ['enabled' => false, 'threads' => 32],
+            'threads' => 32,
+            'timeout' => [
+                'download' => 30,
+                'connect' => 5,
+            ],
+            'retries' => [
+                'enabled' => true,
+                'attempts' => 3,
+                'delay' => 1,
+            ],
             'speed_limit' => 0,
-            'timeout' => 5,
             'proxy' => [
                 'enabled' => false,
                 'type' => ProxyType::Http->value,
@@ -160,13 +168,36 @@ final class Config
 
         $connection = $defaults;
 
-        if (isset($connectionConfig['multidownload']) && is_array($connectionConfig['multidownload'])) {
-            $connection['multidownload']['enabled'] = !empty($connectionConfig['multidownload']['enabled']);
-            $connection['multidownload']['threads'] = (int) ($connectionConfig['multidownload']['threads'] ?? 32);
+        // threads
+        if (isset($connectionConfig['threads'])) {
+            $connection['threads'] = (int) $connectionConfig['threads'];
+        } elseif (isset($connectionConfig['multidownload']['threads'])) {
+            // Legacy format
+            $connection['threads'] = (int) $connectionConfig['multidownload']['threads'];
         }
 
-        $connection['speed_limit'] = (int) ($connectionConfig['speed_limit'] ?? 0);
-        $connection['timeout'] = (int) ($connectionConfig['timeout'] ?? 5);
+        // timeout (new nested format or legacy flat format)
+        if (isset($connectionConfig['timeout']) && is_array($connectionConfig['timeout'])) {
+            $connection['timeout']['download'] = (int) ($connectionConfig['timeout']['download'] ?? $defaults['timeout']['download']);
+            $connection['timeout']['connect'] = (int) ($connectionConfig['timeout']['connect'] ?? $defaults['timeout']['connect']);
+        } elseif (isset($connectionConfig['timeout']) && is_numeric($connectionConfig['timeout'])) {
+            // Legacy flat format
+            $connection['timeout']['download'] = (int) $connectionConfig['timeout'];
+            $connection['timeout']['connect'] = (int) ($connectionConfig['connect_timeout'] ?? $defaults['timeout']['connect']);
+        }
+
+        // retries (new nested format or legacy flat format)
+        if (isset($connectionConfig['retries']) && is_array($connectionConfig['retries'])) {
+            $connection['retries']['enabled'] = $connectionConfig['retries']['enabled'] ?? $defaults['retries']['enabled'];
+            $connection['retries']['attempts'] = (int) ($connectionConfig['retries']['attempts'] ?? $defaults['retries']['attempts']);
+            $connection['retries']['delay'] = (int) ($connectionConfig['retries']['delay'] ?? $defaults['retries']['delay']);
+        } elseif (isset($connectionConfig['max_retries'])) {
+            // Legacy flat format
+            $connection['retries']['attempts'] = (int) $connectionConfig['max_retries'];
+            $connection['retries']['delay'] = (int) (($connectionConfig['retry_delay'] ?? 1000) / 1000); // convert ms to s
+        }
+
+        $connection['speed_limit'] = (int) ($connectionConfig['speed_limit'] ?? $defaults['speed_limit']);
 
         if (isset($connectionConfig['proxy']) && is_array($connectionConfig['proxy'])) {
             $connection['proxy']['enabled'] = !empty($connectionConfig['proxy']['enabled']);
@@ -508,17 +539,36 @@ final class Config
 
     public function getTimeout(): int
     {
-        return (int) ($this->config['connection']['timeout'] ?? 5);
+        return (int) ($this->config['connection']['timeout']['download'] ?? 30);
+    }
+
+    public function getConnectTimeout(): int
+    {
+        return (int) ($this->config['connection']['timeout']['connect'] ?? 5);
     }
 
     public function getMaxThreads(): int
     {
-        return (int) ($this->config['connection']['multidownload']['threads'] ?? 32);
+        return (int) ($this->config['connection']['threads'] ?? 32);
     }
 
-    public function isMultidownloadEnabled(): bool
+    public function isRetriesEnabled(): bool
     {
-        return !empty($this->config['connection']['multidownload']['enabled']);
+        return (bool) ($this->config['connection']['retries']['enabled'] ?? true);
+    }
+
+    public function getMaxRetries(): int
+    {
+        if (!$this->isRetriesEnabled()) {
+            return 1;
+        }
+        return (int) ($this->config['connection']['retries']['attempts'] ?? 3);
+    }
+
+    public function getRetryDelay(): int
+    {
+        // Returns delay in milliseconds (config is in seconds)
+        return (int) (($this->config['connection']['retries']['delay'] ?? 1) * 1000);
     }
 
     public function isProxyEnabled(): bool
