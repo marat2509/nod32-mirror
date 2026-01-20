@@ -254,7 +254,7 @@ final class Mirror
      */
     public function allChannelsUpToDate(): bool
     {
-        $this->log->trace($this->language->t('log.running', __METHOD__), $this->version);
+        $this->log->trace($this->language->t('log.running', __METHOD__), $this->version, $this->channel);
 
         if (empty($this->mirrors)) {
             return false;
@@ -271,10 +271,10 @@ final class Mirror
             $remoteVersion = $this->getRemoteVariantVersion($mirror, $variant);
 
             if ($localVersion !== null) {
-                $this->log->trace($this->language->t('mirror.local_version', $localVersion), $this->version);
+                $this->log->trace($this->language->t('mirror.local_version', $localVersion), $this->version, $variant->getChannel());
             }
             if ($remoteVersion !== null) {
-                $this->log->trace($this->language->t('mirror.remote_version', $remoteVersion), $this->version);
+                $this->log->trace($this->language->t('mirror.remote_version', $remoteVersion), $this->version, $variant->getChannel());
             }
 
             if ($remoteVersion === null || $localVersion === null || $localVersion < $remoteVersion) {
@@ -308,7 +308,7 @@ final class Mirror
 
     private function downloadUpdateVer(MirrorInfo $mirror, UpdateVariant $variant): void
     {
-        $this->log->trace($this->language->t('log.running', __METHOD__), $this->version);
+        $this->log->trace($this->language->t('log.running', __METHOD__), $this->version, $this->channel);
 
         if ($this->credential === null) {
             return;
@@ -327,7 +327,7 @@ final class Mirror
 
             if ($result->isSuccessful()) {
                 if (file_exists($variant->tmpPath) && filesize($variant->tmpPath) === 0) {
-                    $this->log->warning($this->language->t('mirror.downloaded_empty_update_ver', $mirror->host), $this->version);
+                    $this->log->warning($this->language->t('mirror.downloaded_empty_update_ver', $mirror->host), $this->version, $this->channel);
                     @unlink($variant->tmpPath);
                     continue;
                 }
@@ -335,7 +335,7 @@ final class Mirror
             }
         }
 
-        $this->log->warning($this->language->t('mirror.failed_download_update_ver', $mirror->host, 'n/a'), $this->version);
+        $this->log->warning($this->language->t('mirror.failed_download_update_ver', $mirror->host, 'n/a'), $this->version, $this->channel);
     }
 
     /**
@@ -345,7 +345,7 @@ final class Mirror
      */
     public function downloadSignature(): array
     {
-        $this->log->trace($this->language->t('log.running', __METHOD__), $this->version);
+        $this->log->trace($this->language->t('log.running', __METHOD__), $this->version, $this->channel);
 
         if (empty($this->updateVariants)) {
             return ['totalSize' => null, 'totalDownloads' => $this->totalDownloads, 'averageSpeed' => null];
@@ -357,7 +357,8 @@ final class Mirror
         if ($mirror !== null) {
             $this->log->info(
                 $this->language->t('mirror.selected_mirror', $mirror->host, $mirror->dbVersion ?? 'n/a'),
-                $this->version
+                $this->version,
+                $this->channel
             );
         }
 
@@ -392,7 +393,8 @@ final class Mirror
                     $this->updated = true;
                     $this->log->info(
                         $this->language->t('mirror.deleted_files', $deletedFiles) . ' [' . basename($folder) . ']',
-                        $this->version
+                        $this->version,
+                        $this->channel
                     );
                 }
             }
@@ -404,13 +406,14 @@ final class Mirror
                     $this->updated = true;
                     $this->log->info(
                         $this->language->t('mirror.deleted_folders', $deletedFolders) . ' [' . basename($folder) . ']',
-                        $this->version
+                        $this->version,
+                        $this->channel
                     );
                 }
             }
         } else {
             $host = $mirror?->host ?? 'unknown';
-            $this->log->warning($this->language->t('mirror.update_ver_parse_error', $host), $this->version);
+            $this->log->warning($this->language->t('mirror.update_ver_parse_error', $host), $this->version, $this->channel);
         }
 
         $averageSpeed = ($totalDownloaded > 0 && $totalDuration > 0)
@@ -440,11 +443,11 @@ final class Mirror
         $previousChannel = $this->channel;
         $this->channel = $variant->getChannel() ?? $this->primaryChannel;
 
-        $this->log->debug($this->language->t('mirror.processing_variant', $variant->key), $this->version);
+        $this->log->debug($this->language->t('mirror.processing_variant', $variant->key), $this->version, $this->channel);
 
         try {
             if ($mirror === null) {
-                $this->log->debug($this->language->t('mirror.variant_skipped', $variant->key), $this->version);
+                $this->log->debug($this->language->t('mirror.variant_skipped', $variant->key), $this->version, $this->channel);
                 return $result;
             }
 
@@ -455,7 +458,8 @@ final class Mirror
             if ($content === false) {
                 $this->log->warning(
                     $this->language->t('mirror.update_ver_parse_error', $mirror->host) . " ({$variant->key})",
-                    $this->version
+                    $this->version,
+                    $this->channel
                 );
                 @unlink($variant->tmpPath);
                 return $result;
@@ -464,7 +468,8 @@ final class Mirror
             if (!preg_match_all('#\[\w+\][^\[]+#', $content, $matches)) {
                 $this->log->warning(
                     $this->language->t('mirror.update_ver_parse_error', $mirror->host) . " ({$variant->key})",
-                    $this->version
+                    $this->version,
+                    $this->channel
                 );
                 @unlink($variant->tmpPath);
                 return $result;
@@ -490,14 +495,14 @@ final class Mirror
                     $this->updated = true;
                 }
             } else {
-                $this->log->debug($this->language->t('mirror.no_files_to_download'), $this->version);
+                $this->log->debug($this->language->t('mirror.no_files_to_download'), $this->version, $this->channel);
             }
 
             $duration = !empty($downloadFiles) ? (microtime(true) - $startTime) : 0;
             $downloaded = $this->totalDownloads - $beforeDownload;
 
             if (!$downloadSuccess) {
-                $this->log->warning($this->language->t('mirror.required_files_not_downloaded'), $this->version);
+                $this->log->warning($this->language->t('mirror.required_files_not_downloaded'), $this->version, $this->channel);
                 @unlink($variant->tmpPath);
                 return $result;
             }
@@ -507,18 +512,21 @@ final class Mirror
 
             $this->log->info(
                 $this->language->t('mirror.total_size', Tools::bytesToSize1024($parsed['totalSize'])) . " ({$variant->key})",
-                $this->version
+                $this->version,
+                $this->channel
             );
 
             if ($downloaded > 0 && $duration > 0) {
                 $speed = round($downloaded / $duration);
                 $this->log->info(
                     $this->language->t('mirror.total_downloaded', Tools::bytesToSize1024($downloaded)) . " ({$variant->key})",
-                    $this->version
+                    $this->version,
+                    $this->channel
                 );
                 $this->log->info(
                     $this->language->t('mirror.average_speed', Tools::bytesToSize1024((int) $speed)) . " ({$variant->key})",
-                    $this->version
+                    $this->version,
+                    $this->channel
                 );
             }
 
@@ -540,7 +548,7 @@ final class Mirror
      */
     private function createLinks(string $dir, array $files): array
     {
-        $this->log->trace($this->language->t('log.running', __METHOD__), $this->version);
+        $this->log->trace($this->language->t('log.running', __METHOD__), $this->version, $this->channel);
 
         $oldFiles = [];
         $neededFiles = [];
@@ -618,7 +626,8 @@ final class Mirror
                                         },
                                         basename($file->path)
                                     ),
-                                    $this->version
+                                    $this->version,
+                                    $this->channel
                                 );
                                 $this->updated = true;
                             }
@@ -641,10 +650,10 @@ final class Mirror
      */
     private function downloadFiles(array $files, MirrorInfo $mirror): bool
     {
-        $this->log->trace($this->language->t('log.running', __METHOD__), $this->version);
+        $this->log->trace($this->language->t('log.running', __METHOD__), $this->version, $this->channel);
 
         shuffle($files);
-        $this->log->info($this->language->t('mirror.downloading_files', count($files)), $this->version);
+        $this->log->info($this->language->t('mirror.downloading_files', count($files)), $this->version, $this->channel);
 
         $webDir = $this->config->getWebDir();
         $baseUrl = $mirror->getBaseUrl();
@@ -660,7 +669,8 @@ final class Mirror
                 $allOk = false;
                 $this->log->warning(
                     sprintf('Download missing or failed: %s', $file->path),
-                    $this->version
+                    $this->version,
+                    $this->channel
                 );
                 continue;
             }
@@ -673,7 +683,8 @@ final class Mirror
                 @unlink($targetPath);
                 $this->log->warning(
                     $this->language->t('mirror.file_size_mismatch', $file->path, $file->size, $result->downloadedBytes),
-                    $this->version
+                    $this->version,
+                    $this->channel
                 );
             } else {
                 $this->log->info(
@@ -684,7 +695,8 @@ final class Mirror
                         Tools::bytesToSize1024($result->downloadedBytes),
                         Tools::bytesToSize1024((int) $result->getSpeed())
                     ),
-                    $this->version
+                    $this->version,
+                    $this->channel
                 );
             }
         }
