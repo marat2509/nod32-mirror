@@ -23,11 +23,15 @@ script:
       only_table: false       # Export only table (for embedding elsewhere)
 
 connection:
-  multidownload:
-    enabled: false            # Enable multi-threaded downloads (curl required)
-    threads: 32               # Number of concurrent download threads
+  threads: 32                 # Number of concurrent download threads
+  timeout:
+    download: 30              # Request timeout in seconds (for file downloads)
+    connect: 5                # Connection timeout in seconds
+  retries:
+    enabled: true             # Enable automatic retries for failed downloads
+    attempts: 3               # Number of retry attempts
+    delay: 1                  # Base delay between retries in seconds (exponential backoff)
   speed_limit: 0              # Bytes per second limit (0 = unlimited)
-  timeout: 5                  # Request timeout in seconds
   proxy:
     enabled: false            # Enable proxy for all requests
     type: "http"              # Proxy type: http, socks4, socks4a, socks5
