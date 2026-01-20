@@ -624,7 +624,8 @@ final class Mirror
                                             LinkMethod::Symlink => 'mirror.created_symlink',
                                             default => 'mirror.copied_file',
                                         },
-                                        basename($file->path)
+                                        basename($result),
+                                        basename($path)
                                     ),
                                     $this->version,
                                     $this->channel
