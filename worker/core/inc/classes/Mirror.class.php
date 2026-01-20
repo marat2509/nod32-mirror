@@ -89,7 +89,7 @@ class Mirror
      */
     static private function fix_time_stamp()
     {
-        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, static::$version);
+        Log::trace(Language::t('log.running', __METHOD__), static::$version);
         $fn = Tools::ds(Config::getDataDir(), SUCCESSFUL_TIMESTAMP);
         $timestamps = [];
 
@@ -122,8 +122,8 @@ class Mirror
      */
     static public function test_key()
     {
-        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, static::$version);
-        Log::write_log(Language::t('mirror.testing_key', static::$key[0], static::$key[1]), Log::LEVEL_DEBUG, static::$version);
+        Log::trace(Language::t('log.running', __METHOD__), static::$version);
+        Log::debug(Language::t('mirror.testing_key', static::$key[0], static::$key[1]), static::$version);
 
         $connection = Config::get('connection');
         $timeout = intval($connection['timeout'] ?? 5);
@@ -149,13 +149,17 @@ class Mirror
         $maxVersion = 0;
         $sameMirrors = [];
 
+        Log::debug(Language::t('mirror.checking_mirrors', count($test_mirrors), static::$version), static::$version);
+
         foreach ($test_mirrors as $mirror => $time) {
+            Log::trace(Language::t('mirror.mirror_response_time', $mirror, $time), static::$version);
             $version = static::check_mirror($mirror);
             if ($version) {
                 $maxVersion = $version > $maxVersion ? $version : $maxVersion;
                 $sameMirrors[] = ['host' => $mirror, 'db_version' => $version];
+                Log::debug(Language::t('mirror.remote_version', $version), static::$version);
             } else {
-                Log::write_log(Language::t('mirror.skipped_unreadable_update_ver', $mirror), Log::LEVEL_WARNING, static::$version);
+                Log::warning(Language::t('mirror.skipped_unreadable_update_ver', $mirror), static::$version);
                 continue;
             }
         }
@@ -242,10 +246,10 @@ class Mirror
      */
     static public function check_mirror($mirror)
     {
-        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, static::$version);
+        Log::trace(Language::t('log.running', __METHOD__), static::$version);
         $new_version = null;
         $file = static::$tmp_update_file;
-        Log::write_log(Language::t('mirror.checking_with_key', $mirror, static::$key[0], static::$key[1]), Log::LEVEL_DEBUG, static::$version);
+        Log::debug(Language::t('mirror.checking_with_key', $mirror, static::$key[0], static::$key[1]), static::$version);
         static::download_update_ver($mirror, true);
         $new_version = static::get_DB_version($file);
         @unlink($file);
@@ -294,7 +298,7 @@ class Mirror
      */
     static public function all_channels_up_to_date($mirrorHost, $logDetails = false)
     {
-        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, static::$version);
+        Log::trace(Language::t('log.running', __METHOD__), static::$version);
 
         if (!$mirrorHost) {
             return false;
@@ -310,6 +314,13 @@ class Mirror
         foreach (static::$update_variants as $variantKey => $paths) {
             $localVersion = static::get_DB_version($paths['local']);
             $remoteVersion = static::get_remote_variant_version($mirrorHost, $variantKey);
+
+            if ($localVersion !== null) {
+                Log::trace(Language::t('mirror.local_version', $localVersion), static::$version);
+            }
+            if ($remoteVersion !== null) {
+                Log::trace(Language::t('mirror.remote_version', $remoteVersion), static::$version);
+            }
 
             $upToDate = ($remoteVersion !== null && $localVersion !== null && intval($localVersion) >= intval($remoteVersion));
             $allUpToDate = $allUpToDate && $upToDate;
@@ -327,7 +338,7 @@ class Mirror
 
         if ($logDetails && !empty($details)) {
             $detailsStr = implode('; ', $details);
-            Log::write_log(Language::t('mirror.channel_status', $detailsStr), Log::LEVEL_TRACE, static::$version, 'all');
+            Log::trace(Language::t('mirror.channel_status', $detailsStr), static::$version, 'all');
         }
 
         return $allUpToDate;
@@ -341,7 +352,7 @@ class Mirror
     {
         $variantKey = $variantKey ?: static::$primary_variant;
         static::set_channel_for_variant($variantKey);
-        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, static::$version);
+        Log::trace(Language::t('log.running', __METHOD__), static::$version);
 
         if (empty(static::$update_variants[$variantKey])) {
             return;
@@ -378,7 +389,7 @@ class Mirror
 
         if (is_array($headers) and $headers['http_code'] == 200 and $downloaded) {
             if (file_exists($archive) && filesize($archive) === 0) {
-                Log::write_log(Language::t('mirror.downloaded_empty_update_ver', $mirror), Log::LEVEL_WARNING, static::$version);
+                Log::warning(Language::t('mirror.downloaded_empty_update_ver', $mirror), static::$version);
                 @unlink($archive);
                 return;
             }
@@ -401,7 +412,7 @@ class Mirror
                 static::download([$file], true, $mirror);
             }
         } else {
-            Log::write_log(Language::t('mirror.failed_download_update_ver', $mirror, $headers['http_code'] ?? 'n/a'), Log::LEVEL_WARNING, static::$version);
+            Log::warning(Language::t('mirror.failed_download_update_ver', $mirror, $headers['http_code'] ?? 'n/a'), static::$version);
             @unlink($archive);
         }
     }
@@ -413,7 +424,7 @@ class Mirror
      */
     static public function download_signature()
     {
-        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, static::$version);
+        Log::trace(Language::t('log.running', __METHOD__), static::$version);
 
         if (empty(static::$update_variants)) {
             return array(null, static::$total_downloads, null);
@@ -424,6 +435,10 @@ class Mirror
         $mirror = !empty(static::$mirrors) ? current(static::$mirrors) : null;
         $mirrorHost = $mirror ? $mirror['host'] : null;
         $total_size = null;
+
+        if ($mirror) {
+            Log::info(Language::t('mirror.selected_mirror', $mirrorHost, $mirror['db_version'] ?? 'n/a'), static::$version);
+        }
         $total_duration = 0;
         $total_downloaded = 0;
         $all_needed_files = array();
@@ -461,7 +476,7 @@ class Mirror
                 $del_files = static::del_files($file, $all_needed_files);
                 if ($del_files > 0) {
                     static::$updated = true;
-                    Log::write_log(Language::t('mirror.deleted_files', $del_files) . " [" . basename($file) . "]", Log::LEVEL_INFO, static::$version);
+                    Log::info(Language::t('mirror.deleted_files', $del_files) . " [" . basename($file) . "]", static::$version);
                 }
             }
 
@@ -469,7 +484,7 @@ class Mirror
                 $del_folders = static::del_folders($folder);
                 if ($del_folders > 0) {
                     static::$updated = true;
-                    Log::write_log(Language::t('mirror.deleted_folders', $del_folders) . " [" . basename($folder) . "]", Log::LEVEL_INFO, static::$version);
+                    Log::info(Language::t('mirror.deleted_folders', $del_folders) . " [" . basename($folder) . "]", static::$version);
                 }
             }
 
@@ -478,7 +493,7 @@ class Mirror
             }
         } else {
             $logHost = $mirrorHost ?: 'unknown';
-            Log::write_log(Language::t('mirror.update_ver_parse_error', $logHost), Log::LEVEL_WARNING, static::$version);
+            Log::warning(Language::t('mirror.update_ver_parse_error', $logHost), static::$version);
         }
 
         $average_speed = ($total_downloaded > 0 && $total_duration > 0)
@@ -501,8 +516,11 @@ class Mirror
         $previousChannel = static::$channel;
         static::set_channel_for_variant($variantKey);
 
+        Log::debug(Language::t('mirror.processing_variant', $variantKey), static::$version);
+
         try {
             if (!$mirrorHost) {
+                Log::debug(Language::t('mirror.variant_skipped', $variantKey), static::$version);
                 return $result;
             }
 
@@ -513,7 +531,7 @@ class Mirror
             $content = @file_get_contents($tmp_update_ver);
 
             if ($content === false) {
-                Log::write_log(Language::t('mirror.update_ver_parse_error', $mirrorHost) . " ({$variantKey})", Log::LEVEL_WARNING, static::$version);
+                Log::warning(Language::t('mirror.update_ver_parse_error', $mirrorHost) . " ({$variantKey})", static::$version);
                 @unlink($tmp_update_ver);
                 return $result;
             }
@@ -521,7 +539,7 @@ class Mirror
             preg_match_all('#\\[\w+\][^\[]+#', $content, $matches);
 
             if (empty($matches[0])) {
-                Log::write_log(Language::t('mirror.update_ver_parse_error', $mirrorHost) . " ({$variantKey})", Log::LEVEL_WARNING, static::$version);
+                Log::warning(Language::t('mirror.update_ver_parse_error', $mirrorHost) . " ({$variantKey})", static::$version);
                 @unlink($tmp_update_ver);
                 return $result;
             }
@@ -538,15 +556,16 @@ class Mirror
                 if ($downloadSuccess && !static::$unAuthorized) {
                     static::$updated = true;
                 }
+            } else {
+                Log::debug(Language::t('mirror.no_files_to_download'), static::$version);
             }
 
             $duration = (!empty($download_files)) ? (microtime(true) - $start_time) : 0;
             $downloaded = static::$total_downloads - $before_download;
 
             if (!$downloadSuccess) {
-                Log::write_log(
+                Log::warning(
                     Language::t('mirror.required_files_not_downloaded'),
-                    Log::LEVEL_WARNING,
                     static::$version
                 );
                 @unlink($tmp_update_ver);
@@ -556,12 +575,12 @@ class Mirror
             @file_put_contents($local_update_ver, $new_content);
             @unlink($tmp_update_ver);
 
-            Log::write_log(Language::t('mirror.total_size', Tools::bytesToSize1024($total_size)) . " ({$variantKey})", Log::LEVEL_INFO, static::$version);
+            Log::info(Language::t('mirror.total_size', Tools::bytesToSize1024($total_size)) . " ({$variantKey})", static::$version);
 
             if ($downloaded > 0 && $duration > 0) {
                 $speed = round($downloaded / $duration);
-                Log::write_log(Language::t('mirror.total_downloaded', Tools::bytesToSize1024($downloaded)) . " ({$variantKey})", Log::LEVEL_INFO, static::$version);
-                Log::write_log(Language::t('mirror.average_speed', Tools::bytesToSize1024($speed)) . " ({$variantKey})", Log::LEVEL_INFO, static::$version);
+                Log::info(Language::t('mirror.total_downloaded', Tools::bytesToSize1024($downloaded)) . " ({$variantKey})", static::$version);
+                Log::info(Language::t('mirror.average_speed', Tools::bytesToSize1024($speed)) . " ({$variantKey})", static::$version);
             }
 
             $result['processed'] = true;
@@ -578,7 +597,7 @@ class Mirror
 
     static protected function multiple_download($download_files, $onlyCheck = false, $checkedMirror = null)
     {
-        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, static::$version);
+        Log::trace(Language::t('log.running', __METHOD__), static::$version);
         $scriptConfig = Config::get('script');
         $web_dir = $onlyCheck ? Tools::ds(TMP_PATH) : ($scriptConfig['web_dir'] ?? SELF . 'www');
         $connection = Config::get('connection');
@@ -654,19 +673,17 @@ class Mirror
 
                 if (is_array($header) and $header['http_code'] == 200 and $header['size_download'] == $expected) {
 
-                    Log::write_log(Language::t('mirror.downloaded_file', $tmp2['mirror']['host'], basename($tmp2['file']['file']),
+                    Log::info(Language::t('mirror.downloaded_file', $tmp2['mirror']['host'], basename($tmp2['file']['file']),
                         Tools::bytesToSize1024($header['size_download']),
                         Tools::bytesToSize1024($header['size_download'] / $header['total_time'])),
-                        Log::LEVEL_INFO,
                         static::$version
                     );
                     static::$total_downloads += $header['size_download'];
                 } else {
                     @unlink($tmp2['out']);
                     $sizeInfo = ($gotSize === null ? 'unknown' : $gotSize) . '/' . $expected;
-                    Log::write_log(
+                    Log::warning(
                         sprintf('Download failed (%s, size %s, type %s): %s from %s', $gotCode, $sizeInfo, $gotType, $tmp2['file']['file'], $tmp2['mirror']['host']),
-                        Log::LEVEL_WARNING,
                         static::$version
                     );
                 }
@@ -685,7 +702,7 @@ class Mirror
      */
     static protected function single_download($download_files, $onlyCheck = false, $checkedMirror = null)
     {
-        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, static::$version);
+        Log::trace(Language::t('log.running', __METHOD__), static::$version);
         $scriptConfig = Config::get('script');
         $web_dir = $onlyCheck ? Tools::ds(TMP_PATH) : ($scriptConfig['web_dir'] ?? SELF . 'www');
         $connection = Config::get('connection');
@@ -701,7 +718,7 @@ class Mirror
             foreach ($mirrorList as $id => $mirror) {
 
                 $time = microtime(true);
-                Log::write_log(Language::t('mirror.downloading_file', $file['file'], $mirror['host']), Log::LEVEL_INFO, static::$version);
+                Log::info(Language::t('mirror.downloading_file', $file['file'], $mirror['host']), static::$version);
                 $out = Tools::ds($web_dir, $file['file']);
                 $dir = dirname($out);
 
@@ -727,10 +744,9 @@ class Mirror
                         return;
                     }
                     static::$total_downloads += $gotSize;
-                    Log::write_log(Language::t('mirror.downloaded_file', $mirror['host'], basename($file['file']),
+                    Log::info(Language::t('mirror.downloaded_file', $mirror['host'], basename($file['file']),
                         Tools::bytesToSize1024($gotSize),
                         Tools::bytesToSize1024($gotSize / (microtime(true) - $time))),
-                        Log::LEVEL_INFO,
                         static::$version
                     );
                     break;
@@ -738,9 +754,8 @@ class Mirror
                     if ($onlyCheck) @unlink(static::$tmp_update_file);
                     @unlink($out);
                     $sizeInfo = ($gotSize === null ? 'unknown' : $gotSize) . '/' . $expectedSize;
-                    Log::write_log(
+                    Log::warning(
                         sprintf('Download failed (%s, size %s, type %s): %s from %s', $code, $sizeInfo, $gotType, $file['file'], $mirror['host']),
-                        Log::LEVEL_WARNING,
                         static::$version
                     );
                 }
@@ -755,7 +770,7 @@ class Mirror
      */
     static protected function download($download_files, $onlyCheck = false, $checkedMirror = null)
     {
-        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, static::$version);
+        Log::trace(Language::t('log.running', __METHOD__), static::$version);
 
         $connection = Config::get('connection');
         $useMulti = function_exists('curl_multi_init') && !empty($connection['multidownload']['enabled']) && !$onlyCheck;
@@ -776,7 +791,7 @@ class Mirror
      */
     static protected function parse_update_file($matches)
     {
-        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, static::$version);
+        Log::trace(Language::t('log.running', __METHOD__), static::$version);
         $new_content = '';
         $new_files = array();
         $total_size = 0;
@@ -821,9 +836,9 @@ class Mirror
      */
     static protected function download_files($download_files)
     {
-        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, static::$version);
+        Log::trace(Language::t('log.running', __METHOD__), static::$version);
         shuffle($download_files);
-        Log::write_log(Language::t('mirror.downloading_files', count($download_files)), Log::LEVEL_INFO, static::$version);
+        Log::info(Language::t('mirror.downloading_files', count($download_files)), static::$version);
 
         static::download($download_files);
 
@@ -837,9 +852,8 @@ class Mirror
 
             if (!file_exists($path)) {
                 $allOk = false;
-                Log::write_log(
+                Log::warning(
                     sprintf('Download missing: %s', $file['file']),
-                    Log::LEVEL_WARNING,
                     static::$version
                 );
                 continue;
@@ -851,9 +865,8 @@ class Mirror
                 if ($actual !== $expectedSize) {
                     $allOk = false;
                     @unlink($path);
-                    Log::write_log(
-                        sprintf('Download size mismatch for %s (%s of %s bytes)', $file['file'], $actual, $expectedSize),
-                        Log::LEVEL_WARNING,
+                    Log::warning(
+                        Language::t('mirror.file_size_mismatch', $file['file'], $expectedSize, $actual),
                         static::$version
                     );
                 }
@@ -869,7 +882,7 @@ class Mirror
      */
     static public function init($version, $dir)
     {
-        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, $version);
+        Log::trace(Language::t('log.running', __METHOD__), $version);
         register_shutdown_function(array('Mirror', 'destruct'));
         static::$total_downloads = 0;
         static::$version = $version;
@@ -981,7 +994,7 @@ class Mirror
             static::$channel = static::$primary_channel;
         }
 
-        Log::write_log(Language::t('mirror.initialized', static::$name), Log::LEVEL_TRACE, static::$version);
+        Log::trace(Language::t('mirror.initialized', static::$name), static::$version);
     }
 
     /**
@@ -989,7 +1002,7 @@ class Mirror
      */
     static public function set_key($key)
     {
-        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, static::$version);
+        Log::trace(Language::t('log.running', __METHOD__), static::$version);
         static::$key = $key;
     }
 
@@ -998,7 +1011,7 @@ class Mirror
      */
     static public function destruct()
     {
-        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, static::$version);
+        Log::trace(Language::t('log.running', __METHOD__), static::$version);
 
         static::$total_downloads = 0;
         static::$version = null;
@@ -1026,7 +1039,7 @@ class Mirror
      */
     static public function del_folders($folder)
     {
-        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, static::$version);
+        Log::trace(Language::t('log.running', __METHOD__), static::$version);
         $del_folders_count = 0;
         $directory = new RecursiveDirectoryIterator($folder);
 
@@ -1054,7 +1067,7 @@ class Mirror
      */
     static public function del_files($file, $needed_files)
     {
-        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, static::$version);
+        Log::trace(Language::t('log.running', __METHOD__), static::$version);
         $del_files_count = 0;
         $directory = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($file), RecursiveIteratorIterator::SELF_FIRST);
 
@@ -1079,7 +1092,7 @@ class Mirror
      */
     static public function create_links($dir, $new_files)
     {
-        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, static::$version);
+        Log::trace(Language::t('log.running', __METHOD__), static::$version);
         $old_files = [];
         $needed_files = [];
         $download_files = [];
@@ -1126,16 +1139,16 @@ class Mirror
                             switch ($linkMethod) {
                                 case 'hardlink':
                                     link($result, $path);
-                                    Log::write_log(Language::t('mirror.created_hardlink', basename($array['file'])), Log::LEVEL_INFO, static::$version);
+                                    Log::info(Language::t('mirror.created_hardlink', basename($array['file'])), static::$version);
                                     break;
                                 case 'symlink':
                                     symlink($result, $path);
-                                    Log::write_log(Language::t('mirror.created_symlink', basename($array['file'])), Log::LEVEL_INFO, static::$version);
+                                    Log::info(Language::t('mirror.created_symlink', basename($array['file'])), static::$version);
                                     break;
                                 case 'copy':
                                 default:
                                     copy($result, $path);
-                                    Log::write_log(Language::t('mirror.copied_file', basename($array['file'])), Log::LEVEL_INFO, static::$version);
+                                    Log::info(Language::t('mirror.copied_file', basename($array['file'])), static::$version);
                                     break;
                             }
 
@@ -1159,7 +1172,7 @@ class Mirror
      */
     static public function get_DB_version($file)
     {
-        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, static::$version);
+        Log::trace(Language::t('log.running', __METHOD__), static::$version);
 
         if (!file_exists($file)) return null;
 
@@ -1221,7 +1234,7 @@ class Mirror
      */
     static public function filter_files($files)
     {
-        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, static::$version);
+        Log::trace(Language::t('log.running', __METHOD__), static::$version);
 
         $filtered_files = array();
 
@@ -1231,7 +1244,7 @@ class Mirror
             }
         }
 
-        Log::write_log(Language::t('mirror.filtered_files', count($filtered_files), count($files)), Log::LEVEL_DEBUG, static::$version);
+        Log::debug(Language::t('mirror.filtered_files', count($filtered_files), count($files)), static::$version);
 
         return $filtered_files;
     }

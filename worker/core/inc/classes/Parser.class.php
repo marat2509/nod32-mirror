@@ -16,7 +16,7 @@ class Parser
      */
     static public function parse_line($handle, $tag, $pattern = false)
     {
-        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, Mirror::$version);
+        Log::trace(Language::t('log.running', __METHOD__), Mirror::$version);
         $arr = [];
 
         if (preg_match_all(($pattern ? $pattern : "/$tag *=(.+)/"), $handle, $result, PREG_PATTERN_ORDER)) {
@@ -33,14 +33,20 @@ class Parser
      */
     static public function parse_keys($file, $bucket = 'valid', $versionFilter = null)
     {
-        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, Mirror::$version);
+        Log::trace(Language::t('log.running', __METHOD__), Mirror::$version);
         $content = @file_get_contents($file);
 
         if ($content === false) {
+            Log::debug(Language::t('common.file_not_found', $file), Mirror::$version);
             return [];
         }
 
         $data = json_decode($content, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            Log::warning(Language::t('parser.invalid_json', $file), Mirror::$version);
+            return [];
+        }
 
         if (is_array($data) && (isset($data['valid']) || isset($data['invalid']))) {
             $bucketData = (isset($data[$bucket]) && is_array($data[$bucket])) ? $data[$bucket] : [];
@@ -73,6 +79,7 @@ class Parser
                 }
             }
 
+            Log::debug(Language::t('parser.keys_loaded', count($keys)), Mirror::$version);
             return $keys;
         }
 
@@ -97,16 +104,20 @@ class Parser
      */
     static public function parse_pattern_file($file, array $defaults = [])
     {
-        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, Mirror::$version);
+        Log::trace(Language::t('log.running', __METHOD__), Mirror::$version);
 
         if (!file_exists($file) || !is_readable($file)) {
+            Log::debug(Language::t('parser.failed_load_pattern', $file), Mirror::$version);
             return null;
         }
 
         $content = @file_get_contents($file);
         if ($content === false) {
+            Log::warning(Language::t('parser.failed_load_pattern', $file), Mirror::$version);
             return null;
         }
+
+        Log::trace(Language::t('parser.pattern_loaded', basename($file)), Mirror::$version);
 
         $normalizeList = function ($value, $fallback = []) {
             if (is_array($value)) {
@@ -182,7 +193,7 @@ class Parser
      */
     static public function delete_parse_line_in_file($str_line, $filename, $bucket = 'valid')
     {
-        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, Mirror::$version);
+        Log::trace(Language::t('log.running', __METHOD__), Mirror::$version);
         $content = @file_get_contents($filename);
         $data = json_decode($content, true);
 
@@ -258,7 +269,7 @@ class Parser
      */
     static public function parse_template($handle, $template, &$logins, &$passwds)
     {
-        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, Mirror::$version);
+        Log::trace(Language::t('log.running', __METHOD__), Mirror::$version);
 
         if (preg_match_all("/$template/s", $handle, $result, PREG_PATTERN_ORDER)) {
             $count = count($result[1]);
@@ -278,7 +289,7 @@ class Parser
      */
     static public function parse_header($http_response_header)
     {
-        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, Mirror::$version);
+        Log::trace(Language::t('log.running', __METHOD__), Mirror::$version);
         $header = [];
 
         foreach ($http_response_header as $line) {

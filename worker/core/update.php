@@ -12,11 +12,11 @@ try {
     $nod32ms = new Nod32ms();
 }
 catch (ToolsException $e) {
-    Log::isInitialized() ? Log::write_log($e->getMessage(), Log::LEVEL_ERROR) : error_log($e->getMessage());
+    Log::isInitialized() ? Log::error($e->getMessage()) : error_log($e->getMessage());
 }
 catch (ConfigException $e) {
-    Log::isInitialized() ? Log::write_log($e->getMessage(), Log::LEVEL_ERROR) : error_log($e->getMessage());
+    Log::isInitialized() ? Log::error($e->getMessage()) : error_log($e->getMessage());
 }
 catch (Exception $e) {
-    Log::isInitialized() ? Log::write_log($e->getMessage(), Log::LEVEL_ERROR) : error_log($e->getMessage());
+    Log::isInitialized() ? Log::error($e->getMessage()) : error_log($e->getMessage());
 }
