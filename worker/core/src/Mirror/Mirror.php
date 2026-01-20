@@ -665,10 +665,25 @@ final class Mirror
         foreach ($files as $file) {
             $result = $results[$file->path] ?? null;
 
-            if ($result === null || !$result->isSuccessful()) {
+            if ($result === null) {
                 $allOk = false;
                 $this->log->warning(
-                    sprintf('Download missing or failed: %s', $file->path),
+                    $this->language->t('mirror.download_result_missing', $file->path),
+                    $this->version,
+                    $this->channel
+                );
+                continue;
+            }
+
+            if (!$result->isSuccessful()) {
+                $allOk = false;
+                $this->log->warning(
+                    $this->language->t(
+                        'mirror.download_failed',
+                        $file->path,
+                        $result->httpCode,
+                        $result->error ?? $this->language->t('common.na')
+                    ),
                     $this->version,
                     $this->channel
                 );
