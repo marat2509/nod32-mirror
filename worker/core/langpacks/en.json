@@ -39,6 +39,8 @@
   "mirror.deleted_files": "Deleted files: %s",
   "mirror.deleted_folders": "Deleted folders: %s",
   "mirror.downloaded_empty_update_ver": "Downloaded empty update.ver archive from %s",
+  "mirror.download_failed": "Failed to download file %s (HTTP %s): %s",
+  "mirror.download_result_missing": "Download result missing for file %s",
   "mirror.downloaded_file": "From %s downloaded %s [%s] [%s/s]",
   "mirror.downloading_file": "Downloading file %s from %s...",
   "mirror.downloading_files": "Downloading %d files",
