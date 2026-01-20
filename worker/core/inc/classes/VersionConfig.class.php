@@ -43,13 +43,21 @@ class VersionConfig
         // First check version-specific config
         $version_config = self::get_version_config($version);
         if ($version_config && isset($version_config['platforms'])) {
-            return self::normalizeListValue($version_config['platforms']);
+            $platforms = self::normalizeListValue($version_config['platforms']);
+            if (is_array($platforms) && !empty($platforms)) {
+                Log::trace(Language::t('version.platforms_configured', $version, implode(', ', $platforms)));
+            }
+            return $platforms;
         }
 
         // If no version-specific config, check global config
         $global_config = Config::get('eset.versions');
         if ($global_config && isset($global_config['platforms'])) {
-            return self::normalizeListValue($global_config['platforms']);
+            $platforms = self::normalizeListValue($global_config['platforms']);
+            if (is_array($platforms) && !empty($platforms)) {
+                Log::trace(Language::t('version.platforms_configured', $version, implode(', ', $platforms)));
+            }
+            return $platforms;
         }
 
         // No platforms specified anywhere - download all available platforms
@@ -66,13 +74,21 @@ class VersionConfig
         // First check version-specific config
         $version_config = self::get_version_config($version);
         if ($version_config && isset($version_config['channels'])) {
-            return self::normalizeListValue($version_config['channels']);
+            $channels = self::normalizeListValue($version_config['channels']);
+            if (is_array($channels) && !empty($channels)) {
+                Log::trace(Language::t('version.channels_configured', $version, implode(', ', $channels)));
+            }
+            return $channels;
         }
 
         // If no version-specific config, check global config
         $global_config = Config::get('eset.versions');
         if ($global_config && isset($global_config['channels'])) {
-            return self::normalizeListValue($global_config['channels']);
+            $channels = self::normalizeListValue($global_config['channels']);
+            if (is_array($channels) && !empty($channels)) {
+                Log::trace(Language::t('version.channels_configured', $version, implode(', ', $channels)));
+            }
+            return $channels;
         }
 
         // No channels specified anywhere - download all available channels
@@ -87,6 +103,8 @@ class VersionConfig
     {
         global $DIRECTORIES;
         $enabled_versions = [];
+
+        Log::trace(Language::t('version.checking_enabled'));
 
         if (!$DIRECTORIES) {
             return $enabled_versions;

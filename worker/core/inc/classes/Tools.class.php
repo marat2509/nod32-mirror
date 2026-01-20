@@ -12,7 +12,7 @@ class Tools
      */
     static public function download_file($options = array(), &$headers = null)
     {
-        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE, Mirror::$version);
+        Log::trace(Language::t('log.running', __METHOD__), Mirror::$version);
         $out = FALSE;
         $fileTarget = null;
 
@@ -33,12 +33,13 @@ class Tools
         if ($out) @fclose($out);
 
         if ($res === false) {
-            $errorMessage = sprintf("Curl error (%s): %s", curl_errno($ch), curl_error($ch));
+            $errorCode = curl_errno($ch);
+            $errorMsg = curl_error($ch);
             if ($fileTarget) {
                 @unlink($fileTarget);
             }
-            if (class_exists('Log')) {
-                Log::write_log($errorMessage, Log::LEVEL_ERROR, Mirror::$version);
+            if (class_exists('Log') && class_exists('Language')) {
+                Log::error(Language::t('tools.curl_error', $errorCode, $errorMsg), Mirror::$version);
             }
         }
 
@@ -280,7 +281,11 @@ class Tools
         $result = @file_put_contents($filename, $text, FILE_APPEND | LOCK_EX);
 
         if ($result === false) {
-            error_log(sprintf("Failed to write file: %s", $filename));
+            if (class_exists('Log') && class_exists('Language')) {
+                Log::error(Language::t('tools.file_write_failed', $filename));
+            } else {
+                error_log(sprintf("Failed to write file: %s", $filename));
+            }
         }
     }
 }

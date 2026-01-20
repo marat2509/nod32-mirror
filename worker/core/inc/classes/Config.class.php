@@ -69,7 +69,9 @@ class Config
             return;
         }
 
+        Log::trace(Language::t('log.running', __METHOD__));
         static::loadConfig();
+        Log::debug(Language::t('config.loading', static::$configPath));
 
         if (isset(static::$CONF['connection'])) {
             static::$CONF['connection']['multidownload']['enabled'] = !empty(static::$CONF['connection']['multidownload']['enabled']);
@@ -119,6 +121,7 @@ class Config
         }
         static::check_config();
         static::$initialized = true;
+        Log::debug(Language::t('config.initialized'));
     }
 
     /**
@@ -543,6 +546,7 @@ class Config
                     static::$CONF['log']['file']['rotate']['enabled'] = false;
                     throw new ConfigException("Error in timezone settings! Please, check your config file!");
                 }
+                Log::debug(Language::t('config.timezone_set', static::$CONF['script']['timezone']));
             }
         }
 
@@ -635,7 +639,7 @@ class Config
             static::init();
         }
 
-        Log::write_log(Language::t('log.running', __METHOD__), Log::LEVEL_TRACE);
+        Log::trace(Language::t('log.running', __METHOD__));
 
         $connection = static::$CONF['connection'];
 
@@ -678,6 +682,8 @@ class Config
                 $options[CURLOPT_PROXYUSERNAME] = $connection['proxy']['user'];
                 $options[CURLOPT_PROXYPASSWORD] = $connection['proxy']['password'];
             }
+
+            Log::debug(Language::t('config.proxy_enabled', $connection['proxy']['server'], $connection['proxy']['port'], $proxyType));
         }
 
         return $options;
