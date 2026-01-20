@@ -79,7 +79,9 @@ class Parser
                 }
             }
 
-            Log::debug(Language::t('parser.keys_loaded', count($keys)), Mirror::$version);
+            if ($bucket === 'valid' && count($keys) > 0) {
+                Log::debug(Language::t('parser.keys_loaded', count($keys)), Mirror::$version);
+            }
             return $keys;
         }
 
