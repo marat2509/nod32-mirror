@@ -680,6 +680,10 @@ class Mirror
         $web_dir = $onlyCheck ? Tools::ds(TMP_PATH) : ($scriptConfig['web_dir'] ?? SELF . 'www');
         $connection = Config::get('connection');
         $timeout = intval($connection['timeout'] ?? 5);
+        $baseOptions = Config::getConnectionInfo() + [
+            CURLOPT_USERPWD => static::$key[0] . ":" . static::$key[1],
+            CURLOPT_TIMEOUT => $timeout,
+        ];
         $mirrorList = static::$mirrors;
         if ($onlyCheck && $checkedMirror) $mirrorList = [['host' => $checkedMirror]];
 
@@ -693,17 +697,16 @@ class Mirror
 
                 if (!@file_exists($dir)) @mkdir($dir, 0755, true);
 
+                $header = null;
                 Tools::download_file(
-                    [
-                        CURLOPT_USERPWD => static::$key[0] . ":" . static::$key[1],
+                    $baseOptions + [
                         CURLOPT_URL => static::buildMirrorUrl($mirror['host'], $file['file']),
                         CURLOPT_FILE => $out,
-                        CURLOPT_TIMEOUT => $timeout
                     ],
                     $header
                 );
 
-                if (is_array($header) and $header['http_code'] == 200 and $header['size_download'] == $file['size']) {
+                if (is_array($header) && $header['http_code'] == 200 && $header['size_download'] == $file['size']) {
                     if ($onlyCheck) {
                         @unlink($out);
                         return;
@@ -719,6 +722,12 @@ class Mirror
                 } else {
                     if ($onlyCheck) @unlink(static::$tmp_update_file);
                     @unlink($out);
+                    $code = is_array($header) && isset($header['http_code']) ? $header['http_code'] : 'n/a';
+                    Log::write_log(
+                        sprintf('Download failed (%s): %s', $code, $file['file']),
+                        Log::LEVEL_WARNING,
+                        static::$version
+                    );
                 }
             }
         }
