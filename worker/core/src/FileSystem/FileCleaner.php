@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nod32Mirror\FileSystem;
 
+use DirectoryIterator;
 use Nod32Mirror\Log\Language;
 use Nod32Mirror\Log\Log;
 use Nod32Mirror\Tools;
@@ -178,7 +179,7 @@ final class FileCleaner
         $directories = [];
 
         try {
-            $iterator = new RecursiveDirectoryIterator($folder);
+            $iterator = new DirectoryIterator($folder);
 
             foreach ($iterator as $fileObject) {
                 if (!$fileObject->isDir() || $fileObject->isDot()) {
