@@ -8,11 +8,13 @@ use Nod32Mirror\Config\Config;
 use Nod32Mirror\Config\VersionConfig;
 use Nod32Mirror\Contract\DownloaderInterface;
 use Nod32Mirror\Contract\KeyStorageInterface;
+use Nod32Mirror\Enum\MirrorStrategy;
 use Nod32Mirror\Key\KeyFinder;
 use Nod32Mirror\Key\KeyManager;
 use Nod32Mirror\Log\Log;
 use Nod32Mirror\Log\Language;
 use Nod32Mirror\Mirror\Mirror;
+use Nod32Mirror\Mirror\MirrorSelector;
 use Nod32Mirror\Parser\Parser;
 use Nod32Mirror\Report\HtmlReportGenerator;
 use Nod32Mirror\Report\JsonReportGenerator;
@@ -35,6 +37,12 @@ final class UpdateOrchestrator
     /** @var array<string, string[]> */
     private array $platformsFound = [];
 
+    /** @var MirrorInfo[]|null Cached sorted mirrors for 'best' strategy */
+    private ?array $selectedMirrors = null;
+
+    /** @var Credential|null Global working credential */
+    private ?Credential $globalCredential = null;
+
     public function __construct(
         private readonly Config $config,
         private readonly VersionConfig $versionConfig,
@@ -46,6 +54,7 @@ final class UpdateOrchestrator
         private readonly KeyFinder $keyFinder,
         private readonly Parser $parser,
         private readonly Mirror $mirror,
+        private readonly MirrorSelector $mirrorSelector,
         private readonly HtmlReportGenerator $htmlGenerator,
         private readonly JsonReportGenerator $jsonGenerator,
         /** @var array<string, array<string, mixed>> */
@@ -64,6 +73,9 @@ final class UpdateOrchestrator
         $enabledVersions = $this->versionConfig->getEnabledVersions();
         $this->log->info($this->language->t('script.enabled_versions', implode(', ', $enabledVersions)));
 
+        // Pre-select best mirrors if strategy is 'best'
+        $this->preselectMirrors($enabledVersions);
+
         foreach ($enabledVersions as $version) {
             $this->processVersion($version);
         }
@@ -74,6 +86,121 @@ final class UpdateOrchestrator
 
         $this->log->info($this->language->t('script.total_working_time', Tools::secondsToHumanReadable(time() - $this->startTime)));
         $this->log->info($this->language->t('script.stopping'));
+    }
+
+    /**
+     * Pre-select mirrors based on strategy before processing versions
+     *
+     * @param string[] $enabledVersions
+     */
+    private function preselectMirrors(array $enabledVersions): void
+    {
+        $strategy = $this->config->getMirrorStrategy();
+
+        if ($strategy !== MirrorStrategy::Best) {
+            $this->log->debug($this->language->t('mirror.selection_strategy', $strategy->label()));
+            return;
+        }
+
+        $this->log->info($this->language->t('mirror.preselecting_best'));
+
+        // Collect test URLs for all versions
+        $testUrls = $this->collectTestUrls($enabledVersions);
+
+        if (empty($testUrls)) {
+            $this->log->warning($this->language->t('mirror.no_test_urls'));
+            return;
+        }
+
+        // Find a working credential first
+        $credential = $this->findGlobalCredential($enabledVersions);
+
+        if ($credential === null) {
+            $this->log->warning($this->language->t('mirror.no_credential_for_testing'));
+            return;
+        }
+
+        $this->globalCredential = $credential;
+
+        // Select best mirrors
+        $mirrors = $this->config->getMirrorList();
+        $this->selectedMirrors = $this->mirrorSelector->selectMirrors($mirrors, $credential, $testUrls);
+
+        $this->log->info($this->language->t('mirror.preselection_complete', count($this->selectedMirrors)));
+    }
+
+    /**
+     * Collect test URLs for all enabled versions
+     *
+     * @param string[] $enabledVersions
+     * @return array<string, string> Map of version => source path
+     */
+    private function collectTestUrls(array $enabledVersions): array
+    {
+        $testUrls = [];
+
+        foreach ($enabledVersions as $version) {
+            if (!isset($this->directories[$version])) {
+                continue;
+            }
+
+            $dirConfig = $this->directories[$version];
+            $platforms = $this->versionConfig->getVersionPlatforms($version);
+            $channels = $this->versionConfig->getVersionChannels($version);
+
+            $this->mirror->init($version, $dirConfig, $platforms, $channels);
+            $sourceFile = $this->mirror->getPrimarySourcePath();
+
+            if ($sourceFile !== null) {
+                $testUrls[$version] = $sourceFile;
+            }
+        }
+
+        return $testUrls;
+    }
+
+    /**
+     * Find a working credential from any version
+     *
+     * @param string[] $enabledVersions
+     */
+    private function findGlobalCredential(array $enabledVersions): ?Credential
+    {
+        $mirrors = $this->config->getMirrorList();
+
+        foreach ($enabledVersions as $version) {
+            if (!isset($this->directories[$version])) {
+                continue;
+            }
+
+            $dirConfig = $this->directories[$version];
+            $platforms = $this->versionConfig->getVersionPlatforms($version);
+            $channels = $this->versionConfig->getVersionChannels($version);
+
+            $this->mirror->init($version, $dirConfig, $platforms, $channels);
+            $sourceFile = $this->mirror->getPrimarySourcePath();
+
+            if ($sourceFile === null) {
+                continue;
+            }
+
+            // Try to find working key for this version
+            $keyResult = $this->keyManager->findWorkingKey($version, $sourceFile, $mirrors);
+
+            if ($keyResult !== null) {
+                $this->log->debug($this->language->t('mirror.found_credential_for_testing', $version));
+                return $keyResult['credential'];
+            }
+
+            // Try to find keys from web
+            $keyResult = $this->keyFinder->findKeys($version, $sourceFile, $mirrors);
+
+            if ($keyResult !== null) {
+                return $keyResult['credential'];
+            }
+        }
+
+        return null;
     }
 
     private function processVersion(string $version): void
@@ -99,10 +226,22 @@ final class UpdateOrchestrator
             return;
         }
 
-        $mirrors = $this->config->getMirrorList();
+        // Use pre-selected mirrors if available, otherwise get from config
+        $mirrors = $this->selectedMirrors !== null
+            ? array_map(static fn(MirrorInfo $m): string => $m->host, $this->selectedMirrors)
+            : $this->config->getMirrorList();
 
-        // Try to find working key
-        $keyResult = $this->keyManager->findWorkingKey($version, $sourceFile, $mirrors);
+        // Try to find working key (use global credential if available)
+        $keyResult = null;
+
+        if ($this->globalCredential !== null) {
+            // Validate global credential for this version
+            $keyResult = $this->keyManager->testKey($this->globalCredential, $version, $sourceFile, $mirrors);
+        }
+
+        if ($keyResult === null) {
+            $keyResult = $this->keyManager->findWorkingKey($version, $sourceFile, $mirrors);
+        }
 
         if ($keyResult === null) {
             // Try to find keys from web
@@ -116,8 +255,10 @@ final class UpdateOrchestrator
 
         /** @var Credential $credential */
         $credential = $keyResult['credential'];
+
+        // Use pre-selected mirrors order if available, otherwise use keyResult mirrors
         /** @var MirrorInfo[] $workingMirrors */
-        $workingMirrors = $keyResult['mirrors'];
+        $workingMirrors = $this->selectedMirrors ?? $keyResult['mirrors'];
 
         // Check database versions on mirrors
         $this->checkMirrorVersions($workingMirrors, $credential, $version, $sourceFile);

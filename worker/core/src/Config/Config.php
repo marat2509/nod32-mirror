@@ -6,6 +6,7 @@ namespace Nod32Mirror\Config;
 
 use Nod32Mirror\Enum\LinkMethod;
 use Nod32Mirror\Enum\LogLevel;
+use Nod32Mirror\Enum\MirrorStrategy;
 use Nod32Mirror\Enum\ProxyType;
 use Nod32Mirror\Exception\ConfigException;
 use Nod32Mirror\Exception\ConfigKeyNotFoundException;
@@ -94,11 +95,7 @@ final class Config
         $config['find'] = $this->normalizeFind($config['find'] ?? []);
         $config['eset'] = $this->normalizeSection($config, 'eset');
 
-        if (!isset($config['eset']['mirror'])) {
-            $config['eset']['mirror'] = [];
-        }
-
-        $config['eset']['mirror'] = $this->normalizeMirrorList($config['eset']['mirror']);
+        $config['eset']['mirror'] = $this->normalizeMirrorConfig($config['eset']['mirror'] ?? []);
         $config['eset']['versions'] = $this->normalizeVersions($config['eset']['versions'] ?? []);
 
         return $config;
@@ -319,6 +316,22 @@ final class Config
     private function normalizeSection(array $config, string $key): array
     {
         return (isset($config[$key]) && is_array($config[$key])) ? $config[$key] : [];
+    }
+
+    /**
+     * Normalize mirror configuration
+     *
+     * Format: eset.mirror: { strategy: "best", list: ["host1", "host2"] }
+     *
+     * @param array<string, mixed> $mirrorConfig
+     * @return array{strategy: string, list: string[]}
+     */
+    private function normalizeMirrorConfig(array $mirrorConfig): array
+    {
+        return [
+            'strategy' => $this->normalizeMirrorStrategy($mirrorConfig['strategy'] ?? 'random'),
+            'list' => $this->normalizeMirrorList($mirrorConfig['list'] ?? []),
+        ];
     }
 
     /**
@@ -577,7 +590,21 @@ final class Config
      */
     public function getMirrorList(): array
     {
-        return $this->config['eset']['mirror'] ?? [];
+        return $this->config['eset']['mirror']['list'] ?? [];
+    }
+
+    public function getMirrorStrategy(): MirrorStrategy
+    {
+        $strategy = $this->config['eset']['mirror']['strategy'] ?? 'random';
+        return MirrorStrategy::fromString($strategy);
+    }
+
+    private function normalizeMirrorStrategy(mixed $value): string
+    {
+        if (is_string($value)) {
+            return strtolower(trim($value));
+        }
+        return 'random';
     }
 
     /**
