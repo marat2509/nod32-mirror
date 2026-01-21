@@ -99,23 +99,6 @@ final class JsonKeyStorage implements KeyStorageInterface
         );
     }
 
-    /**
-     * @return Credential[]
-     */
-    public function getInvalidKeys(?string $version = null): array
-    {
-        $this->ensureLoaded();
-
-        if ($version === null) {
-            return $this->invalidKeys;
-        }
-
-        return array_filter(
-            $this->invalidKeys,
-            static fn(Credential $c): bool => $c->hasVersion($version)
-        );
-    }
-
     public function addValidKey(Credential $credential): void
     {
         $this->ensureLoaded();

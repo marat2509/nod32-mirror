@@ -45,7 +45,6 @@ final class Mirror
 
     private int $totalDownloads = 0;
     private bool $updated = false;
-    private bool $unAuthorized = false;
 
     public function __construct(
         private readonly DownloaderInterface $downloader,
@@ -81,7 +80,6 @@ final class Mirror
         $this->platformsFound = [];
         $this->totalDownloads = 0;
         $this->updated = false;
-        $this->unAuthorized = false;
         $this->mirrors = [];
         $this->credential = null;
 
@@ -494,7 +492,7 @@ final class Mirror
             $downloadSuccess = true;
             if (!empty($downloadFiles)) {
                 $downloadSuccess = $this->downloadFiles($downloadFiles, $mirror);
-                if ($downloadSuccess && !$this->unAuthorized) {
+                if ($downloadSuccess) {
                     $this->updated = true;
                 }
             } else {
@@ -641,39 +639,11 @@ final class Mirror
         return $this->updated;
     }
 
-    public function getTotalDownloads(): int
-    {
-        return $this->totalDownloads;
-    }
-
-    public function getVersion(): string
-    {
-        return $this->version;
-    }
-
-    public function getName(): string
-    {
-        return $this->name;
-    }
-
-    public function getChannel(): ?string
-    {
-        return $this->channel;
-    }
-
     /**
      * @return string[]
      */
     public function getPlatformsFound(): array
     {
         return array_values(array_unique($this->platformsFound));
-    }
-
-    /**
-     * @return UpdateVariant[]
-     */
-    public function getUpdateVariants(): array
-    {
-        return $this->updateVariants;
     }
 }

@@ -19,9 +19,4 @@ interface ReportGeneratorInterface
      * @param array<string, mixed> $metadata
      */
     public function save(array $metadata, string $targetPath): void;
-
-    /**
-     * Get default filename for this report type
-     */
-    public function getDefaultFilename(): string;
 }

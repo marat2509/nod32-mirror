@@ -21,18 +21,6 @@ final class Config
 
     private bool $initialized = false;
 
-    /** @var array<string, int> */
-    private const LCID = [
-        'bgr' => 1026, 'chs' => 2052, 'cht' => 1028, 'csy' => 1029,
-        'dan' => 1030, 'deu' => 1031, 'enu' => 1033, 'esl' => 13322,
-        'esn' => 3082, 'eti' => 1061, 'fin' => 1035, 'fra' => 1036,
-        'frc' => 3084, 'hrv' => 1050, 'hun' => 1038, 'ita' => 1040,
-        'kor' => 1042, 'lth' => 1063, 'nld' => 1043, 'nor' => 1044,
-        'plk' => 1045, 'ptb' => 1046, 'rom' => 1048, 'rus' => 1049,
-        'sky' => 1051, 'slv' => 1060, 'sve' => 1053, 'tha' => 1054,
-        'trk' => 1055, 'ukr' => 1058,
-    ];
-
     public function __construct(
         private readonly string $configPath = CONF_FILE
     ) {
@@ -537,11 +525,6 @@ final class Config
         return $this->config['data']['dir'] ?? Tools::ds(SELF, 'data');
     }
 
-    public function getLogDir(): string
-    {
-        return $this->config['log']['file']['dir'] ?? Tools::ds(SELF, 'log');
-    }
-
     public function getLinkMethod(): LinkMethod
     {
         $method = $this->config['script']['link_method'] ?? 'copy';
@@ -577,12 +560,6 @@ final class Config
     public function isProxyEnabled(): bool
     {
         return !empty($this->config['connection']['proxy']['enabled']);
-    }
-
-    public function getProxyType(): ProxyType
-    {
-        $type = $this->config['connection']['proxy']['type'] ?? 'http';
-        return ProxyType::fromString($type);
     }
 
     /**
@@ -628,16 +605,4 @@ final class Config
         }
     }
 
-    public function isInitialized(): bool
-    {
-        return $this->initialized;
-    }
-
-    /**
-     * @return array<string, int>
-     */
-    public static function getLcidMap(): array
-    {
-        return self::LCID;
-    }
 }

@@ -24,14 +24,4 @@ final readonly class LinkResult
         public int $linkedCount = 0
     ) {
     }
-
-    public function hasFilesToDownload(): bool
-    {
-        return count($this->filesToDownload) > 0;
-    }
-
-    public function getDownloadCount(): int
-    {
-        return count($this->filesToDownload);
-    }
 }

@@ -40,19 +40,4 @@ interface DownloaderInterface
         string $targetDir,
         ?Credential $auth = null
     ): array;
-
-    /**
-     * Set maximum concurrent connections
-     */
-    public function setConcurrency(int $max): void;
-
-    /**
-     * Set connection timeout in seconds
-     */
-    public function setTimeout(int $seconds): void;
-
-    /**
-     * Set speed limit in bytes per second (0 = unlimited)
-     */
-    public function setSpeedLimit(int $bytesPerSecond): void;
 }

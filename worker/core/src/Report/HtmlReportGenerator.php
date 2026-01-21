@@ -151,13 +151,4 @@ final class HtmlReportGenerator implements ReportGeneratorInterface
 
         $this->log->debug($this->language->t('report.saved_to', $targetPath));
     }
-
-    public function getDefaultFilename(): string
-    {
-        $scriptConfig = $this->config->getOrDefault('script', []);
-        $generateConfig = $scriptConfig['generate'] ?? [];
-        $htmlConfig = $generateConfig['html'] ?? [];
-
-        return $htmlConfig['filename'] ?? 'index.html';
-    }
 }
