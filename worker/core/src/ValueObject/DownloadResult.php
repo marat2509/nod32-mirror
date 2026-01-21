@@ -13,7 +13,8 @@ final readonly class DownloadResult
         public float $totalTime,
         public ?string $contentType = null,
         public ?string $body = null,
-        public ?string $error = null
+        public ?string $error = null,
+        public ?float $ttfb = null
     ) {
     }
 

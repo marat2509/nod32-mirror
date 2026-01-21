@@ -16,6 +16,7 @@ use Nod32Mirror\Key\KeyManager;
 use Nod32Mirror\Log\Language;
 use Nod32Mirror\Log\Log;
 use Nod32Mirror\Mirror\Mirror;
+use Nod32Mirror\Mirror\MirrorSelector;
 use Nod32Mirror\Parser\Parser;
 use Nod32Mirror\Report\HtmlReportGenerator;
 use Nod32Mirror\Report\JsonReportGenerator;
@@ -38,6 +39,7 @@ final class Application
     private FileLinker $fileLinker;
     private FileCleaner $fileCleaner;
     private Mirror $mirror;
+    private MirrorSelector $mirrorSelector;
     private HtmlReportGenerator $htmlGenerator;
     private JsonReportGenerator $jsonGenerator;
     private UpdateOrchestrator $orchestrator;
@@ -104,6 +106,13 @@ final class Application
             $this->fileCleaner
         );
 
+        $this->mirrorSelector = new MirrorSelector(
+            $this->downloader,
+            $this->config,
+            $this->log,
+            $this->language
+        );
+
         $this->htmlGenerator = new HtmlReportGenerator($this->config, $this->log, $this->language);
         $this->jsonGenerator = new JsonReportGenerator($this->config, $this->log, $this->language);
 
@@ -118,6 +127,7 @@ final class Application
             $this->keyFinder,
             $this->parser,
             $this->mirror,
+            $this->mirrorSelector,
             $this->htmlGenerator,
             $this->jsonGenerator,
             $directories
@@ -207,5 +217,10 @@ final class Application
     public function getFileCleaner(): FileCleaner
     {
         return $this->fileCleaner;
+    }
+
+    public function getMirrorSelector(): MirrorSelector
+    {
+        return $this->mirrorSelector;
     }
 }

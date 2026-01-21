@@ -11,6 +11,7 @@ use GuzzleHttp\Pool;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
 use GuzzleHttp\RequestOptions;
+use GuzzleHttp\TransferStats;
 use Nod32Mirror\Config\Config;
 use Nod32Mirror\Contract\DownloaderInterface;
 use Nod32Mirror\Enum\ProxyType;
@@ -186,11 +187,22 @@ final class GuzzleDownloader implements DownloaderInterface
 
         $options = $this->buildRequestOptions($auth);
 
+        $ttfb = null;
+        $totalTime = null;
+
+        // Capture transfer stats including TTFB
+        $options['on_stats'] = static function (TransferStats $stats) use (&$ttfb, &$totalTime): void {
+            $totalTime = $stats->getTransferTime();
+            $handlerStats = $stats->getHandlerStats();
+            // starttransfer_time is TTFB in cURL
+            $ttfb = $handlerStats['starttransfer_time'] ?? null;
+        };
+
         $startTime = microtime(true);
 
         try {
             $response = $this->client->head($url, $options);
-            $totalTime = microtime(true) - $startTime;
+            $totalTime ??= microtime(true) - $startTime;
 
             $httpCode = $response->getStatusCode();
 
@@ -199,10 +211,11 @@ final class GuzzleDownloader implements DownloaderInterface
                 httpCode: $httpCode,
                 downloadedBytes: 0,
                 totalTime: $totalTime,
-                contentType: $response->getHeaderLine('Content-Type')
+                contentType: $response->getHeaderLine('Content-Type'),
+                ttfb: $ttfb
             );
         } catch (GuzzleException $e) {
-            $totalTime = microtime(true) - $startTime;
+            $totalTime ??= microtime(true) - $startTime;
             return $this->buildErrorResult($e, $totalTime);
         }
     }
