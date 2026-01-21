@@ -438,24 +438,6 @@ final class GuzzleDownloader implements DownloaderInterface
         return $results;
     }
 
-    public function setConcurrency(int $max): void
-    {
-        $this->concurrency = max(1, $max);
-    }
-
-    public function setTimeout(int $seconds): void
-    {
-        $this->timeout = max(1, $seconds);
-        $this->defaultOptions[RequestOptions::TIMEOUT] = $this->timeout;
-        $this->defaultOptions[RequestOptions::CONNECT_TIMEOUT] = $this->timeout;
-        $this->client = new Client($this->defaultOptions);
-    }
-
-    public function setSpeedLimit(int $bytesPerSecond): void
-    {
-        $this->speedLimit = max(0, $bytesPerSecond);
-    }
-
     /**
      * @return array<string, mixed>
      */
@@ -508,14 +490,6 @@ final class GuzzleDownloader implements DownloaderInterface
         return $curlOptions;
     }
 
-    /**
-     * Get current speed limit in bytes per second
-     */
-    public function getSpeedLimit(): int
-    {
-        return $this->speedLimit;
-    }
-
     private function buildResult(Response $response, float $totalTime): DownloadResult
     {
         $httpCode = $response->getStatusCode();
@@ -546,10 +520,5 @@ final class GuzzleDownloader implements DownloaderInterface
             error: $e->getMessage(),
             totalTime: $totalTime
         );
-    }
-
-    public function getClient(): Client
-    {
-        return $this->client;
     }
 }

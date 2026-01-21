@@ -162,9 +162,4 @@ final class KeyManager
 
         return $this->storage->isValidKey($login, $password, $version);
     }
-
-    public function getStorage(): KeyStorageInterface
-    {
-        return $this->storage;
-    }
 }

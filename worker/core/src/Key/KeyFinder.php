@@ -17,8 +17,6 @@ use RecursiveIteratorIterator;
 
 final class KeyFinder
 {
-    private bool $foundValidKey = false;
-
     public function __construct(
         private readonly KeyManager $keyManager,
         private readonly DownloaderInterface $downloader,
@@ -38,7 +36,6 @@ final class KeyFinder
     public function findKeys(string $version, string $updateFilePath, array $mirrors): ?array
     {
         $this->log->trace($this->language->t('log.running', __METHOD__), $version);
-        $this->foundValidKey = false;
 
         $findConfig = $this->config->getOrDefault('find', []);
 
@@ -209,7 +206,6 @@ final class KeyFinder
 
                 if ($testResult !== null) {
                     $this->keyManager->addKey($logins[$i], $passwords[$i], $version);
-                    $this->foundValidKey = true;
                     return $testResult;
                 }
             }
@@ -335,10 +331,5 @@ final class KeyFinder
         }
 
         return [];
-    }
-
-    public function wasKeyFound(): bool
-    {
-        return $this->foundValidKey;
     }
 }

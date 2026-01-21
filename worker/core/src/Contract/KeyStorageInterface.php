@@ -16,13 +16,6 @@ interface KeyStorageInterface
     public function getValidKeys(?string $version = null): array;
 
     /**
-     * Get all invalid credentials for a version
-     *
-     * @return Credential[]
-     */
-    public function getInvalidKeys(?string $version = null): array;
-
-    /**
      * Add or update a valid credential
      */
     public function addValidKey(Credential $credential): void;

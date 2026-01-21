@@ -202,22 +202,4 @@ final class MirrorSelector
     {
         return md5($mirror . ':' . $credential->login);
     }
-
-    /**
-     * Clear the test results cache
-     */
-    public function clearCache(): void
-    {
-        $this->testResultsCache = [];
-    }
-
-    /**
-     * Get cached test results
-     *
-     * @return array<string, MirrorTestResult>
-     */
-    public function getCachedResults(): array
-    {
-        return $this->testResultsCache;
-    }
 }

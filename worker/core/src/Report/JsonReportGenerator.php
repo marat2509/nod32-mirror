@@ -53,13 +53,4 @@ final class JsonReportGenerator implements ReportGeneratorInterface
 
         $this->log->debug($this->language->t('report.saved_to', $targetPath));
     }
-
-    public function getDefaultFilename(): string
-    {
-        $scriptConfig = $this->config->getOrDefault('script', []);
-        $generateConfig = $scriptConfig['generate'] ?? [];
-        $jsonConfig = $generateConfig['json'] ?? [];
-
-        return $jsonConfig['filename'] ?? 'index.json';
-    }
 }

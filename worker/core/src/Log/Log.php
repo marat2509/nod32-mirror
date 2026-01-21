@@ -14,14 +14,9 @@ use Nod32Mirror\Tools;
 
 final class Log
 {
-    private const MEMORY_LOG_LIMIT = 500;
-
     private MonologLogger $logger;
     private ?StreamHandler $fileHandler = null;
     private ?StreamHandler $stdoutHandler = null;
-
-    /** @var array<string> */
-    private array $memoryLog = [];
 
     /** @var array<string, mixed> */
     private array $logConfig = [];
@@ -53,11 +48,6 @@ final class Log
     public function warning(string $text, ?string $version = null, ?string $channel = null): void
     {
         $this->log(LogLevel::Warning, $text, $version, $channel);
-    }
-
-    public function notice(string $text, ?string $version = null, ?string $channel = null): void
-    {
-        $this->log(LogLevel::Notice, $text, $version, $channel);
     }
 
     public function info(string $text, ?string $version = null, ?string $channel = null): void
@@ -110,19 +100,6 @@ final class Log
         }
 
         $this->logger->log($monologLevel, $finalMessage);
-        $this->remember($this->formatRecordForMemory($finalMessage, $level));
-    }
-
-    public function isLevelEnabled(LogLevel $level): bool
-    {
-        if (!$this->initialized) {
-            return false;
-        }
-
-        $fileConfig = $this->logConfig['file'] ?? [];
-        $stdoutConfig = $this->logConfig['stdout'] ?? [];
-
-        return $this->isChannelEnabled($fileConfig, $level) || $this->isChannelEnabled($stdoutConfig, $level);
     }
 
     private function buildLogger(): void
@@ -245,27 +222,5 @@ final class Log
         $channelLevel = LogLevel::fromMixed($channelConfig['level'] ?? LogLevel::Info);
 
         return $level->isEnabled($channelLevel);
-    }
-
-    private function remember(string $text): void
-    {
-        $this->memoryLog[] = $text;
-
-        if (count($this->memoryLog) > self::MEMORY_LOG_LIMIT) {
-            array_shift($this->memoryLog);
-        }
-    }
-
-    private function formatRecordForMemory(string $message, LogLevel $level): string
-    {
-        return sprintf('[%s] [%s] %s', date('Y-m-d, H:i:s'), strtoupper($level->label()), $message);
-    }
-
-    /**
-     * @return array<string>
-     */
-    public function getMemoryLog(): array
-    {
-        return $this->memoryLog;
     }
 }

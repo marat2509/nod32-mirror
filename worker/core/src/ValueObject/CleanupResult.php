@@ -30,16 +30,6 @@ final readonly class CleanupResult
         return new self(0, 0);
     }
 
-    public function hasChanges(): bool
-    {
-        return $this->deletedFilesCount > 0 || $this->deletedFoldersCount > 0;
-    }
-
-    public function hasFailures(): bool
-    {
-        return count($this->failedFiles) > 0 || count($this->failedFolders) > 0;
-    }
-
     public function merge(self $other): self
     {
         return new self(

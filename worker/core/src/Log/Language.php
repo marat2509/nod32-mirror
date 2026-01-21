@@ -122,9 +122,4 @@ final class Language
     {
         return preg_match_all('/%(?:\d+\$)?[bcdeEfFgGosuxX]/', $string);
     }
-
-    public function getLanguageCode(): string
-    {
-        return $this->languageCode;
-    }
 }

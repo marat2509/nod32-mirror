@@ -92,22 +92,6 @@ final class Tools
     }
 
     /**
-     * Write content to file with directory creation
-     */
-    public static function writeToFile(string $filename, string $content, bool $append = true): bool
-    {
-        $dir = dirname($filename);
-
-        if (!is_dir($dir)) {
-            @mkdir($dir, 0755, true);
-        }
-
-        $flags = $append ? FILE_APPEND | LOCK_EX : LOCK_EX;
-
-        return file_put_contents($filename, $content, $flags) !== false;
-    }
-
-    /**
      * Convert text encoding
      */
     public static function convertEncoding(string $text, string $toEncoding): string
@@ -150,15 +134,6 @@ final class Tools
         gzwrite($fp, file_get_contents($file) ?: '');
         gzclose($fp);
         unlink($file);
-    }
-
-    /**
-     * Get file MIME type
-     */
-    public static function getFileMimetype(string $file): string
-    {
-        $finfo = new \finfo();
-        return $finfo->file($file, FILEINFO_MIME_TYPE) ?: 'application/octet-stream';
     }
 
     /**
