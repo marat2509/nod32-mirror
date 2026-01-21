@@ -13,3 +13,8 @@ define('KEY_FILE', 'keys.json');
 define('LOG_FILE', 'nod32ms.log');
 define('SUCCESSFUL_TIMESTAMP', 'lastupdate.json');
 define('DATABASES_SIZE', 'databases_size.json');
+
+/**
+ * Application version (YYYYMMDD format)
+ */
+define('APP_VERSION', '20260121');

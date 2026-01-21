@@ -7,6 +7,9 @@ namespace Nod32Mirror;
 use Nod32Mirror\Config\Config;
 use Nod32Mirror\Config\VersionConfig;
 use Nod32Mirror\Download\GuzzleDownloader;
+use Nod32Mirror\FileSystem\FileCleaner;
+use Nod32Mirror\FileSystem\FileLinker;
+use Nod32Mirror\FileSystem\SafeFileOperations;
 use Nod32Mirror\Key\JsonKeyStorage;
 use Nod32Mirror\Key\KeyFinder;
 use Nod32Mirror\Key\KeyManager;
@@ -31,6 +34,9 @@ final class Application
     private KeyManager $keyManager;
     private KeyFinder $keyFinder;
     private Parser $parser;
+    private SafeFileOperations $fileOps;
+    private FileLinker $fileLinker;
+    private FileCleaner $fileCleaner;
     private Mirror $mirror;
     private HtmlReportGenerator $htmlGenerator;
     private JsonReportGenerator $jsonGenerator;
@@ -82,12 +88,20 @@ final class Application
             $this->language
         );
 
+        // File system services
+        $this->fileOps = new SafeFileOperations($this->log, $this->language);
+        $this->fileLinker = new FileLinker($this->fileOps, $this->log, $this->language);
+        $this->fileCleaner = new FileCleaner($this->fileOps, $this->log, $this->language);
+
         $this->mirror = new Mirror(
             $this->downloader,
             $this->parser,
             $this->config,
             $this->log,
-            $this->language
+            $this->language,
+            $this->fileOps,
+            $this->fileLinker,
+            $this->fileCleaner
         );
 
         $this->htmlGenerator = new HtmlReportGenerator($this->config, $this->log, $this->language);
@@ -178,5 +192,20 @@ final class Application
     public function getOrchestrator(): UpdateOrchestrator
     {
         return $this->orchestrator;
+    }
+
+    public function getFileOps(): SafeFileOperations
+    {
+        return $this->fileOps;
+    }
+
+    public function getFileLinker(): FileLinker
+    {
+        return $this->fileLinker;
+    }
+
+    public function getFileCleaner(): FileCleaner
+    {
+        return $this->fileCleaner;
     }
 }

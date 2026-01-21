@@ -6,20 +6,17 @@ namespace Nod32Mirror\Mirror;
 
 use Nod32Mirror\Config\Config;
 use Nod32Mirror\Contract\DownloaderInterface;
-use Nod32Mirror\Enum\LinkMethod;
+use Nod32Mirror\FileSystem\FileCleaner;
+use Nod32Mirror\FileSystem\FileLinker;
+use Nod32Mirror\FileSystem\SafeFileOperations;
 use Nod32Mirror\Log\Log;
 use Nod32Mirror\Log\Language;
 use Nod32Mirror\Parser\Parser;
 use Nod32Mirror\Tools;
 use Nod32Mirror\ValueObject\Credential;
 use Nod32Mirror\ValueObject\DownloadableFile;
-use Nod32Mirror\ValueObject\DownloadResult;
 use Nod32Mirror\ValueObject\MirrorInfo;
 use Nod32Mirror\ValueObject\UpdateVariant;
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
-use RecursiveRegexIterator;
-use RegexIterator;
 
 final class Mirror
 {
@@ -55,7 +52,10 @@ final class Mirror
         private readonly Parser $parser,
         private readonly Config $config,
         private readonly Log $log,
-        private readonly Language $language
+        private readonly Language $language,
+        private readonly SafeFileOperations $fileOps,
+        private readonly FileLinker $fileLinker,
+        private readonly FileCleaner $fileCleaner
     ) {
     }
 
@@ -298,7 +298,7 @@ final class Mirror
             }
 
             $version = $this->parser->getDbVersion($variant->tmpPath);
-            @unlink($variant->tmpPath);
+            $this->fileOps->deleteFile($variant->tmpPath);
 
             return $version;
         } finally {
@@ -328,7 +328,7 @@ final class Mirror
             if ($result->isSuccessful()) {
                 if (file_exists($variant->tmpPath) && filesize($variant->tmpPath) === 0) {
                     $this->log->warning($this->language->t('mirror.downloaded_empty_update_ver', $mirror->host), $this->version, $this->channel);
-                    @unlink($variant->tmpPath);
+                    $this->fileOps->deleteFile($variant->tmpPath);
                     continue;
                 }
                 return;
@@ -386,30 +386,25 @@ final class Mirror
             $allNeededFiles = array_values(array_unique($allNeededFiles));
             $versionPrefix = $this->version === 'v5' ? 'ep5' : $this->version;
 
-            // Delete files not in update list
-            foreach (glob(Tools::ds($webDir, $versionPrefix . '-*'), GLOB_ONLYDIR) as $folder) {
-                $deletedFiles = $this->deleteOldFiles($folder, $allNeededFiles);
-                if ($deletedFiles > 0) {
-                    $this->updated = true;
-                    $this->log->info(
-                        $this->language->t('mirror.deleted_files', $deletedFiles) . ' [' . basename($folder) . ']',
-                        $this->version,
-                        $this->channel
-                    );
-                }
+            // Cleanup old files and empty folders using FileCleaner
+            $cleanupResult = $this->fileCleaner->cleanVersionFolders($webDir, $versionPrefix, $allNeededFiles);
+
+            if ($cleanupResult->deletedFilesCount > 0) {
+                $this->updated = true;
+                $this->log->info(
+                    $this->language->t('mirror.deleted_files', $cleanupResult->deletedFilesCount),
+                    $this->version,
+                    $this->channel
+                );
             }
 
-            // Delete empty folders
-            foreach (glob(Tools::ds($webDir, $versionPrefix . '-*'), GLOB_ONLYDIR) as $folder) {
-                $deletedFolders = $this->deleteEmptyFolders($folder);
-                if ($deletedFolders > 0) {
-                    $this->updated = true;
-                    $this->log->info(
-                        $this->language->t('mirror.deleted_folders', $deletedFolders) . ' [' . basename($folder) . ']',
-                        $this->version,
-                        $this->channel
-                    );
-                }
+            if ($cleanupResult->deletedFoldersCount > 0) {
+                $this->updated = true;
+                $this->log->info(
+                    $this->language->t('mirror.deleted_folders', $cleanupResult->deletedFoldersCount),
+                    $this->version,
+                    $this->channel
+                );
             }
         } else {
             $host = $mirror?->host ?? 'unknown';
@@ -453,15 +448,15 @@ final class Mirror
 
             $this->downloadUpdateVer($mirror, $variant);
 
-            $content = @file_get_contents($variant->tmpPath);
+            $content = $this->fileOps->readFile($variant->tmpPath, false);
 
-            if ($content === false) {
+            if ($content === null) {
                 $this->log->warning(
                     $this->language->t('mirror.update_ver_parse_error', $mirror->host) . " ({$variant->key})",
                     $this->version,
                     $this->channel
                 );
-                @unlink($variant->tmpPath);
+                $this->fileOps->deleteFile($variant->tmpPath);
                 return $result;
             }
 
@@ -471,7 +466,7 @@ final class Mirror
                     $this->version,
                     $this->channel
                 );
-                @unlink($variant->tmpPath);
+                $this->fileOps->deleteFile($variant->tmpPath);
                 return $result;
             }
 
@@ -483,7 +478,15 @@ final class Mirror
             $this->platformsFound = array_merge($this->platformsFound, $parsed['platforms'] ?? []);
 
             $webDir = $this->config->getWebDir();
-            [$downloadFiles, $neededFiles] = $this->createLinks($webDir, $parsed['files']);
+            $linkMethod = $this->config->getLinkMethod();
+            $linkResult = $this->fileLinker->createLinks($webDir, $parsed['files'], $this->version, $linkMethod);
+
+            $downloadFiles = $linkResult->filesToDownload;
+            $neededFiles = $linkResult->neededFiles;
+
+            if ($linkResult->linkedCount > 0) {
+                $this->updated = true;
+            }
 
             $beforeDownload = $this->totalDownloads;
             $startTime = microtime(true);
@@ -503,12 +506,12 @@ final class Mirror
 
             if (!$downloadSuccess) {
                 $this->log->warning($this->language->t('mirror.required_files_not_downloaded'), $this->version, $this->channel);
-                @unlink($variant->tmpPath);
+                $this->fileOps->deleteFile($variant->tmpPath);
                 return $result;
             }
 
-            @file_put_contents($variant->localPath, $parsed['content']);
-            @unlink($variant->tmpPath);
+            $this->fileOps->writeFile($variant->localPath, $parsed['content']);
+            $this->fileOps->deleteFile($variant->tmpPath);
 
             $this->log->info(
                 $this->language->t('mirror.total_size', Tools::bytesToSize1024($parsed['totalSize'])) . " ({$variant->key})",
@@ -540,114 +543,6 @@ final class Mirror
         }
 
         return $result;
-    }
-
-    /**
-     * @param DownloadableFile[] $files
-     * @return array{DownloadableFile[], string[]}
-     */
-    private function createLinks(string $dir, array $files): array
-    {
-        $this->log->trace($this->language->t('log.running', __METHOD__), $this->version, $this->channel);
-
-        $oldFiles = [];
-        $neededFiles = [];
-        $downloadFiles = [];
-        $linkMethod = $this->config->getLinkMethod();
-
-        // Find existing files for potential linking
-        $pregPattern = '/([v|ep]+)(\d+)/is';
-
-        try {
-            $iterator = new RegexIterator(
-                new RecursiveIteratorIterator(
-                    new RecursiveRegexIterator(
-                        new RecursiveDirectoryIterator($dir),
-                        '/[v|ep]+\d+[-]+/i'
-                    )
-                ),
-                '/\.nup$/i'
-            );
-
-            $versionMatch = null;
-            preg_match($pregPattern, $this->version, $versionMatch);
-
-            foreach ($iterator as $file) {
-                $filepath = $file->getPathname();
-                if (is_link($filepath)) {
-                    continue;
-                }
-
-                $pathVersionMatch = null;
-                preg_match($pregPattern, $filepath, $pathVersionMatch);
-
-                if ($versionMatch && is_array($pathVersionMatch) && (int) ($versionMatch[2] ?? 0) > (int) ($pathVersionMatch[2] ?? 0)) {
-                    $oldFiles[] = $filepath;
-                }
-            }
-        } catch (\Exception) {
-            // Directory might not exist yet
-        }
-
-        foreach ($files as $file) {
-            $path = Tools::ds($dir, $file->path);
-            $neededFiles[] = $path;
-
-            if (file_exists($path)) {
-                $stat = @stat($path);
-                if ($stat && !Tools::compareFiles($stat, ['size' => $file->size])) {
-                    @unlink($path);
-                }
-            }
-
-            if (!file_exists($path)) {
-                $results = preg_grep('/' . preg_quote(basename($file->path), '/') . '$/', $oldFiles);
-
-                if (!empty($results)) {
-                    foreach ($results as $result) {
-                        $stat = @stat($result);
-                        if ($stat && Tools::compareFiles($stat, ['size' => $file->size])) {
-                            $targetDir = dirname($path);
-                            Tools::ensureDirectory($targetDir);
-
-                            $linked = match ($linkMethod) {
-                                LinkMethod::Hardlink => @link($result, $path),
-                                LinkMethod::Symlink => @symlink($result, $path),
-                                default => @copy($result, $path),
-                            };
-
-                            if ($linked) {
-                                // Get relative paths for logging
-                                $relSource = str_replace($dir . DIRECTORY_SEPARATOR, '', $result);
-                                $relTarget = str_replace($dir . DIRECTORY_SEPARATOR, '', $path);
-
-                                $this->log->info(
-                                    $this->language->t(
-                                        match ($linkMethod) {
-                                            LinkMethod::Hardlink => 'mirror.created_hardlink',
-                                            LinkMethod::Symlink => 'mirror.created_symlink',
-                                            default => 'mirror.copied_file',
-                                        },
-                                        $relSource,
-                                        $relTarget
-                                    ),
-                                    $this->version,
-                                    $this->channel
-                                );
-                                $this->updated = true;
-                            }
-                            break;
-                        }
-                    }
-                }
-
-                if (!file_exists($path) && !in_array($file->path, array_map(fn($f) => $f->path, $downloadFiles), true)) {
-                    $downloadFiles[] = $file;
-                }
-            }
-        }
-
-        return [$downloadFiles, $neededFiles];
     }
 
     /**
@@ -700,7 +595,7 @@ final class Mirror
             if ($result->downloadedBytes !== $file->size) {
                 $allOk = false;
                 $targetPath = Tools::ds($webDir, $file->path);
-                @unlink($targetPath);
+                $this->fileOps->deleteFile($targetPath);
                 $this->log->warning(
                     $this->language->t('mirror.file_size_mismatch', $file->path, $file->size, $result->downloadedBytes),
                     $this->version,
@@ -739,63 +634,6 @@ final class Mirror
         }
 
         return in_array($file->platform, $this->platforms, true);
-    }
-
-    /**
-     * @param string[] $neededFiles
-     */
-    private function deleteOldFiles(string $folder, array $neededFiles): int
-    {
-        $count = 0;
-
-        try {
-            $iterator = new RecursiveIteratorIterator(
-                new RecursiveDirectoryIterator($folder),
-                RecursiveIteratorIterator::SELF_FIRST
-            );
-
-            foreach ($iterator as $fileObject) {
-                if (!$fileObject->isDir()) {
-                    $testFile = $fileObject->getPathname();
-
-                    if (!in_array($testFile, $neededFiles, true)) {
-                        @unlink($testFile);
-                        $count++;
-                    }
-                }
-            }
-        } catch (\Exception) {
-            // Ignore
-        }
-
-        return $count;
-    }
-
-    private function deleteEmptyFolders(string $folder): int
-    {
-        $count = 0;
-
-        try {
-            $iterator = new RecursiveDirectoryIterator($folder);
-
-            foreach ($iterator as $fileObject) {
-                $testFolder = $fileObject->getPathname();
-
-                if (is_dir($testFolder) && count(glob(Tools::ds($testFolder, '*')) ?: []) === 0) {
-                    @rmdir($testFolder);
-                    $count++;
-                }
-            }
-
-            if (count(glob(Tools::ds($folder, '*')) ?: []) === 0) {
-                @rmdir($folder);
-                $count++;
-            }
-        } catch (\Exception) {
-            // Ignore
-        }
-
-        return $count;
     }
 
     public function isUpdated(): bool

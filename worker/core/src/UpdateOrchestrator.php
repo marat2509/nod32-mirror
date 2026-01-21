@@ -593,6 +593,6 @@ final class UpdateOrchestrator
 
     private function getVersion(): string
     {
-        return '20250121';
+        return APP_VERSION;
     }
 }

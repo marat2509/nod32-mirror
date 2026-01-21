@@ -454,7 +454,53 @@ final class GuzzleDownloader implements DownloaderInterface
             $options[RequestOptions::AUTH] = [$auth->login, $auth->password];
         }
 
+        // Apply speed limit if configured
+        if ($this->speedLimit > 0) {
+            $options['curl'] = $this->buildSpeedLimitCurlOptions();
+        }
+
         return $options;
+    }
+
+    /**
+     * Build cURL options for speed limiting
+     *
+     * @return array<int, mixed>
+     */
+    private function buildSpeedLimitCurlOptions(): array
+    {
+        $curlOptions = [];
+
+        if ($this->speedLimit > 0) {
+            // CURLOPT_MAX_RECV_SPEED_LARGE limits the download speed (bytes per second)
+            // Available in PHP 5.4+ with cURL 7.15.5+
+            if (defined('CURLOPT_MAX_RECV_SPEED_LARGE')) {
+                $curlOptions[CURLOPT_MAX_RECV_SPEED_LARGE] = $this->speedLimit;
+            }
+
+            // CURLOPT_MAX_SEND_SPEED_LARGE limits the upload speed (bytes per second)
+            // Not typically needed for downloads, but included for completeness
+            if (defined('CURLOPT_MAX_SEND_SPEED_LARGE')) {
+                $curlOptions[CURLOPT_MAX_SEND_SPEED_LARGE] = $this->speedLimit;
+            }
+
+            // Fallback for older PHP/cURL versions
+            if (empty($curlOptions) && defined('CURLOPT_LOW_SPEED_LIMIT')) {
+                // Set low speed limit to prevent stalling (1 byte/sec minimum)
+                $curlOptions[CURLOPT_LOW_SPEED_LIMIT] = 1;
+                $curlOptions[CURLOPT_LOW_SPEED_TIME] = 30;
+            }
+        }
+
+        return $curlOptions;
+    }
+
+    /**
+     * Get current speed limit in bytes per second
+     */
+    public function getSpeedLimit(): int
+    {
+        return $this->speedLimit;
     }
 
     private function buildResult(Response $response, float $totalTime): DownloadResult
