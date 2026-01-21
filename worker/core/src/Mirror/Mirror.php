@@ -617,6 +617,10 @@ final class Mirror
                             };
 
                             if ($linked) {
+                                // Get relative paths for logging
+                                $relSource = str_replace($dir . DIRECTORY_SEPARATOR, '', $result);
+                                $relTarget = str_replace($dir . DIRECTORY_SEPARATOR, '', $path);
+
                                 $this->log->info(
                                     $this->language->t(
                                         match ($linkMethod) {
@@ -624,8 +628,8 @@ final class Mirror
                                             LinkMethod::Symlink => 'mirror.created_symlink',
                                             default => 'mirror.copied_file',
                                         },
-                                        basename($result),
-                                        basename($path)
+                                        $relSource,
+                                        $relTarget
                                     ),
                                     $this->version,
                                     $this->channel
