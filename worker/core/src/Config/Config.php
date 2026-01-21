@@ -148,7 +148,7 @@ final class Config
                 'connect' => 5,
             ],
             'retries' => [
-                'attempts' => 3,
+                'attempts' => 5,
                 'delay' => 1,
             ],
             'speed_limit' => 0,

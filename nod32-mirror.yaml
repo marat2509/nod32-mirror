@@ -28,7 +28,7 @@ connection:
     download: 30              # Request timeout in seconds (for file downloads)
     connect: 5                # Connection timeout in seconds
   retries:
-    attempts: 3               # Number of retry attempts (1 = no retries)
+    attempts: 5               # Number of retry attempts (1 = no retries)
     delay: 1                  # Base delay between retries in seconds (exponential backoff)
   speed_limit: 0              # Bytes per second limit (0 = unlimited)
   proxy:
