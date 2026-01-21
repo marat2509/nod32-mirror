@@ -1,8 +1,8 @@
 #!/bin/sh
 
-if [ ! -f "/app/nod32ms.conf" ]; then
+if [ ! -f "/app/nod32-mirror.yaml" ]; then
     echo "E: Config file not found"
-    echo "E: Create nod32ms.conf file in directory with docker-compose.yml file and restart"
+    echo "E: Create nod32-mirror.yaml file in directory with docker-compose.yml file and restart"
     exit 1
 fi
 

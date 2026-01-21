@@ -1,5 +1,8 @@
 /docker-data
-/nod32ms.conf/
+/data
+/log
+/www
+/nod32-mirror.yaml
 .ruff_cache/
 .vscode/settings.json
 /test.php
