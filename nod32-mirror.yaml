@@ -1,0 +1,143 @@
+# nod32-mirror configuration
+# - All keys are lowercase and match the worker defaults.
+# - Paths can be relative to repo root or absolute.
+# - Log levels accept names (error, warning, notice, info, debug, trace) or numbers 0–5.
+
+script:
+  language: "en"              # CLI/UI language (en, ru, ukr)
+  codepage: "utf-8"           # Codepage for stdout/log encoding
+  timezone: "Europe/Moscow"   # PHP timezone identifier; leave empty for system default
+  memory_limit: "32M"         # PHP memory_limit
+  debug_update: false         # Dump raw update.ver files for debugging
+  link_method: "hardlink"     # How to publish files: hardlink, symlink, copy
+  debug_html: false           # Dump all downloaded pages for pattern debugging
+  generate:
+    export_credentials: false # Include credentials in generated JSON/HTML
+    json:
+      enabled: true           # Emit JSON report
+      filename: "index.json"  # JSON filename
+    html:
+      enabled: true           # Emit HTML report
+      filename: "index.html"  # HTML filename
+      codepage: "utf-8"       # HTML codepage
+      only_table: false       # Export only table (for embedding elsewhere)
+
+connection:
+  threads: 32                 # Number of concurrent download threads
+  timeout:
+    download: 30              # Request timeout in seconds (for file downloads)
+    connect: 5                # Connection timeout in seconds
+  retries:
+    attempts: 5               # Number of retry attempts (1 = no retries)
+    delay: 1                  # Base delay between retries in seconds (exponential backoff)
+  speed_limit: 0              # Bytes per second limit (0 = unlimited)
+  proxy:
+    enabled: false            # Enable proxy for all requests
+    type: "http"              # Proxy type: http, socks4, socks4a, socks5
+    server: "proxy.example.com"
+    port: 3128
+    user: "username"
+    password: "pass"
+
+log:
+  # Level: error|warning|notice|info|debug|trace or 0–5 (higher = more verbose)
+  stdout:
+    enabled: true
+    level: "info"             # Console verbosity
+  file:
+    enabled: false            # Enable file logging
+    level: "debug"            # File verbosity
+    dir: "log"                # Log directory (will be created if missing)
+    rotate:
+      enabled: true
+      size: "100K"            # Rotate when file >= size (supports K/M/G suffix)
+      qty: 5                  # Keep N rotated archives (*.log.N.gz)
+
+data:
+  dir: "data"                 # Runtime data directory (keys, timestamps, debug)
+
+find:
+  enabled: true               # Enable built-in key searcher
+  number_attempts: 5          # Attempts to request new key if last one fails
+  system: ""                  # Pattern name to force; empty means use all patterns
+  count_keys: 1               # How many valid keys to find before stopping
+  remove_invalid_keys: true   # Delete invalid keys from storage
+  user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" # UA for searching keys (overridable in pattern)
+  headers: []                 # Extra HTTP headers for key search (array of "Name: value"); overridable in pattern
+  query:                      # Search queries (string or list); overridable in pattern
+    - "nod32+username+password"
+  pageindex: 1                # Starting page index for ;PAGE; placeholder
+  page_qty: 5                 # Pages to iterate for ;PAGE; placeholder
+  pattern: "((EAV|TRIAL)-[0-9]{10}).+?([a-z0-9]{10})"  # Fallback regex if pattern file lacks it
+  recursion_level: 2          # Depth for recursive link scanning
+  errors_quantity: 5          # Retry count for failed downloads
+
+eset:
+  mirror:
+    strategy: "random"        # Mirror selection: random, best (test speed), first (use order)
+    list:                     # Primary mirror pool to iterate
+      - "update.eset.com"
+      - "um01.eset.com"
+      - "um02.eset.com"
+      - "um03.eset.com"
+      # - "um04.eset.com"
+      - "um05.eset.com"
+      - "um06.eset.com"
+      - "um07.eset.com"
+      - "um08.eset.com"
+      - "um09.eset.com"
+      - "um10.eset.com"
+      - "um11.eset.com"
+      - "um12.eset.com"
+      - "um13.eset.com"
+      - "um14.eset.com"
+      - "um15.eset.com"
+      - "um16.eset.com"
+      # - "um17.eset.com"
+      # - "um18.eset.com"
+      # - "um19.eset.com"
+      # - "um20.eset.com"
+      - "um21.eset.com"
+      # - "um22.eset.com"
+      - "um23.eset.com"
+
+  versions:
+    platforms: []             # Limit processing to these platforms (empty = all)
+    channels: []              # Limit to these channels (production, deferred, pre-release, etc.)
+    overrides:                # Per-version overrides (mirror=true enables handling)
+      ep6:
+        mirror: true
+        platforms: []
+        channels: []
+      ep8:
+        mirror: true
+        platforms: []
+        channels: []
+      ep9:
+        mirror: true
+        platforms: []
+        channels: []
+      ep10:
+        mirror: true
+        platforms: []
+        channels: []
+      ep11:
+        mirror: true
+        platforms: []
+        channels: []
+      ep12:
+        mirror: true
+        platforms: []
+        channels: []
+      v3:
+        mirror: true
+        platforms: []
+        channels: []
+      v10:
+        mirror: true
+        platforms: []
+        channels: []
+      v16:
+        mirror: true
+        platforms: []
+        channels: []
