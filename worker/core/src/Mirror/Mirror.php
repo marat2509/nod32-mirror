@@ -349,7 +349,6 @@ final class Mirror
             return ['totalSize' => null, 'totalDownloads' => $this->totalDownloads, 'averageSpeed' => null];
         }
 
-        $webDir = $this->config->getWebDir();
         $mirror = !empty($this->mirrors) ? $this->mirrors[0] : null;
 
         if ($mirror !== null) {
@@ -364,6 +363,7 @@ final class Mirror
         $totalDuration = 0.0;
         $totalDownloaded = 0;
         $allNeededFiles = [];
+        $cleanupFolders = [];
         $processed = false;
 
         foreach ($this->updateVariants as $variantKey => $variant) {
@@ -376,16 +376,18 @@ final class Mirror
             $processed = true;
             $totalSize += $result['size'] ?? 0;
             $allNeededFiles = array_merge($allNeededFiles, $result['neededFiles']);
+            $allNeededFiles[] = $variant->localPath;
+            $cleanupFolders[] = dirname($variant->localPath);
             $totalDuration += $result['duration'];
             $totalDownloaded += $result['downloaded'];
         }
 
         if ($processed) {
             $allNeededFiles = array_values(array_unique($allNeededFiles));
-            $versionPrefix = $this->version === 'v5' ? 'ep5' : $this->version;
+            $cleanupFolders = array_values(array_unique($cleanupFolders));
 
             // Cleanup old files and empty folders using FileCleaner
-            $cleanupResult = $this->fileCleaner->cleanVersionFolders($webDir, $versionPrefix, $allNeededFiles);
+            $cleanupResult = $this->fileCleaner->cleanFolders($cleanupFolders, $allNeededFiles);
 
             if ($cleanupResult->deletedFilesCount > 0) {
                 $this->updated = true;

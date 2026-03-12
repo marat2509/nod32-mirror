@@ -150,13 +150,34 @@ final class FileCleaner
     {
         $this->log->trace($this->language->t('log.running', __METHOD__));
 
-        $totalResult = CleanupResult::empty();
         $pattern = Tools::ds($baseDir, $versionPrefix . '-*');
         $folders = glob($pattern, GLOB_ONLYDIR);
 
-        if ($folders === false || empty($folders)) {
+        if ($folders === false) {
+            return CleanupResult::empty();
+        }
+
+        return $this->cleanFolders($folders, $neededFiles);
+    }
+
+    /**
+     * Clean a list of folders
+     *
+     * @param string[] $folders Folders to clean
+     * @param string[] $neededFiles Files that should NOT be deleted
+     * @return CleanupResult
+     */
+    public function cleanFolders(array $folders, array $neededFiles): CleanupResult
+    {
+        $this->log->trace($this->language->t('log.running', __METHOD__));
+
+        $totalResult = CleanupResult::empty();
+
+        if (empty($folders)) {
             return $totalResult;
         }
+
+        $folders = array_values(array_unique(array_filter($folders, 'is_dir')));
 
         foreach ($folders as $folder) {
             $fileResult = $this->deleteOldFiles($folder, $neededFiles);
