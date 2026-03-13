@@ -484,9 +484,6 @@ final class Mirror
             $useHashMap = $this->config->useHashMap();
             if ($useHashMap && $this->hashMap->isAvailable()) {
                 $providerPath = $this->hashMap->toRelativePath($webDir, $variant->localPath);
-                foreach ($parsed['files'] as $file) {
-                    $this->hashMap->addProvides($file->path, $this->version, null);
-                }
                 $this->hashMap->addProvides($providerPath, $this->version, null);
             }
             $linkResult = $this->fileLinker->createLinks($webDir, $parsed['files'], $this->version, $linkMethod, $useHashMap);
@@ -733,8 +730,7 @@ final class Mirror
                             $this->version,
                             $this->channel
                         );
-                        $this->hashMap->updateEntryFromHash($file->path, $hash, $file->size);
-                        $this->hashMap->addProvides($file->path, null, $sourceRelative);
+                        $this->hashMap->addProvides($sourceRelative, $this->version, $file->path);
                         $this->fileOps->deleteFile($tempPath);
                         continue;
                     }

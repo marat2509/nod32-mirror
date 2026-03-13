@@ -75,8 +75,6 @@ final class FileLinker
                         if ($actualHash === null) {
                             $this->log->debug($this->language->t('filesystem.hash_missing_remove', $hashAlgorithm, $file->path));
                             $this->fileOps->deleteFile($path);
-                        } else {
-                            $this->hashMap->updateFileEntry($dir, $file->path);
                         }
                     }
                 } else {
@@ -107,7 +105,7 @@ final class FileLinker
                         $linkedCount++;
                         if ($useHashMap) {
                             $sourceRelative = $this->hashMap->toRelativePath($dir, $linkResult->sourcePath);
-                            $this->hashMap->addProvides($file->path, null, $sourceRelative);
+                            $this->hashMap->addProvides($sourceRelative, $version, $file->path);
                             $this->log->debug($this->language->t('filesystem.hash_map_provides_link', $file->path, $sourceRelative));
                         }
                     }
