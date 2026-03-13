@@ -20,6 +20,7 @@ use Nod32Mirror\Report\HtmlReportGenerator;
 use Nod32Mirror\Report\JsonReportGenerator;
 use Nod32Mirror\ValueObject\Credential;
 use Nod32Mirror\ValueObject\MirrorInfo;
+use Nod32Mirror\FileSystem\HashMapIndex;
 
 final class UpdateOrchestrator
 {
@@ -43,6 +44,8 @@ final class UpdateOrchestrator
     /** @var Credential|null Global working credential */
     private ?Credential $globalCredential = null;
 
+    private ?string $hashMapPath = null;
+
     public function __construct(
         private readonly Config $config,
         private readonly VersionConfig $versionConfig,
@@ -57,6 +60,7 @@ final class UpdateOrchestrator
         private readonly MirrorSelector $mirrorSelector,
         private readonly HtmlReportGenerator $htmlGenerator,
         private readonly JsonReportGenerator $jsonGenerator,
+        private readonly HashMapIndex $hashMap,
         /** @var array<string, array<string, mixed>> */
         private readonly array $directories
     ) {
@@ -69,6 +73,7 @@ final class UpdateOrchestrator
         $this->log->info($this->language->t('script.run', $this->getVersion()));
 
         $this->loadStoredSizes();
+        $this->initHashMap();
 
         $enabledVersions = $this->versionConfig->getEnabledVersions();
         $this->log->info($this->language->t('script.enabled_versions', implode(', ', $enabledVersions)));
@@ -81,6 +86,7 @@ final class UpdateOrchestrator
         }
 
         $this->cleanupTmpDirectory();
+        $this->finalizeHashMap();
         $this->logSummary();
         $this->generateReports();
 
@@ -457,6 +463,51 @@ final class UpdateOrchestrator
             Tools::clearDirectory($folder);
             @rmdir($folder);
         }
+    }
+
+    private function initHashMap(): void
+    {
+        if (!$this->config->useHashMap()) {
+            return;
+        }
+
+        $this->hashMapPath = Tools::ds($this->config->getDataDir(), 'hash-map.json');
+        $this->hashMap->load($this->hashMapPath);
+
+        if ($this->hashMap->wasLoaded()) {
+            $this->log->debug($this->language->t('script.hash_map_loaded'));
+        } else {
+            $this->log->debug($this->language->t('script.hash_map_missing'));
+        }
+
+        if ($this->hashMap->wasLoaded()) {
+            $this->hashMap->resetProvides();
+        }
+    }
+
+    private function finalizeHashMap(): void
+    {
+        if (!$this->config->useHashMap()) {
+            return;
+        }
+
+        if (!$this->hashMap->isAvailable()) {
+            return;
+        }
+
+        $webDir = $this->config->getWebDir();
+        $exclude = $this->config->getHashMapExclude();
+        if ($this->hashMap->wasLoaded()) {
+            $deleted = $this->hashMap->deleteExtraFiles($webDir, $exclude);
+            if (!empty($deleted)) {
+                $this->log->info($this->language->t('script.hash_map_cleanup_removed', count($deleted)));
+            }
+        } else {
+            $this->hashMap->rebuildFromWebDir($webDir, $exclude);
+        }
+
+        $path = $this->hashMapPath ?? Tools::ds($this->config->getDataDir(), 'hash-map.json');
+        $this->hashMap->save($path);
     }
 
     private function logSummary(): void

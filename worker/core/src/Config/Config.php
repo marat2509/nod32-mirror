@@ -103,6 +103,11 @@ final class Config
             'debug_update' => false,
             'link_method' => LinkMethod::Hardlink->value,
             'debug_html' => false,
+            'use_hash_map' => false,
+            'hash_map' => [
+                'algorithm' => 'xxh3',
+                'exclude' => [],
+            ],
             'web_dir' => 'www',
             'generate' => [
                 'export_credentials' => false,
@@ -115,12 +120,44 @@ final class Config
 
         $script['debug_update'] = !empty($script['debug_update']);
         $script['debug_html'] = !empty($script['debug_html']);
+        $script['use_hash_map'] = !empty($script['use_hash_map']);
         $script['generate']['export_credentials'] = !empty($script['generate']['export_credentials']);
         $script['generate']['json']['enabled'] = !empty($script['generate']['json']['enabled']);
         $script['generate']['html']['enabled'] = !empty($script['generate']['html']['enabled']);
         $script['generate']['html']['only_table'] = !empty($script['generate']['html']['only_table']);
 
+        if (!isset($script['hash_map']) || !is_array($script['hash_map'])) {
+            $script['hash_map'] = ['algorithm' => 'xxh3', 'exclude' => []];
+        }
+
+        $script['hash_map']['algorithm'] = $this->normalizeHashMapAlgorithm($script['hash_map']['algorithm'] ?? 'xxh3');
+
+        $script['hash_map']['exclude'] = $this->normalizeHashMapExclude($script['hash_map']['exclude'] ?? []);
+
         return $script;
+    }
+
+    /**
+     * @return string[]
+     */
+    private function normalizeHashMapExclude(mixed $value): array
+    {
+        if (is_array($value)) {
+            return array_values(array_filter(array_map('trim', $value), 'strlen'));
+        }
+
+        if (is_string($value)) {
+            return Tools::parseCommaList($value);
+        }
+
+        return [];
+    }
+
+    private function normalizeHashMapAlgorithm(mixed $value): string
+    {
+        $value = is_string($value) ? strtolower(trim($value)) : 'xxh3';
+
+        return $value !== '' ? $value : 'xxh3';
     }
 
     /**
@@ -529,6 +566,26 @@ final class Config
     {
         $method = $this->config['script']['link_method'] ?? 'copy';
         return LinkMethod::fromString($method);
+    }
+
+    public function useHashMap(): bool
+    {
+        return !empty($this->config['script']['use_hash_map']);
+    }
+
+    /**
+     * @return string[]
+     */
+    public function getHashMapExclude(): array
+    {
+        $exclude = $this->config['script']['hash_map']['exclude'] ?? [];
+        return is_array($exclude) ? $exclude : [];
+    }
+
+    public function getHashMapAlgorithm(): string
+    {
+        $algorithm = $this->config['script']['hash_map']['algorithm'] ?? 'xxh3';
+        return is_string($algorithm) && $algorithm !== '' ? $algorithm : 'xxh3';
     }
 
     public function getTimeout(): int

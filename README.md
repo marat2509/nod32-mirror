@@ -27,3 +27,37 @@ docker-compose up -d
 Open the browser and go to `http://localhost:8084/`
 
 If the page is displayed, enter your URL in the ESET settings
+
+## Hash map
+
+Optional hash-based reuse can be enabled via `script.use_hash_map` in the config.
+When enabled, the worker maintains `data/hash-map.json` with hashes of files
+under `webDir` and prefers reusing files by hash rather than by name/size.
+
+Hash algorithm is configurable via `script.hash_map.algorithm` (any value supported by `hash_algos()`).
+
+Schema (paths are relative to `webDir`):
+
+```json
+{
+	"algorithm": "xxh3",
+	"files": {
+		"eset_upd/v16/base/em002_64.nup": {
+			"hash": { "xxh3": "9f12a3c0e5b7d4a1" },
+			"size": 402653184,
+			"provides": { "versions": ["v16"], "files": ["eset_upd/v10/base/em002_64.nup"] }
+		},
+		"deferred/eset_upd/ep9/base/defs.nup": {
+			"hash": { "xxh3": "0f1e2d3c4b5a6978" },
+			"size": 104857600,
+			"provides": { "versions": ["ep9"], "files": [] }
+		},
+		"index.json": {
+			"hash": { "xxh3": "1234567890abcdef" },
+			"size": 20480,
+			"provides": { "versions": [], "files": [] }
+		}
+	},
+	"updated_at": 1710270000
+}
+```

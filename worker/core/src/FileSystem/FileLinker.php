@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nod32Mirror\FileSystem;
 
 use Nod32Mirror\Enum\LinkMethod;
+use Nod32Mirror\FileSystem\HashMapIndex;
 use Nod32Mirror\Log\Language;
 use Nod32Mirror\Log\Log;
 use Nod32Mirror\Tools;
@@ -24,7 +25,8 @@ final class FileLinker
     public function __construct(
         private readonly SafeFileOperations $fileOps,
         private readonly Log $log,
-        private readonly Language $language
+        private readonly Language $language,
+        private readonly HashMapIndex $hashMap
     ) {
     }
 
@@ -41,7 +43,8 @@ final class FileLinker
         string $dir,
         array $files,
         string $version,
-        LinkMethod $linkMethod
+        LinkMethod $linkMethod,
+        bool $useHashMap = false
     ): LinkResult {
         $this->log->trace($this->language->t('log.running', __METHOD__));
 
@@ -50,27 +53,63 @@ final class FileLinker
         $downloadFiles = [];
         $linkedFiles = [];
         $linkedCount = 0;
+        $useHashMap = $useHashMap && $this->hashMap->isAvailable();
 
         foreach ($files as $file) {
             $path = Tools::ds($dir, $file->path);
             $neededFiles[] = $path;
 
-            // Check if file exists with correct size
+            // Check if file exists with correct hash when enabled; size-based check otherwise
             if (file_exists($path)) {
-                $stat = $this->fileOps->stat($path);
-                if ($stat !== null && !Tools::compareFiles($stat, ['size' => $file->size])) {
-                    $this->fileOps->deleteFile($path);
+                if ($useHashMap) {
+                    $hashAlgorithm = $this->hashMap->getHashAlgorithm();
+                    $expectedHash = $this->hashMap->getHashFor($file->path);
+                    $actualHash = $this->hashMap->hashExistingFile($path);
+
+                    if ($expectedHash !== null) {
+                        if ($actualHash === null || $actualHash !== $expectedHash) {
+                            $this->log->debug($this->language->t('filesystem.hash_mismatch_remove', $hashAlgorithm, $file->path));
+                            $this->fileOps->deleteFile($path);
+                        }
+                    } else {
+                        if ($actualHash === null) {
+                            $this->log->debug($this->language->t('filesystem.hash_missing_remove', $hashAlgorithm, $file->path));
+                            $this->fileOps->deleteFile($path);
+                        } else {
+                            $this->hashMap->updateFileEntry($dir, $file->path);
+                        }
+                    }
+                } else {
+                    $stat = $this->fileOps->stat($path);
+                    $currentSize = (int) ($stat['size'] ?? 0);
+
+                    if ($currentSize !== $file->size) {
+                        $this->fileOps->deleteFile($path);
+                    }
                 }
             }
 
             // If file still doesn't exist, try to link from old version
             if (!file_exists($path)) {
-                $linkResult = $this->tryLinkFromOldFile($file, $path, $oldFiles, $dir, $linkMethod);
+                $linkResult = null;
+
+                if ($useHashMap) {
+                    $linkResult = $this->tryLinkFromHashMap($file, $path, $dir, $linkMethod);
+                }
+
+                if ($linkResult === null && !$useHashMap) {
+                    $linkResult = $this->tryLinkFromOldFile($file, $path, $oldFiles, $dir, $linkMethod);
+                }
 
                 if ($linkResult !== null) {
                     $linkedFiles[$file->path] = $linkResult;
                     if ($linkResult->success) {
                         $linkedCount++;
+                        if ($useHashMap) {
+                            $sourceRelative = $this->hashMap->toRelativePath($dir, $linkResult->sourcePath);
+                            $this->hashMap->addProvides($file->path, null, $sourceRelative);
+                            $this->log->debug($this->language->t('filesystem.hash_map_provides_link', $file->path, $sourceRelative));
+                        }
                     }
                 }
 
@@ -191,6 +230,60 @@ final class FileLinker
                 );
                 return $linkInfo;
             }
+        }
+
+        return null;
+    }
+
+    private function tryLinkFromHashMap(
+        DownloadableFile $file,
+        string $targetPath,
+        string $dir,
+        LinkMethod $linkMethod
+    ): ?LinkInfo {
+        $expectedHash = $this->hashMap->getHashFor($file->path);
+        if ($expectedHash === null) {
+            return null;
+        }
+
+        $sourceRelative = $this->hashMap->findPathByHash(
+            $expectedHash,
+            static fn(string $path): bool => $path !== $file->path
+        );
+
+        if ($sourceRelative === null) {
+            return null;
+        }
+
+        $sourcePath = Tools::ds($dir, $sourceRelative);
+        if (!is_file($sourcePath)) {
+            return null;
+        }
+
+        $this->fileOps->createDirectory(dirname($targetPath));
+
+        $success = match ($linkMethod) {
+            LinkMethod::Hardlink => $this->fileOps->createHardlink($sourcePath, $targetPath),
+            LinkMethod::Symlink => $this->fileOps->createSymlink($sourcePath, $targetPath),
+            default => $this->fileOps->copyFile($sourcePath, $targetPath),
+        };
+
+        $linkInfo = new LinkInfo(
+            sourcePath: $sourcePath,
+            targetPath: $targetPath,
+            method: $linkMethod,
+            success: $success
+        );
+
+        if ($success) {
+            $this->log->info(
+                $this->language->t(
+                    $this->getLinkMessageKey($linkMethod),
+                    $linkInfo->getRelativeSource($dir),
+                    $linkInfo->getRelativeTarget($dir)
+                )
+            );
+            return $linkInfo;
         }
 
         return null;

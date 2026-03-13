@@ -8,6 +8,7 @@ use Nod32Mirror\Config\Config;
 use Nod32Mirror\Config\VersionConfig;
 use Nod32Mirror\Download\GuzzleDownloader;
 use Nod32Mirror\FileSystem\FileCleaner;
+use Nod32Mirror\FileSystem\HashMapIndex;
 use Nod32Mirror\FileSystem\FileLinker;
 use Nod32Mirror\FileSystem\SafeFileOperations;
 use Nod32Mirror\Key\JsonKeyStorage;
@@ -38,6 +39,7 @@ final class Application
     private SafeFileOperations $fileOps;
     private FileLinker $fileLinker;
     private FileCleaner $fileCleaner;
+    private HashMapIndex $hashMap;
     private Mirror $mirror;
     private MirrorSelector $mirrorSelector;
     private HtmlReportGenerator $htmlGenerator;
@@ -87,7 +89,9 @@ final class Application
 
         // File system services
         $this->fileOps = new SafeFileOperations($this->log, $this->language);
-        $this->fileLinker = new FileLinker($this->fileOps, $this->log, $this->language);
+        $hashAlgorithm = $this->config->getHashMapAlgorithm();
+        $this->hashMap = new HashMapIndex($this->fileOps, $this->log, $this->language, $hashAlgorithm);
+        $this->fileLinker = new FileLinker($this->fileOps, $this->log, $this->language, $this->hashMap);
         $this->fileCleaner = new FileCleaner($this->fileOps, $this->log, $this->language);
 
         $this->mirror = new Mirror(
@@ -98,7 +102,8 @@ final class Application
             $this->language,
             $this->fileOps,
             $this->fileLinker,
-            $this->fileCleaner
+            $this->fileCleaner,
+            $this->hashMap
         );
 
         $this->mirrorSelector = new MirrorSelector(
@@ -125,6 +130,7 @@ final class Application
             $this->mirrorSelector,
             $this->htmlGenerator,
             $this->jsonGenerator,
+            $this->hashMap,
             $directories
         );
     }
