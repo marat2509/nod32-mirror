@@ -413,7 +413,7 @@ final class HashMapIndex
             }
 
             if (strpbrk($pattern, '*?[]') !== false) {
-                if (fnmatch($pattern, $relativePath)) {
+                if ($this->matchGlobPattern($pattern, $relativePath)) {
                     return true;
                 }
             }
@@ -508,6 +508,20 @@ final class HashMapIndex
     {
         $path = str_replace('\\', '/', $path);
         return ltrim($path, '/');
+    }
+
+    private function matchGlobPattern(string $pattern, string $path): bool
+    {
+        if (!str_contains($pattern, '**')) {
+            return fnmatch($pattern, $path);
+        }
+
+        $regex = preg_quote($pattern, '#');
+        $regex = str_replace('\*\*', '.*', $regex);
+        $regex = str_replace('\*', '[^/]*', $regex);
+        $regex = str_replace('\?', '[^/]', $regex);
+
+        return (bool) preg_match('#^' . $regex . '$#', $path);
     }
 
     private function normalizeHashValue(string $algorithm, string $hash): string

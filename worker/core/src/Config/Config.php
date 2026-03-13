@@ -103,8 +103,8 @@ final class Config
             'debug_update' => false,
             'link_method' => LinkMethod::Hardlink->value,
             'debug_html' => false,
-            'use_hash_map' => false,
             'hash_map' => [
+                'enabled' => false,
                 'algorithm' => 'xxh3',
                 'exclude' => [],
             ],
@@ -120,15 +120,15 @@ final class Config
 
         $script['debug_update'] = !empty($script['debug_update']);
         $script['debug_html'] = !empty($script['debug_html']);
-        $script['use_hash_map'] = !empty($script['use_hash_map']);
+        if (!isset($script['hash_map']) || !is_array($script['hash_map'])) {
+            $script['hash_map'] = ['enabled' => false, 'algorithm' => 'xxh3', 'exclude' => []];
+        }
+
+        $script['hash_map']['enabled'] = !empty($script['hash_map']['enabled']);
         $script['generate']['export_credentials'] = !empty($script['generate']['export_credentials']);
         $script['generate']['json']['enabled'] = !empty($script['generate']['json']['enabled']);
         $script['generate']['html']['enabled'] = !empty($script['generate']['html']['enabled']);
         $script['generate']['html']['only_table'] = !empty($script['generate']['html']['only_table']);
-
-        if (!isset($script['hash_map']) || !is_array($script['hash_map'])) {
-            $script['hash_map'] = ['algorithm' => 'xxh3', 'exclude' => []];
-        }
 
         $script['hash_map']['algorithm'] = $this->normalizeHashMapAlgorithm($script['hash_map']['algorithm'] ?? 'xxh3');
 
@@ -570,7 +570,7 @@ final class Config
 
     public function useHashMap(): bool
     {
-        return !empty($this->config['script']['use_hash_map']);
+        return !empty($this->config['script']['hash_map']['enabled']);
     }
 
     /**

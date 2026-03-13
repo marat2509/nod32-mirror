@@ -11,10 +11,12 @@ script:
   debug_update: false         # Dump raw update.ver files for debugging
   link_method: "hardlink"     # How to publish files: hardlink, symlink, copy
   debug_html: false           # Dump all downloaded pages for pattern debugging
-  use_hash_map: false         # Use data/hash-map.json for hash-based reuse
   hash_map:
+    enabled: false            # Use data/hash-map.json for hash-based reuse
     algorithm: "xxh3"         # Hash algorithm: any supported by hash_algos()
-    exclude: []               # Relative paths or glob patterns to skip in hash-map
+    exclude:                  # Relative paths or glob patterns to skip in hash-map
+      - "./index.json"
+      - "./index.html"
   generate:
     export_credentials: false # Include credentials in generated JSON/HTML
     json:

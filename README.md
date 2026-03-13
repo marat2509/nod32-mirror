@@ -30,11 +30,12 @@ If the page is displayed, enter your URL in the ESET settings
 
 ## Hash map
 
-Optional hash-based reuse can be enabled via `script.use_hash_map` in the config.
+Optional hash-based reuse can be enabled via `script.hash_map.enabled` in the config.
 When enabled, the worker maintains `data/hash-map.json` with hashes of files
 under `webDir` and prefers reusing files by hash rather than by name/size.
 
 Hash algorithm is configurable via `script.hash_map.algorithm` (any value supported by `hash_algos()`).
+Exclude patterns support `*`, `?`, and `**` (globstar), for example `some_path/*` or `**/*.nup`.
 
 Schema (paths are relative to `webDir`):
 
