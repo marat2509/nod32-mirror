@@ -15,7 +15,7 @@ use RecursiveIteratorIterator;
  */
 final class HashMapIndex
 {
-    /**
+    /** 
      * @var array{files: array<string, array{hash: array<string, string>, size: int, provides: array{versions: string[], files: string[]}}>, updated_at: int, algorithm?: string}
      */
     private array $map = [
@@ -143,6 +143,8 @@ final class HashMapIndex
             $this->log->warning('Hash map JSON encoding failed: ' . json_last_error_msg());
             return;
         }
+
+        $json = $this->formatJsonWithTabs($json);
 
         $this->fileOps->writeFile($path, $json . PHP_EOL);
         $this->log->debug($this->language->t('filesystem.hash_map_saved', count($this->map['files'])));
@@ -536,6 +538,19 @@ final class HashMapIndex
             'crc32', 'crc32b' => str_pad($hash, 8, '0', STR_PAD_LEFT),
             default => $hash,
         };
+    }
+
+    private function formatJsonWithTabs(string $json): string
+    {
+        return (string) preg_replace_callback(
+            '/^( +)/m',
+            static function (array $matches): string {
+                $spaces = strlen($matches[1]);
+                $tabs = intdiv($spaces, 4);
+                return str_repeat("\t", $tabs) . str_repeat(' ', $spaces % 4);
+            },
+            $json
+        );
     }
 
     /**
