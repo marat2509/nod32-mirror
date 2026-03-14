@@ -540,6 +540,8 @@ final class Mirror
                 );
             }
 
+            $this->rebuildProvidesForVariantFiles($parsed['files'], $webDir);
+
             $result['processed'] = true;
             $result['size'] = $parsed['totalSize'];
             $result['neededFiles'] = $neededFiles;
@@ -798,6 +800,38 @@ final class Mirror
 
         $this->fileOps->deleteFile($tempPath);
         return true;
+    }
+
+    /**
+     * @param DownloadableFile[] $files
+     */
+    private function rebuildProvidesForVariantFiles(array $files, string $webDir): void
+    {
+        if (!$this->config->useHashMap() || !$this->hashMap->isAvailable()) {
+            return;
+        }
+
+        foreach ($files as $file) {
+            $targetPath = Tools::ds($webDir, $file->path);
+            if (!is_file($targetPath)) {
+                continue;
+            }
+
+            $hash = $this->hashMap->hashExistingFile($targetPath);
+            if ($hash === null) {
+                continue;
+            }
+
+            $providerPath = $this->hashMap->findPathByHash($hash);
+            if ($providerPath === null) {
+                $this->hashMap->updateFileEntry($webDir, $file->path);
+                $providerPath = $this->hashMap->toRelativePath($webDir, $targetPath);
+            }
+
+            $filePath = $this->hashMap->toRelativePath($webDir, $targetPath);
+            $consumerPath = $providerPath !== $filePath ? $filePath : null;
+            $this->hashMap->addProvides($providerPath, $this->version, $consumerPath);
+        }
     }
 
     private function matchesPlatform(DownloadableFile $file): bool
