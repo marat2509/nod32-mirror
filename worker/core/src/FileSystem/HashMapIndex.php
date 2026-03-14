@@ -295,29 +295,15 @@ final class HashMapIndex
             return;
         }
 
-        $providerPath = $this->normalizeRelativePath($providerFile);
+        $providerFile = $this->normalizeRelativePath($providerFile);
 
-        if (!isset($this->map['files'][$providerPath])) {
-            $this->map['files'][$providerPath] = [
-                'hash' => [$this->hashAlgorithm => ''],
-                'size' => 0,
-                'provides' => ['versions' => [], 'files' => []],
-            ];
+        if (!in_array($providerFile, $provides['files'], true)) {
+            $provides['files'][] = $providerFile;
         }
 
-        $providerProvides = $this->map['files'][$providerPath]['provides'] ?? ['versions' => [], 'files' => []];
-
-        if ($version !== null && $version !== '' && !in_array($version, $providerProvides['versions'], true)) {
-            $providerProvides['versions'][] = $version;
-        }
-
-        if ($providerFile !== null && $providerFile !== '' && !in_array($providerFile, $providerProvides['files'], true)) {
-            $providerProvides['files'][] = $providerFile;
-        }
-
-        $this->map['files'][$providerPath]['provides'] = $this->buildProvides(
-            $providerProvides['versions'],
-            $providerProvides['files']
+        $this->map['files'][$relativePath]['provides'] = $this->buildProvides(
+            $provides['versions'],
+            $provides['files']
         );
     }
 
