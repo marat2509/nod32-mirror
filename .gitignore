@@ -3,6 +3,7 @@
 /log
 /www
 /nod32-mirror.yaml
+/nod32-mirror.conf
 .ruff_cache/
 .vscode/settings.json
 /test.php

@@ -817,20 +817,65 @@ final class Mirror
                 continue;
             }
 
-            $hash = $this->hashMap->hashExistingFile($targetPath);
-            if ($hash === null) {
+            $filePath = $this->hashMap->toRelativePath($webDir, $targetPath);
+            $providerPath = null;
+
+            $knownHash = $this->hashMap->getHashFor($filePath);
+            if ($knownHash !== null) {
+                $providerPath = $this->hashMap->findPathByHash($knownHash);
+            }
+
+            if ($providerPath === null) {
+                $this->hashMap->updateFileEntry($webDir, $file->path);
+                $providerPath = $filePath;
+            }
+
+            $consumerPath = $providerPath !== $filePath ? $filePath : null;
+            $this->hashMap->addProvides($providerPath, $this->version, $consumerPath);
+        }
+    }
+
+    /**
+     * Rebuild hash-map provides from existing local update.ver files.
+     *
+     * This is needed when a version is already up to date and no download
+     * happens in the current run.
+     */
+    public function rebuildProvidesFromLocalVariants(): void
+    {
+        if (!$this->config->useHashMap() || !$this->hashMap->isAvailable()) {
+            return;
+        }
+
+        if (empty($this->updateVariants)) {
+            return;
+        }
+
+        $webDir = $this->config->getWebDir();
+
+        foreach ($this->updateVariants as $variant) {
+            if (!is_file($variant->localPath)) {
                 continue;
             }
 
-            $providerPath = $this->hashMap->findPathByHash($hash);
-            if ($providerPath === null) {
-                $this->hashMap->updateFileEntry($webDir, $file->path);
-                $providerPath = $this->hashMap->toRelativePath($webDir, $targetPath);
+            $providerPath = $this->hashMap->toRelativePath($webDir, $variant->localPath);
+            $this->hashMap->addProvides($providerPath, $this->version, null);
+
+            $content = $this->fileOps->readFile($variant->localPath, false);
+            if ($content === null) {
+                continue;
             }
 
-            $filePath = $this->hashMap->toRelativePath($webDir, $targetPath);
-            $consumerPath = $providerPath !== $filePath ? $filePath : null;
-            $this->hashMap->addProvides($providerPath, $this->version, $consumerPath);
+            if (!preg_match_all('#\[\w+\][^\[]+#', $content, $matches)) {
+                continue;
+            }
+
+            $parsed = $this->parser->parseUpdateFile(
+                $matches[0],
+                fn(DownloadableFile $f): bool => $this->matchesPlatform($f)
+            );
+
+            $this->rebuildProvidesForVariantFiles($parsed['files'], $webDir);
         }
     }
 

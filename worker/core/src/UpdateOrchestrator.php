@@ -286,6 +286,10 @@ final class UpdateOrchestrator
 
                 $prevSize = $this->totalSizes[$version] ?? 0;
                 $this->setDatabaseSize($version, $prevSize);
+
+                // Keep hash-map provides populated for up-to-date versions,
+                // otherwise finalizeHashMap() may treat their files as extra.
+                $this->mirror->rebuildProvidesFromLocalVariants();
             } else {
                 $result = $this->mirror->downloadSignature();
 
