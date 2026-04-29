@@ -280,9 +280,39 @@ final class Mirror
             if ($remoteVersion === null || $localVersion === null || $localVersion < $remoteVersion) {
                 return false;
             }
+
+            if ($this->hasMissingLocalFilesForVariant($variant)) {
+                return false;
+            }
         }
 
         return true;
+    }
+
+    private function hasMissingLocalFilesForVariant(UpdateVariant $variant): bool
+    {
+        if (!is_file($variant->localPath)) {
+            return true;
+        }
+
+        $content = $this->fileOps->readFile($variant->localPath, false);
+        if ($content === null || !preg_match_all('#\[\w+\][^\[]+#', $content, $matches)) {
+            return true;
+        }
+
+        $parsed = $this->parser->parseUpdateFile(
+            $matches[0],
+            fn(DownloadableFile $f): bool => $this->matchesPlatform($f)
+        );
+
+        $webDir = $this->config->getWebDir();
+        foreach ($parsed['files'] as $file) {
+            if (!is_file(Tools::ds($webDir, $file->path))) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function getRemoteVariantVersion(MirrorInfo $mirror, UpdateVariant $variant): ?int
