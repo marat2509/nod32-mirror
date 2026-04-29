@@ -28,14 +28,15 @@ final readonly class DownloadableFile
      */
     public static function fromArray(array $data): self
     {
-        $platform = $data['platform'] ?? $data['architecture'] ?? $data['arch'] ?? null;
+        $normalizedData = array_change_key_case($data, CASE_LOWER);
+        $platform = $normalizedData['platform'] ?? $normalizedData['architecture'] ?? $normalizedData['arch'] ?? null;
 
         return new self(
-            path: $data['file'] ?? '',
-            size: (int) ($data['size'] ?? 0),
+            path: (string) ($normalizedData['file'] ?? ''),
+            size: (int) ($normalizedData['size'] ?? 0),
             platform: is_string($platform) && $platform !== '' ? $platform : null,
-            version: $data['version'] ?? null,
-            versionId: isset($data['versionid']) ? (int) $data['versionid'] : null
+            version: isset($normalizedData['version']) ? (string) $normalizedData['version'] : null,
+            versionId: isset($normalizedData['versionid']) ? (int) $normalizedData['versionid'] : null
         );
     }
 

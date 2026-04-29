@@ -491,7 +491,12 @@ final class Mirror
                 fn(DownloadableFile $f): bool => $this->matchesPlatform($f)
             );
 
-            $this->platformsFound = array_merge($this->platformsFound, $parsed['platforms'] ?? []);
+            $parsedPlatforms = $parsed['platforms'] ?? [];
+            if (is_array($this->platforms) && !empty($this->platforms)) {
+                $parsedPlatforms = array_values(array_intersect($parsedPlatforms, $this->platforms));
+            }
+
+            $this->platformsFound = array_merge($this->platformsFound, $parsedPlatforms);
 
             $webDir = $this->config->getWebDir();
             $linkMethod = $this->config->getLinkMethod();
@@ -857,14 +862,11 @@ final class Mirror
      */
     public function rebuildProvidesFromLocalVariants(): void
     {
-        if (!$this->config->useHashMap() || !$this->hashMap->isAvailable()) {
-            return;
-        }
-
         if (empty($this->updateVariants)) {
             return;
         }
 
+        $useHashMap = $this->config->useHashMap() && $this->hashMap->isAvailable();
         $webDir = $this->config->getWebDir();
 
         foreach ($this->updateVariants as $variant) {
@@ -872,8 +874,10 @@ final class Mirror
                 continue;
             }
 
-            $providerPath = $this->hashMap->toRelativePath($webDir, $variant->localPath);
-            $this->hashMap->addProvides($providerPath, $this->version, null);
+            if ($useHashMap) {
+                $providerPath = $this->hashMap->toRelativePath($webDir, $variant->localPath);
+                $this->hashMap->addProvides($providerPath, $this->version, null);
+            }
 
             $content = $this->fileOps->readFile($variant->localPath, false);
             if ($content === null) {
@@ -889,7 +893,16 @@ final class Mirror
                 fn(DownloadableFile $f): bool => $this->matchesPlatform($f)
             );
 
-            $this->rebuildProvidesForVariantFiles($parsed['files'], $webDir);
+            $parsedPlatforms = $parsed['platforms'] ?? [];
+            if (is_array($this->platforms) && !empty($this->platforms)) {
+                $parsedPlatforms = array_values(array_intersect($parsedPlatforms, $this->platforms));
+            }
+
+            $this->platformsFound = array_merge($this->platformsFound, $parsedPlatforms);
+
+            if ($useHashMap) {
+                $this->rebuildProvidesForVariantFiles($parsed['files'], $webDir);
+            }
         }
     }
 
