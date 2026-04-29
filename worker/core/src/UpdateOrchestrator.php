@@ -589,6 +589,13 @@ final class UpdateOrchestrator
             $channelsInfo = $this->buildChannelsInfo($version, $dirConfig, $webDir);
             $foundPlatforms = $this->platformsFound[$version] ?? $this->mirror->getPlatformsFound();
 
+            if (empty($foundPlatforms)) {
+                // Fallback for cases when platforms were not persisted during update phase:
+                // re-read local update.ver variants and extract platforms for metadata.
+                $this->mirror->rebuildProvidesFromLocalVariants();
+                $foundPlatforms = $this->mirror->getPlatformsFound();
+            }
+
             if ($platforms !== true && is_array($platforms) && !empty($platforms)) {
                 $foundPlatforms = array_values(array_intersect($foundPlatforms, $platforms));
             }
