@@ -75,7 +75,7 @@ final class FileCleaner
             $this->log->debug($this->language->t('filesystem.cleanup_error', $folder, $e->getMessage()));
         }
 
-        $this->log->debug($this->language->t('log.cleanup_empty_dirs_summary', $folder, $count, count($failedFolders)));
+        $this->log->debug($this->language->t('log.cleanup_delete_summary', $folder, $count, count($failedFiles)));
 
         return new CleanupResult(
             deletedFilesCount: $count,
@@ -137,7 +137,7 @@ final class FileCleaner
             $this->log->debug($this->language->t('filesystem.cleanup_error', $folder, $e->getMessage()));
         }
 
-        $this->log->debug($this->language->t('log.cleanup_delete_summary', $folder, $count, count($failedFiles)));
+        $this->log->debug($this->language->t('log.cleanup_empty_dirs_summary', $folder, $count, count($failedFolders)));
 
         return new CleanupResult(
             deletedFilesCount: 0,

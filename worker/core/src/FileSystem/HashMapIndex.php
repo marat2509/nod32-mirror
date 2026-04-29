@@ -274,7 +274,6 @@ final class HashMapIndex
      */
     public function addProvides(string $relativePath, ?string $version = null, ?string $providerFile = null): void
     {
-        $this->log->trace($this->language->t('log.running', __METHOD__));
         $relativePath = $this->normalizeRelativePath($relativePath);
 
         if (!isset($this->map['files'][$relativePath])) {
