@@ -16,14 +16,24 @@ final readonly class DownloadableFile
     }
 
     /**
-     * @param array{file?: string, size?: int|string, platform?: string, version?: string, versionid?: int|string} $data
+     * @param array{
+     *     file?: string,
+     *     size?: int|string,
+     *     platform?: string,
+     *     architecture?: string,
+     *     arch?: string,
+     *     version?: string,
+     *     versionid?: int|string
+     * } $data
      */
     public static function fromArray(array $data): self
     {
+        $platform = $data['platform'] ?? $data['architecture'] ?? $data['arch'] ?? null;
+
         return new self(
             path: $data['file'] ?? '',
             size: (int) ($data['size'] ?? 0),
-            platform: $data['platform'] ?? null,
+            platform: is_string($platform) && $platform !== '' ? $platform : null,
             version: $data['version'] ?? null,
             versionId: isset($data['versionid']) ? (int) $data['versionid'] : null
         );
