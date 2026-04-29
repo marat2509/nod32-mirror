@@ -115,6 +115,8 @@ final class FileLinker
                 if (!file_exists($path) && !$this->isInDownloadList($file, $downloadFiles)) {
                     $downloadFiles[] = $file;
                 }
+            } elseif ($useHashMap) {
+                $this->hashMap->addProvides($file->path, $version, null);
             }
         }
 
@@ -240,14 +242,14 @@ final class FileLinker
         LinkMethod $linkMethod
     ): ?LinkInfo {
         $expectedHash = $this->hashMap->getHashFor($file->path);
-        if ($expectedHash === null) {
-            return null;
-        }
+        $sourceRelative = null;
 
-        $sourceRelative = $this->hashMap->findPathByHash(
-            $expectedHash,
-            static fn(string $path): bool => $path !== $file->path
-        );
+        if ($expectedHash !== null) {
+            $sourceRelative = $this->hashMap->findPathByHash(
+                $expectedHash,
+                static fn(string $path): bool => $path !== $file->path
+            );
+        }
 
         if ($sourceRelative === null) {
             return null;
