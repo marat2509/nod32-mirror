@@ -348,6 +348,7 @@ final class Mirror
         $this->log->trace($this->language->t('log.running', __METHOD__), $this->version, $this->channel);
 
         if (empty($this->updateVariants)) {
+            $this->log->debug($this->language->t('log.mirror_no_variants'), $this->version, $this->channel);
             return ['totalSize' => null, 'totalDownloads' => $this->totalDownloads, 'averageSpeed' => null];
         }
 
@@ -372,6 +373,7 @@ final class Mirror
             $result = $this->processUpdateVariant($variant, $mirror);
 
             if (!$result['processed']) {
+                $this->log->debug($this->language->t('log.mirror_variant_skipped', $variant->key), $this->version, $this->channel);
                 continue;
             }
 
@@ -382,11 +384,23 @@ final class Mirror
             $cleanupFolders[] = dirname($variant->localPath);
             $totalDuration += $result['duration'];
             $totalDownloaded += $result['downloaded'];
+
+            $this->log->debug(
+                $this->language->t('log.mirror_variant_processed', $variant->key, count($result['neededFiles']), $result['downloaded']),
+                $this->version,
+                $this->channel
+            );
         }
 
         if ($processed) {
             $allNeededFiles = array_values(array_unique($allNeededFiles));
             $cleanupFolders = array_values(array_unique($cleanupFolders));
+
+            $this->log->debug(
+                $this->language->t('log.mirror_cleanup_context', count($cleanupFolders), count($allNeededFiles)),
+                $this->version,
+                $this->channel
+            );
 
             // Cleanup old files and empty folders using FileCleaner
             $cleanupResult = $this->fileCleaner->cleanFolders($cleanupFolders, $allNeededFiles);

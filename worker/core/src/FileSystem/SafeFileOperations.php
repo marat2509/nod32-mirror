@@ -26,7 +26,10 @@ final class SafeFileOperations
      */
     public function deleteFile(string $path, bool $throwOnFailure = false): bool
     {
+        $this->log->trace($this->language->t('log.fs_delete_start', $path));
+
         if (!file_exists($path)) {
+            $this->log->trace($this->language->t('log.fs_skip_missing', $path));
             return true;
         }
 
@@ -46,6 +49,7 @@ final class SafeFileOperations
             }
         }
 
+        $this->log->trace($this->language->t('log.fs_delete_result', $path, $result ? 'ok' : 'failed'));
         return $result;
     }
 
@@ -56,7 +60,10 @@ final class SafeFileOperations
      */
     public function deleteDirectory(string $path, bool $throwOnFailure = false): bool
     {
+        $this->log->trace($this->language->t('log.fs_rmdir_start', $path));
+
         if (!is_dir($path)) {
+            $this->log->trace($this->language->t('log.fs_skip_missing', $path));
             return true;
         }
 
@@ -79,7 +86,10 @@ final class SafeFileOperations
      */
     public function createDirectory(string $path, int $mode = 0755, bool $throwOnFailure = false): bool
     {
+        $this->log->trace($this->language->t('log.fs_mkdir_start', $path));
+
         if (is_dir($path)) {
+            $this->log->trace($this->language->t('log.fs_skip_exists', $path));
             return true;
         }
 
@@ -93,6 +103,7 @@ final class SafeFileOperations
             return false;
         }
 
+        $this->log->trace($this->language->t('log.fs_mkdir_result', $path));
         return true;
     }
 
@@ -103,6 +114,8 @@ final class SafeFileOperations
      */
     public function readFile(string $path, bool $throwOnFailure = true): ?string
     {
+        $this->log->trace($this->language->t('log.fs_read_start', $path));
+
         if (!file_exists($path)) {
             if ($throwOnFailure) {
                 throw FileSystemException::fileNotFound($path);
@@ -120,6 +133,7 @@ final class SafeFileOperations
             return null;
         }
 
+        $this->log->trace($this->language->t('log.fs_read_ok', $path));
         return $content;
     }
 
@@ -130,6 +144,7 @@ final class SafeFileOperations
      */
     public function writeFile(string $path, string $content, bool $throwOnFailure = false): bool
     {
+        $this->log->trace($this->language->t('log.fs_write_start', $path));
         $dir = dirname($path);
         if (!is_dir($dir)) {
             $this->createDirectory($dir, 0755, $throwOnFailure);

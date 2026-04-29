@@ -40,6 +40,7 @@ final class FileCleaner
         $count = 0;
 
         if (!is_dir($folder)) {
+            $this->log->debug($this->language->t('log.cleanup_folder_missing', $folder));
             return CleanupResult::empty();
         }
 
@@ -57,19 +58,24 @@ final class FileCleaner
                 $filePath = $fileObject->getPathname();
 
                 if (in_array($filePath, $neededFiles, true)) {
+                    $this->log->trace($this->language->t('log.cleanup_keep_needed', $filePath));
                     continue;
                 }
 
                 if ($this->fileOps->deleteFile($filePath)) {
+                    $this->log->debug($this->language->t('log.cleanup_deleted_file', $filePath));
                     $deletedFiles[] = $filePath;
                     $count++;
                 } else {
                     $failedFiles[] = $filePath;
+                    $this->log->warning($this->language->t('log.cleanup_delete_failed', $filePath));
                 }
             }
         } catch (\Exception $e) {
             $this->log->debug($this->language->t('filesystem.cleanup_error', $folder, $e->getMessage()));
         }
+
+        $this->log->debug($this->language->t('log.cleanup_empty_dirs_summary', $folder, $count, count($failedFolders)));
 
         return new CleanupResult(
             deletedFilesCount: $count,
@@ -94,6 +100,7 @@ final class FileCleaner
         $count = 0;
 
         if (!is_dir($folder)) {
+            $this->log->debug($this->language->t('log.cleanup_folder_missing', $folder));
             return CleanupResult::empty();
         }
 
@@ -129,6 +136,8 @@ final class FileCleaner
         } catch (\Exception $e) {
             $this->log->debug($this->language->t('filesystem.cleanup_error', $folder, $e->getMessage()));
         }
+
+        $this->log->debug($this->language->t('log.cleanup_delete_summary', $folder, $count, count($failedFiles)));
 
         return new CleanupResult(
             deletedFilesCount: 0,

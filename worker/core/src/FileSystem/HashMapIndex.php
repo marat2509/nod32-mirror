@@ -185,6 +185,7 @@ final class HashMapIndex
             $relativePath = $this->toRelativePath($webDir, $absolutePath);
 
             if ($this->isExcluded($relativePath, $excludePatterns)) {
+                $this->log->trace('Hash-map extra scan: excluded by pattern: ' . $relativePath);
                 continue;
             }
 
@@ -195,6 +196,7 @@ final class HashMapIndex
 
             $size = $fileObject->getSize();
             $versions = $this->extractVersions($relativePath);
+        $this->log->trace('Hash-map manifest hydration started: ' . $relativePath);
             $provides = $this->buildProvides($versions, []);
 
             $this->updateEntry($relativePath, $hash, $size, $provides);
@@ -330,6 +332,8 @@ final class HashMapIndex
         $extras = [];
 
         if (!is_dir($webDir)) {
+            $this->log->debug('Hash-map extra scan skipped: webDir is not a directory: ' . $webDir);
+            $this->log->debug('Hash-map extra scan complete: 0 extra files detected');
             return $extras;
         }
 
@@ -347,14 +351,34 @@ final class HashMapIndex
             $relativePath = $this->toRelativePath($webDir, $absolutePath);
 
             if ($this->isExcluded($relativePath, $excludePatterns)) {
+                $this->log->trace('Hash-map extra scan: excluded by pattern: ' . $relativePath);
                 continue;
             }
 
             $entry = $this->map['files'][$relativePath] ?? null;
-            if ($entry === null || $this->isProvidesEmpty($entry['provides'] ?? null)) {
-                $extras[] = $relativePath;
+
+            if ($this->isVersionManifest($relativePath)) {
+                $this->log->trace('Hash-map extra scan: manifest detected: ' . $relativePath);
+                $this->hydrateManifestProvides($webDir, $relativePath, $entry);
+                $entry = $this->map['files'][$relativePath] ?? $entry;
             }
+
+            if ($entry === null) {
+                $this->log->debug('Hash-map extra detected: no map entry for file: ' . $relativePath);
+                $extras[] = $relativePath;
+                continue;
+            }
+
+            if ($this->isProvidesEmpty($entry['provides'] ?? null)) {
+                $this->log->debug('Hash-map extra detected: empty provides for file: ' . $relativePath);
+                $extras[] = $relativePath;
+                continue;
+            }
+
+            $this->log->trace('Hash-map extra scan: file is referenced and will be kept: ' . $relativePath);
         }
+
+        $this->log->debug('Hash-map extra scan complete: ' . count($extras) . ' extra files detected');
 
         return $extras;
     }
@@ -535,6 +559,46 @@ final class HashMapIndex
         $regex = str_replace('\?', '[^/]', $regex);
 
         return (bool) preg_match('#^' . $regex . '$#', $path);
+    }
+
+
+    private function isVersionManifest(string $relativePath): bool
+    {
+        return str_ends_with(strtolower($relativePath), '.ver');
+    }
+
+    private function hydrateManifestProvides(string $webDir, string $relativePath, ?array $entry): void
+    {
+        $versions = $this->extractVersions($relativePath);
+        $this->log->trace('Hash-map manifest hydration started: ' . $relativePath);
+
+        if ($entry === null) {
+            $this->log->debug('Hash-map manifest hydration: entry missing, calculating hash entry: ' . $relativePath);
+            $hash = $this->updateFileEntry($webDir, $relativePath);
+            if ($hash === null) {
+                $this->log->warning('Hash-map manifest hydration failed: cannot build map entry for ' . $relativePath);
+                return;
+            }
+
+            $this->log->trace('Hash-map manifest hydration: map entry created with hash for ' . $relativePath);
+        }
+
+        if (empty($versions)) {
+            $this->log->debug('Hash-map manifest hydration: no version extracted from path, using self-reference fallback for ' . $relativePath);
+            // Fallback for manifests outside versioned paths:
+            // mark the manifest as explicitly referenced so cleanup
+            // does not remove it only because version cannot be inferred from path.
+            $this->addProvides($relativePath, null, $relativePath);
+            $this->log->trace('Hash-map manifest hydration: self-reference fallback added for ' . $relativePath);
+            return;
+        }
+
+        foreach ($versions as $version) {
+            $this->addProvides($relativePath, $version, null);
+            $this->log->trace('Hash-map manifest hydration: provides.version added: ' . $relativePath . ' => ' . $version);
+        }
+
+        $this->log->debug('Hash-map manifest hydration completed: ' . $relativePath . ' (versions=' . implode(',', $versions) . ')');
     }
 
     private function normalizeHashValue(string $algorithm, string $hash): string

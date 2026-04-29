@@ -472,45 +472,51 @@ final class UpdateOrchestrator
     private function initHashMap(): void
     {
         if (!$this->config->useHashMap()) {
+            $this->log->debug($this->language->t('log.hashmap_init_skipped'));
             return;
         }
 
         $this->hashMapPath = Tools::ds($this->config->getDataDir(), 'hash-map.json');
+        $this->log->debug($this->language->t('log.hashmap_init_load', $this->hashMapPath));
         $this->hashMap->load($this->hashMapPath);
 
         if ($this->hashMap->wasLoaded()) {
             $this->log->debug($this->language->t('script.hash_map_loaded'));
+            $this->log->debug($this->language->t('log.hashmap_init_reset_provides'));
+            $this->hashMap->resetProvides();
         } else {
             $this->log->debug($this->language->t('script.hash_map_missing'));
-        }
-
-        if ($this->hashMap->wasLoaded()) {
-            $this->hashMap->resetProvides();
         }
     }
 
     private function finalizeHashMap(): void
     {
         if (!$this->config->useHashMap()) {
+            $this->log->debug($this->language->t('log.hashmap_finalize_skipped'));
             return;
         }
 
         if (!$this->hashMap->isAvailable()) {
+            $this->log->warning($this->language->t('log.hashmap_finalize_algo_missing'));
             return;
         }
 
         $webDir = $this->config->getWebDir();
         $exclude = $this->config->getHashMapExclude();
+        $this->log->debug($this->language->t('log.hashmap_finalize_started', $webDir));
+
         if ($this->hashMap->wasLoaded()) {
             $deleted = $this->hashMap->deleteExtraFiles($webDir, $exclude);
             if (!empty($deleted)) {
                 $this->log->info($this->language->t('script.hash_map_cleanup_removed', count($deleted)));
             }
         } else {
+            $this->log->debug($this->language->t('log.hashmap_finalize_rebuild'));
             $this->hashMap->rebuildFromWebDir($webDir, $exclude);
         }
 
         $path = $this->hashMapPath ?? Tools::ds($this->config->getDataDir(), 'hash-map.json');
+        $this->log->debug($this->language->t('log.hashmap_finalize_save', $path));
         $this->hashMap->save($path);
     }
 
