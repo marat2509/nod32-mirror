@@ -87,6 +87,23 @@ $DIRECTORIES = [
             ],
         ],
     ],
+    'ep13' => [
+        'name' => 'ESET NOD32 Endpoint 13',
+        'channels' => [
+            'production' => [
+                'file' => false,
+                'dll' => 'eset_upd/ep13/dll/update.ver',
+            ],
+            'deferred' => [
+                'file' => false,
+                'dll' => 'deferred/eset_upd/ep13/dll/update.ver',
+            ],
+            'pre-release' => [
+                'file' => false,
+                'dll' => 'eset_upd/ep13/pre/dll/update.ver',
+            ],
+        ],
+    ],
     'v3' => [
         'name' => 'ESET NOD32 3-9',
         'channels' => [
