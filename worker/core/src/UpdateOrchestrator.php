@@ -290,6 +290,7 @@ final class UpdateOrchestrator
                 // Keep hash-map provides populated for up-to-date versions,
                 // otherwise finalizeHashMap() may treat their files as extra.
                 $this->mirror->rebuildProvidesFromLocalVariants();
+                $this->platformsFound[$version] = $this->mirror->getPlatformsFound();
             } else {
                 $result = $this->mirror->downloadSignature();
 
