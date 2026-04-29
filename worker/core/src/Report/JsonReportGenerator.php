@@ -29,7 +29,7 @@ final class JsonReportGenerator implements ReportGeneratorInterface
         $json = json_encode($metadata, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
         if ($json === false) {
-            $this->log->warning('JSON encoding failed: ' . json_last_error_msg());
+            $this->log->warning($this->language->t('report.json_encoding_failed', json_last_error_msg()));
             return '{}';
         }
 
