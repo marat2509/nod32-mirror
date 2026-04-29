@@ -135,6 +135,10 @@ eset:
         mirror: true
         platforms: []
         channels: []
+      ep13:
+        mirror: true
+        platforms: []
+        channels: []
       v3:
         mirror: true
         platforms: []
