@@ -412,6 +412,77 @@ final class HashMapIndex
     }
 
     /**
+     * Delete files that are not referenced by any published local index.
+     *
+     * @param string $webDir
+     * @param string[] $referencedRelativePaths
+     * @param string[] $excludePatterns
+     * @return string[] Relative paths of deleted files
+     */
+    public function deleteUnreferencedFiles(
+        string $webDir,
+        array $referencedRelativePaths,
+        array $excludePatterns = []
+    ): array {
+        $this->log->trace($this->language->t('log.running', __METHOD__));
+        $deleted = [];
+        $referenced = [];
+
+        foreach ($referencedRelativePaths as $path) {
+            $path = $this->normalizeRelativePath((string) $path);
+            if ($path !== '') {
+                $referenced[$path] = true;
+            }
+        }
+
+        if (!is_dir($webDir)) {
+            $this->log->debug($this->language->t('filesystem.hash_map_extra_skipped_not_dir', $webDir));
+            return $deleted;
+        }
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($webDir, RecursiveDirectoryIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::SELF_FIRST
+        );
+
+        foreach ($iterator as $fileObject) {
+            if ($fileObject->isDir()) {
+                continue;
+            }
+
+            $absolutePath = $fileObject->getPathname();
+            $relativePath = $this->toRelativePath($webDir, $absolutePath);
+
+            if ($this->isExcluded($relativePath, $excludePatterns)) {
+                $this->log->trace($this->language->t('filesystem.hash_map_extra_excluded', $relativePath));
+                continue;
+            }
+
+            if (isset($referenced[$relativePath])) {
+                $this->log->trace($this->language->t('filesystem.global_cleanup_referenced_keep', $relativePath));
+                if (isset($this->map['files'][$relativePath])) {
+                    continue;
+                }
+
+                $this->updateFileEntry($webDir, $relativePath);
+                continue;
+            }
+
+            if ($this->fileOps->deleteFile($absolutePath)) {
+                $deleted[] = $relativePath;
+            }
+
+            $this->removeEntry($relativePath);
+        }
+
+        if (!empty($deleted)) {
+            $this->log->info($this->language->t('filesystem.hash_map_removed_extra', count($deleted)));
+        }
+
+        return $deleted;
+    }
+
+    /**
      * Get hash for an existing file path
      */
     public function hashExistingFile(string $absolutePath): ?string

@@ -396,7 +396,6 @@ final class Mirror
         $totalDuration = 0.0;
         $totalDownloaded = 0;
         $allNeededFiles = [];
-        $cleanupFolders = [];
         $processed = false;
 
         foreach ($this->updateVariants as $variantKey => $variant) {
@@ -411,7 +410,6 @@ final class Mirror
             $totalSize += $result['size'] ?? 0;
             $allNeededFiles = array_merge($allNeededFiles, $result['neededFiles']);
             $allNeededFiles[] = $variant->localPath;
-            $cleanupFolders[] = dirname($variant->localPath);
             $totalDuration += $result['duration'];
             $totalDownloaded += $result['downloaded'];
 
@@ -424,34 +422,12 @@ final class Mirror
 
         if ($processed) {
             $allNeededFiles = array_values(array_unique($allNeededFiles));
-            $cleanupFolders = array_values(array_unique($cleanupFolders));
 
             $this->log->debug(
-                $this->language->t('log.mirror_cleanup_context', count($cleanupFolders), count($allNeededFiles)),
+                $this->language->t('log.mirror_cleanup_deferred', count($allNeededFiles)),
                 $this->version,
                 $this->channel
             );
-
-            // Cleanup old files and empty folders using FileCleaner
-            $cleanupResult = $this->fileCleaner->cleanFolders($cleanupFolders, $allNeededFiles);
-
-            if ($cleanupResult->deletedFilesCount > 0) {
-                $this->updated = true;
-                $this->log->info(
-                    $this->language->t('mirror.deleted_files', $cleanupResult->deletedFilesCount),
-                    $this->version,
-                    $this->channel
-                );
-            }
-
-            if ($cleanupResult->deletedFoldersCount > 0) {
-                $this->updated = true;
-                $this->log->info(
-                    $this->language->t('mirror.deleted_folders', $cleanupResult->deletedFoldersCount),
-                    $this->version,
-                    $this->channel
-                );
-            }
         } else {
             $host = $mirror?->host ?? 'unknown';
             $this->log->warning($this->language->t('mirror.update_ver_parse_error', $host), $this->version, $this->channel);
@@ -934,6 +910,14 @@ final class Mirror
                 $this->rebuildProvidesForVariantFiles($parsed['files'], $webDir);
             }
         }
+    }
+
+    /**
+     * @return UpdateVariant[]
+     */
+    public function getUpdateVariants(): array
+    {
+        return $this->updateVariants;
     }
 
     private function matchesPlatform(DownloadableFile $file): bool

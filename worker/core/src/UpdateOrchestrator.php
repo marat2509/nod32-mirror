@@ -19,6 +19,7 @@ use Nod32Mirror\Parser\Parser;
 use Nod32Mirror\Report\HtmlReportGenerator;
 use Nod32Mirror\Report\JsonReportGenerator;
 use Nod32Mirror\ValueObject\Credential;
+use Nod32Mirror\ValueObject\DownloadableFile;
 use Nod32Mirror\ValueObject\MirrorInfo;
 use Nod32Mirror\FileSystem\HashMapIndex;
 
@@ -492,6 +493,21 @@ final class UpdateOrchestrator
 
     private function finalizeHashMap(): void
     {
+        $webDir = $this->config->getWebDir();
+        $exclude = $this->config->getHashMapExclude();
+        $this->log->debug($this->language->t('log.hashmap_finalize_started', $webDir));
+
+        $referencedFiles = $this->collectPublishedIndexReferences($webDir);
+
+        if (empty($referencedFiles)) {
+            $this->log->warning($this->language->t('global_cleanup.skipped_no_references'));
+        } else {
+            $deleted = $this->hashMap->deleteUnreferencedFiles($webDir, $referencedFiles, $exclude);
+            if (!empty($deleted)) {
+                $this->log->info($this->language->t('script.hash_map_cleanup_removed', count($deleted)));
+            }
+        }
+
         if (!$this->config->useHashMap()) {
             $this->log->debug($this->language->t('log.hashmap_finalize_skipped'));
             return;
@@ -502,23 +518,106 @@ final class UpdateOrchestrator
             return;
         }
 
-        $webDir = $this->config->getWebDir();
-        $exclude = $this->config->getHashMapExclude();
-        $this->log->debug($this->language->t('log.hashmap_finalize_started', $webDir));
-
-        if ($this->hashMap->wasLoaded()) {
-            $deleted = $this->hashMap->deleteExtraFiles($webDir, $exclude);
-            if (!empty($deleted)) {
-                $this->log->info($this->language->t('script.hash_map_cleanup_removed', count($deleted)));
-            }
-        } else {
+        if (!$this->hashMap->wasLoaded()) {
             $this->log->debug($this->language->t('log.hashmap_finalize_rebuild'));
             $this->hashMap->rebuildFromWebDir($webDir, $exclude);
+        } else {
+            foreach ($referencedFiles as $relativePath) {
+                $this->hashMap->updateFileEntry($webDir, $relativePath);
+            }
         }
 
         $path = $this->hashMapPath ?? Tools::ds($this->config->getDataDir(), 'hash-map.json');
         $this->log->debug($this->language->t('log.hashmap_finalize_save', $path));
         $this->hashMap->save($path);
+    }
+
+    /**
+     * Build the authoritative set of files reachable from published local update.ver files.
+     *
+     * @return string[]
+     */
+    private function collectPublishedIndexReferences(string $webDir): array
+    {
+        $referenced = [];
+        $indexCount = 0;
+
+        foreach ($this->versionConfig->getEnabledVersions() as $version) {
+            if (!isset($this->directories[$version])) {
+                continue;
+            }
+
+            $platforms = $this->versionConfig->getVersionPlatforms($version);
+            $channels = $this->versionConfig->getVersionChannels($version);
+            $this->mirror->init($version, $this->directories[$version], $platforms, $channels);
+
+            foreach ($this->mirror->getUpdateVariants() as $variant) {
+                $indexRelativePath = $this->hashMap->toRelativePath($webDir, $variant->localPath);
+
+                if (!is_file($variant->localPath)) {
+                    $this->log->warning(
+                        $this->language->t('global_cleanup.index_missing', $indexRelativePath),
+                        $version,
+                        $variant->getChannel()
+                    );
+                    continue;
+                }
+
+                $content = @file_get_contents($variant->localPath);
+                if ($content === false) {
+                    $this->log->warning(
+                        $this->language->t('global_cleanup.index_unreadable', $indexRelativePath),
+                        $version,
+                        $variant->getChannel()
+                    );
+                    continue;
+                }
+
+                if (!preg_match_all('#\[\w+\][^\[]+#', $content, $matches)) {
+                    $this->log->warning(
+                        $this->language->t('global_cleanup.index_parse_failed', $indexRelativePath),
+                        $version,
+                        $variant->getChannel()
+                    );
+                    continue;
+                }
+
+                $parsed = $this->parser->parseUpdateFile(
+                    $matches[0],
+                    fn(DownloadableFile $file): bool => $this->fileMatchesPlatforms($file, $platforms)
+                );
+
+                $referenced[$indexRelativePath] = true;
+                $indexCount++;
+
+                foreach ($parsed['files'] as $file) {
+                    $relativePath = $this->hashMap->toRelativePath($webDir, Tools::ds($webDir, $file->path));
+                    if ($relativePath !== '') {
+                        $referenced[$relativePath] = true;
+                    }
+                }
+            }
+        }
+
+        $this->log->debug($this->language->t('global_cleanup.references_collected', count($referenced), $indexCount));
+
+        return array_keys($referenced);
+    }
+
+    /**
+     * @param string[]|true $platforms
+     */
+    private function fileMatchesPlatforms(DownloadableFile $file, array|bool $platforms): bool
+    {
+        if ($file->platform === null) {
+            return true;
+        }
+
+        if ($platforms === true || empty($platforms)) {
+            return true;
+        }
+
+        return in_array($file->platform, $platforms, true);
     }
 
     private function logSummary(): void
