@@ -21,6 +21,8 @@
   "filesystem.hash_index_rebuilt": "Індекс хешів перебудовано (%s): %s хешів",
   "filesystem.hash_mismatch_remove": "Невідповідність хешу (%s), видаляю файл: %s",
   "filesystem.hash_missing_remove": "Хеш відсутній (%s), видаляю файл: %s",
+  "filesystem.hash_mismatch_replace": "Невідповідність хешу (%s), заплановано заміну: %s",
+  "filesystem.hash_missing_replace": "Хеш відсутній (%s), заплановано заміну: %s",
   "filesystem.hash_map_provides_link": "Хеш-мапа: provides оновлено для %s через %s",
   "filesystem.hash_map_json_encode_failed": "Не вдалося закодувати JSON хеш-мапи: %s",
   "filesystem.hash_map_extra_skipped_not_dir": "Додаткове сканування hash-map пропущено: webDir не є каталогом: %s",

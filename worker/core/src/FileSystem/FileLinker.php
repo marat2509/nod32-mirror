@@ -61,6 +61,8 @@ final class FileLinker
 
             // Check if file exists with correct hash when enabled; size-based check otherwise
             if (file_exists($path)) {
+                $needsReplacement = false;
+
                 if ($useHashMap) {
                     $hashAlgorithm = $this->hashMap->getHashAlgorithm();
                     $expectedHash = $this->hashMap->getHashFor($file->path);
@@ -68,13 +70,13 @@ final class FileLinker
 
                     if ($expectedHash !== null) {
                         if ($actualHash === null || $actualHash !== $expectedHash) {
-                            $this->log->debug($this->language->t('filesystem.hash_mismatch_remove', $hashAlgorithm, $file->path));
-                            $this->fileOps->deleteFile($path);
+                            $this->log->debug($this->language->t('filesystem.hash_mismatch_replace', $hashAlgorithm, $file->path));
+                            $needsReplacement = true;
                         }
                     } else {
                         if ($actualHash === null) {
-                            $this->log->debug($this->language->t('filesystem.hash_missing_remove', $hashAlgorithm, $file->path));
-                            $this->fileOps->deleteFile($path);
+                            $this->log->debug($this->language->t('filesystem.hash_missing_replace', $hashAlgorithm, $file->path));
+                            $needsReplacement = true;
                         }
                     }
                 } else {
@@ -82,8 +84,16 @@ final class FileLinker
                     $currentSize = (int) ($stat['size'] ?? 0);
 
                     if ($currentSize !== $file->size) {
-                        $this->fileOps->deleteFile($path);
+                        $needsReplacement = true;
                     }
+                }
+
+                if ($needsReplacement) {
+                    if (!$this->isInDownloadList($file, $downloadFiles)) {
+                        $downloadFiles[] = $file;
+                    }
+
+                    continue;
                 }
             }
 

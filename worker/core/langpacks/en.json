@@ -21,6 +21,8 @@
   "filesystem.hash_index_rebuilt": "Hash index rebuilt (%s): %s hashes",
   "filesystem.hash_mismatch_remove": "Hash mismatch (%s), removing file: %s",
   "filesystem.hash_missing_remove": "Hash missing (%s), removing file: %s",
+  "filesystem.hash_mismatch_replace": "Hash mismatch (%s), scheduling replacement: %s",
+  "filesystem.hash_missing_replace": "Hash missing (%s), scheduling replacement: %s",
   "filesystem.hash_map_provides_link": "Hash map provides updated for %s via %s",
   "filesystem.hash_map_json_encode_failed": "Hash map JSON encoding failed: %s",
   "filesystem.hash_map_extra_skipped_not_dir": "Hash-map extra scan skipped: webDir is not a directory: %s",

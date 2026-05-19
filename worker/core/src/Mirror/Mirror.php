@@ -597,15 +597,19 @@ final class Mirror
             return $this->downloadFilesWithHashMap($files, $mirror, $baseUrl, $webDir);
         }
 
-        $results = $this->downloader->downloadMultiple($files, $baseUrl, $webDir, $this->credential);
+        $tmpRoot = Tools::ds(TMP_PATH, 'downloads');
+        $results = $this->downloader->downloadMultiple($files, $baseUrl, $tmpRoot, $this->credential);
 
         $allOk = true;
 
         foreach ($files as $file) {
             $result = $results[$file->path] ?? null;
+            $tempPath = Tools::ds($tmpRoot, $file->path);
+            $targetPath = Tools::ds($webDir, $file->path);
 
             if ($result === null) {
                 $allOk = false;
+                $this->fileOps->deleteFile($tempPath);
                 $this->log->warning(
                     $this->language->t('mirror.download_result_missing', $file->path),
                     $this->version,
@@ -626,36 +630,48 @@ final class Mirror
                     $this->version,
                     $this->channel
                 );
+                $this->fileOps->deleteFile($tempPath);
                 continue;
             }
 
             $this->totalDownloads += $result->downloadedBytes;
 
-            if ($result->downloadedBytes !== $file->size) {
+            if ($result->downloadedBytes !== $file->size || !is_file($tempPath)) {
                 $allOk = false;
-                $targetPath = Tools::ds($webDir, $file->path);
-                $this->fileOps->deleteFile($targetPath);
+                $this->fileOps->deleteFile($tempPath);
                 $this->log->warning(
                     $this->language->t('mirror.file_size_mismatch', $file->path, $file->size, $result->downloadedBytes),
                     $this->version,
                     $this->channel
                 );
-            } else {
-                $this->log->info(
-                    $this->language->t(
-                        'mirror.downloaded_file',
-                        $mirror->host,
-                        basename($file->path),
-                        Tools::bytesToSize1024($result->downloadedBytes),
-                        Tools::bytesToSize1024((int) $result->getSpeed())
-                    ),
+                continue;
+            }
+
+            if (!$this->publishDownloadedFile($tempPath, $targetPath)) {
+                $allOk = false;
+                $this->log->warning(
+                    $this->language->t('mirror.temp_move_failed', $file->path),
                     $this->version,
                     $this->channel
                 );
+                $this->fileOps->deleteFile($tempPath);
+                continue;
+            }
 
-                if ($this->config->useHashMap()) {
-                    $this->hashMap->updateFileEntry($webDir, $file->path);
-                }
+            $this->log->info(
+                $this->language->t(
+                    'mirror.downloaded_file',
+                    $mirror->host,
+                    basename($file->path),
+                    Tools::bytesToSize1024($result->downloadedBytes),
+                    Tools::bytesToSize1024((int) $result->getSpeed())
+                ),
+                $this->version,
+                $this->channel
+            );
+
+            if ($this->config->useHashMap()) {
+                $this->hashMap->updateFileEntry($webDir, $file->path);
             }
         }
 
@@ -747,11 +763,9 @@ final class Mirror
             if ($sourceRelative !== null) {
                 $sourcePath = Tools::ds($webDir, $sourceRelative);
                 if (is_file($sourcePath)) {
-                    $this->fileOps->createDirectory(dirname($targetPath));
-                    $this->fileOps->deleteFile($targetPath);
+                    $tempPublishPath = $this->createPublishTempPath($targetPath);
 
-                    $linked = $this->linkOrCopyFile($sourcePath, $targetPath);
-                    if ($linked) {
+                    if ($this->linkOrCopyFile($sourcePath, $tempPublishPath) && $this->publishTempToTarget($tempPublishPath, $targetPath)) {
                         $this->log->info(
                             $this->language->t('mirror.hash_match_reuse', $hashAlgorithm, $file->path, $sourceRelative),
                             $this->version,
@@ -770,10 +784,7 @@ final class Mirror
                 }
             }
 
-            $this->fileOps->createDirectory(dirname($targetPath));
-            $this->fileOps->deleteFile($targetPath);
-
-            if (!$this->moveTempToTarget($tempPath, $targetPath)) {
+            if (!$this->publishDownloadedFile($tempPath, $targetPath)) {
                 $allOk = false;
                 $this->log->warning(
                     $this->language->t('mirror.temp_move_failed', $file->path),
@@ -813,8 +824,25 @@ final class Mirror
         };
     }
 
-    private function moveTempToTarget(string $tempPath, string $targetPath): bool
+    private function publishDownloadedFile(string $tempPath, string $targetPath): bool
     {
+        $tempPublishPath = $this->createPublishTempPath($targetPath);
+
+        if (!@rename($tempPath, $tempPublishPath)) {
+            if (!@copy($tempPath, $tempPublishPath)) {
+                return false;
+            }
+
+            $this->fileOps->deleteFile($tempPath);
+        }
+
+        return $this->publishTempToTarget($tempPublishPath, $targetPath);
+    }
+
+    private function publishTempToTarget(string $tempPath, string $targetPath): bool
+    {
+        $this->fileOps->createDirectory(dirname($targetPath));
+
         if (@rename($tempPath, $targetPath)) {
             return true;
         }
@@ -823,8 +851,18 @@ final class Mirror
             return false;
         }
 
-        $this->fileOps->deleteFile($tempPath);
         return true;
+    }
+
+    private function createPublishTempPath(string $targetPath): string
+    {
+        $this->fileOps->createDirectory(dirname($targetPath));
+
+        do {
+            $tempPath = $targetPath . '.publish-' . bin2hex(random_bytes(6)) . '.tmp';
+        } while (file_exists($tempPath));
+
+        return $tempPath;
     }
 
     /**

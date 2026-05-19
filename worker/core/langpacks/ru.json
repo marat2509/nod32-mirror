@@ -21,6 +21,8 @@
   "filesystem.hash_index_rebuilt": "Индекс хешей пересобран (%s): %s хешей",
   "filesystem.hash_mismatch_remove": "Несовпадение хеша (%s), удаляю файл: %s",
   "filesystem.hash_missing_remove": "Хеш отсутствует (%s), удаляю файл: %s",
+  "filesystem.hash_mismatch_replace": "Несовпадение хеша (%s), планируется замена: %s",
+  "filesystem.hash_missing_replace": "Хеш отсутствует (%s), планируется замена: %s",
   "filesystem.hash_map_provides_link": "Хеш-карта: provides обновлен для %s через %s",
   "filesystem.hash_map_json_encode_failed": "Не удалось закодировать JSON хеш-карты: %s",
   "filesystem.hash_map_extra_skipped_not_dir": "Доп. сканирование hash-map пропущено: webDir не является папкой: %s",
