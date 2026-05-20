@@ -373,7 +373,7 @@ final class Mirror
     /**
      * Download signature and all files
      *
-     * @return array{totalSize: ?int, totalDownloads: int, averageSpeed: ?float}
+     * @return array{totalSize: ?int, totalDownloads: int, averageSpeed: ?float, processed: bool}
      */
     public function downloadSignature(): array
     {
@@ -381,7 +381,12 @@ final class Mirror
 
         if (empty($this->updateVariants)) {
             $this->log->debug($this->language->t('log.mirror_no_variants'), $this->version, $this->channel);
-            return ['totalSize' => null, 'totalDownloads' => $this->totalDownloads, 'averageSpeed' => null];
+            return [
+                'totalSize' => null,
+                'totalDownloads' => $this->totalDownloads,
+                'averageSpeed' => null,
+                'processed' => false,
+            ];
         }
 
         $mirror = !empty($this->mirrors) ? $this->mirrors[0] : null;
@@ -432,6 +437,7 @@ final class Mirror
             'totalSize' => $totalSize > 0 ? $totalSize : null,
             'totalDownloads' => $this->totalDownloads,
             'averageSpeed' => $averageSpeed,
+            'processed' => $processed,
         ];
     }
 
@@ -503,7 +509,10 @@ final class Mirror
 
             $downloadFiles = $this->collectFilesToDownload($parsed['files'], $webDir);
             $neededFiles = array_map(
-                static fn(DownloadableFile $file): string => Tools::ds($webDir, $file->path),
+                fn(DownloadableFile $file): string => Tools::ds(
+                    $webDir,
+                    $this->normalizePublishedPath($file->path) ?? $file->path
+                ),
                 $parsed['files']
             );
 
@@ -584,7 +593,13 @@ final class Mirror
         $downloadFiles = [];
 
         foreach ($files as $file) {
-            $targetPath = Tools::ds($webDir, $file->path);
+            $relativePath = $this->normalizePublishedPath($file->path);
+            if ($relativePath === null) {
+                $downloadFiles[] = $file;
+                continue;
+            }
+
+            $targetPath = Tools::ds($webDir, $relativePath);
 
             if (!is_file($targetPath)) {
                 $downloadFiles[] = $file;
@@ -598,8 +613,9 @@ final class Mirror
                 continue;
             }
 
-            $knownHash = $this->contentIndex->getPublishedHash($file->path);
+            $knownHash = $this->contentIndex->getPublishedHash($relativePath);
             if ($knownHash === null) {
+                $downloadFiles[] = $file;
                 continue;
             }
 
@@ -618,7 +634,12 @@ final class Mirror
     private function allFilesReady(array $files, string $webDir): bool
     {
         foreach ($files as $file) {
-            $targetPath = Tools::ds($webDir, $file->path);
+            $relativePath = $this->normalizePublishedPath($file->path);
+            if ($relativePath === null) {
+                return false;
+            }
+
+            $targetPath = Tools::ds($webDir, $relativePath);
 
             if (!is_file($targetPath)) {
                 return false;
@@ -639,22 +660,35 @@ final class Mirror
     private function allPublishedPathsSafe(array $files): bool
     {
         foreach ($files as $file) {
-            $path = str_replace('\\', '/', $file->path);
-
-            if ($path === '' || str_starts_with($path, '/') || preg_match('#^[A-Za-z]:/#', $path)) {
+            if ($this->normalizePublishedPath($file->path) === null) {
                 $this->log->warning(sprintf('Unsafe path in update.ver: %s', $file->path), $this->version, $this->channel);
                 return false;
-            }
-
-            foreach (explode('/', $path) as $part) {
-                if ($part === '..') {
-                    $this->log->warning(sprintf('Unsafe path in update.ver: %s', $file->path), $this->version, $this->channel);
-                    return false;
-                }
             }
         }
 
         return true;
+    }
+
+    private function normalizePublishedPath(string $path): ?string
+    {
+        $path = str_replace('\\', '/', trim($path));
+
+        if ($path === '' || preg_match('#^[A-Za-z]:/#', $path)) {
+            return null;
+        }
+
+        $path = ltrim($path, '/');
+        if ($path === '') {
+            return null;
+        }
+
+        foreach (explode('/', $path) as $part) {
+            if ($part === '..') {
+                return null;
+            }
+        }
+
+        return $path;
     }
 
     private function publishIndexContent(string $targetPath, string $content): bool
@@ -693,7 +727,16 @@ final class Mirror
         foreach ($files as $file) {
             $result = $results[$file->path] ?? null;
             $tempPath = Tools::ds($tmpRoot, $file->path);
-            $targetPath = Tools::ds($webDir, $file->path);
+            $relativePath = $this->normalizePublishedPath($file->path);
+
+            if ($relativePath === null) {
+                $allOk = false;
+                $this->fileOps->deleteFile($tempPath);
+                $this->log->warning(sprintf('Unsafe path in update.ver: %s', $file->path), $this->version, $this->channel);
+                continue;
+            }
+
+            $targetPath = Tools::ds($webDir, $relativePath);
 
             if ($result === null) {
                 $allOk = false;
@@ -768,7 +811,7 @@ final class Mirror
 
             $this->fileOps->deleteFile($tempPath);
             $this->contentIndex->recordPublished(
-                $file->path,
+                $relativePath,
                 $hash,
                 $file->size,
                 $this->version,

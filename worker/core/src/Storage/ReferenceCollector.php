@@ -81,12 +81,13 @@ final class ReferenceCollector
                 );
 
                 foreach ($parsed['files'] as $file) {
-                    if (!$this->isSafeRelativePath($file->path)) {
+                    $filePath = $this->normalizePublishedPath($file->path);
+                    if ($filePath === null) {
                         $this->log->warning(sprintf('Unsafe path in published index skipped: %s', $file->path), $version, $channel);
                         continue;
                     }
 
-                    $relativePath = $this->toRelativePath($webDir, Tools::ds($webDir, $file->path));
+                    $relativePath = $this->toRelativePath($webDir, Tools::ds($webDir, $filePath));
                     if ($relativePath === '') {
                         continue;
                     }
@@ -128,20 +129,25 @@ final class ReferenceCollector
         return ltrim($relative, '/');
     }
 
-    private function isSafeRelativePath(string $path): bool
+    private function normalizePublishedPath(string $path): ?string
     {
-        $path = str_replace('\\', '/', $path);
+        $path = str_replace('\\', '/', trim($path));
 
-        if ($path === '' || str_starts_with($path, '/') || preg_match('#^[A-Za-z]:/#', $path)) {
-            return false;
+        if ($path === '' || preg_match('#^[A-Za-z]:/#', $path)) {
+            return null;
+        }
+
+        $path = ltrim($path, '/');
+        if ($path === '') {
+            return null;
         }
 
         foreach (explode('/', $path) as $part) {
             if ($part === '..') {
-                return false;
+                return null;
             }
         }
 
-        return true;
+        return $path;
     }
 }

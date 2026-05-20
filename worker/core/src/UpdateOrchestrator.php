@@ -314,6 +314,11 @@ final class UpdateOrchestrator
             } else {
                 $result = $this->mirror->downloadSignature();
 
+                if (empty($result['processed'])) {
+                    $this->log->warning($this->language->t('script.stopped'), $version);
+                    return;
+                }
+
                 $this->setDatabaseSize($version, $result['totalSize']);
                 $this->platformsFound[$version] = $this->mirror->getPlatformsFound();
 
