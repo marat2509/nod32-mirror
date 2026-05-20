@@ -7,9 +7,6 @@ namespace Nod32Mirror;
 use Nod32Mirror\Config\Config;
 use Nod32Mirror\Config\VersionConfig;
 use Nod32Mirror\Download\GuzzleDownloader;
-use Nod32Mirror\FileSystem\FileCleaner;
-use Nod32Mirror\FileSystem\HashMapIndex;
-use Nod32Mirror\FileSystem\FileLinker;
 use Nod32Mirror\FileSystem\SafeFileOperations;
 use Nod32Mirror\Key\JsonKeyStorage;
 use Nod32Mirror\Key\KeyFinder;
@@ -21,6 +18,12 @@ use Nod32Mirror\Mirror\MirrorSelector;
 use Nod32Mirror\Parser\Parser;
 use Nod32Mirror\Report\HtmlReportGenerator;
 use Nod32Mirror\Report\JsonReportGenerator;
+use Nod32Mirror\Storage\BlobStore;
+use Nod32Mirror\Storage\ContentIndex;
+use Nod32Mirror\Storage\PublishedPathManager;
+use Nod32Mirror\Storage\ReferenceCollector;
+use Nod32Mirror\Storage\StorageConfig;
+use Nod32Mirror\Storage\StorageGarbageCollector;
 
 /**
  * Application bootstrap and dependency wiring
@@ -37,9 +40,12 @@ final class Application
     private KeyFinder $keyFinder;
     private Parser $parser;
     private SafeFileOperations $fileOps;
-    private FileLinker $fileLinker;
-    private FileCleaner $fileCleaner;
-    private HashMapIndex $hashMap;
+    private StorageConfig $storageConfig;
+    private BlobStore $blobStore;
+    private ContentIndex $contentIndex;
+    private PublishedPathManager $publishedPathManager;
+    private ReferenceCollector $referenceCollector;
+    private StorageGarbageCollector $storageGarbageCollector;
     private Mirror $mirror;
     private MirrorSelector $mirrorSelector;
     private HtmlReportGenerator $htmlGenerator;
@@ -89,10 +95,10 @@ final class Application
 
         // File system services
         $this->fileOps = new SafeFileOperations($this->log, $this->language);
-        $hashAlgorithm = $this->config->getHashMapAlgorithm();
-        $this->hashMap = new HashMapIndex($this->fileOps, $this->log, $this->language, $hashAlgorithm);
-        $this->fileLinker = new FileLinker($this->fileOps, $this->log, $this->language, $this->hashMap);
-        $this->fileCleaner = new FileCleaner($this->fileOps, $this->log, $this->language);
+        $this->storageConfig = new StorageConfig($this->config);
+        $this->blobStore = new BlobStore($this->storageConfig, $this->fileOps, $this->log);
+        $this->contentIndex = new ContentIndex($this->fileOps, $this->log);
+        $this->publishedPathManager = new PublishedPathManager($this->storageConfig, $this->blobStore, $this->fileOps);
 
         $this->mirror = new Mirror(
             $this->downloader,
@@ -101,9 +107,29 @@ final class Application
             $this->log,
             $this->language,
             $this->fileOps,
-            $this->fileLinker,
-            $this->fileCleaner,
-            $this->hashMap
+            $this->storageConfig,
+            $this->blobStore,
+            $this->contentIndex,
+            $this->publishedPathManager
+        );
+
+        $this->referenceCollector = new ReferenceCollector(
+            $this->versionConfig,
+            $this->parser,
+            $this->fileOps,
+            $this->log,
+            $this->language,
+            $this->mirror,
+            $directories
+        );
+
+        $this->storageGarbageCollector = new StorageGarbageCollector(
+            $this->config,
+            $this->storageConfig,
+            $this->contentIndex,
+            $this->blobStore,
+            $this->fileOps,
+            $this->log
         );
 
         $this->mirrorSelector = new MirrorSelector(
@@ -130,7 +156,11 @@ final class Application
             $this->mirrorSelector,
             $this->htmlGenerator,
             $this->jsonGenerator,
-            $this->hashMap,
+            $this->storageConfig,
+            $this->blobStore,
+            $this->contentIndex,
+            $this->referenceCollector,
+            $this->storageGarbageCollector,
             $directories
         );
     }

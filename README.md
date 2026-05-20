@@ -28,37 +28,43 @@ Open the browser and go to `http://localhost:8084/`
 
 If the page is displayed, enter your URL in the ESET settings
 
-## Hash map
+## Storage
 
-Optional hash-based reuse can be enabled via `script.hash_map.enabled` in the config.
-When enabled, the worker maintains `data/hash-map.json` with hashes of files
-under `webDir` and prefers reusing files by hash rather than by name/size.
+The worker stores newly downloaded update files in content-addressed storage
+under `script.storage.dir` and publishes compatible paths into `webDir`.
 
-Hash algorithm is configurable via `script.hash_map.algorithm` (any value supported by `hash_algos()`).
-Exclude patterns support `*`, `?`, and `**` (globstar), for example `some_path/*` or `**/*.nup`.
+Default config:
 
-Schema (paths are relative to `webDir`):
+```yaml
+script:
+  storage:
+    dir: storage
+    hash: sha256
+    link_method: hardlink
+    gc:
+      enabled: false
+```
+
+`link_method` can be `hardlink`, `softlink`, or `copy`. The canonical
+metadata file is `data/content-index.json`.
+
+Schema (published paths are relative to `webDir`):
 
 ```json
 {
-	"algorithm": "xxh3",
-	"files": {
-		"eset_upd/v16/base/em002_64.nup": {
-			"hash": { "xxh3": "9f12a3c0e5b7d4a1" },
-			"size": 402653184,
-			"provides": { "versions": ["v16"], "files": ["eset_upd/v10/base/em002_64.nup"] }
-		},
-		"deferred/eset_upd/ep9/base/defs.nup": {
-			"hash": { "xxh3": "0f1e2d3c4b5a6978" },
+	"hash_algorithm": "sha256",
+	"updated_at": "2026-05-20T12:34:56+00:00",
+	"hashes": {
+		"abcdef": {
+			"hash": "abcdef",
 			"size": 104857600,
-			"provides": { "versions": ["ep9"], "files": [] }
-		},
-		"index.json": {
-			"hash": { "xxh3": "1234567890abcdef" },
-			"size": 20480,
-			"provides": { "versions": [], "files": [] }
+			"blob_path": "/app/storage/blobs/sha256/ab/cd/abcdef",
+			"published_paths": ["eset_upd/ep9/production/base/defs.nup"],
+			"version_ids": { "ep9": ["production"] },
+			"created_at": "2026-05-20T12:00:00+00:00",
+			"updated_at": "2026-05-20T12:34:56+00:00"
 		}
 	},
-	"updated_at": 1710270000
+	"published": {}
 }
 ```

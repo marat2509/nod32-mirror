@@ -6,13 +6,14 @@ namespace Nod32Mirror\Mirror;
 
 use Nod32Mirror\Config\Config;
 use Nod32Mirror\Contract\DownloaderInterface;
-use Nod32Mirror\FileSystem\FileCleaner;
-use Nod32Mirror\FileSystem\FileLinker;
-use Nod32Mirror\FileSystem\HashMapIndex;
 use Nod32Mirror\FileSystem\SafeFileOperations;
 use Nod32Mirror\Log\Log;
 use Nod32Mirror\Log\Language;
 use Nod32Mirror\Parser\Parser;
+use Nod32Mirror\Storage\BlobStore;
+use Nod32Mirror\Storage\ContentIndex;
+use Nod32Mirror\Storage\PublishedPathManager;
+use Nod32Mirror\Storage\StorageConfig;
 use Nod32Mirror\Tools;
 use Nod32Mirror\ValueObject\Credential;
 use Nod32Mirror\ValueObject\DownloadableFile;
@@ -54,9 +55,10 @@ final class Mirror
         private readonly Log $log,
         private readonly Language $language,
         private readonly SafeFileOperations $fileOps,
-        private readonly FileLinker $fileLinker,
-        private readonly FileCleaner $fileCleaner,
-        private readonly HashMapIndex $hashMap
+        private readonly StorageConfig $storageConfig,
+        private readonly BlobStore $blobStore,
+        private readonly ContentIndex $contentIndex,
+        private readonly PublishedPathManager $publishedPathManager
     ) {
     }
 
@@ -395,7 +397,6 @@ final class Mirror
         $totalSize = 0;
         $totalDuration = 0.0;
         $totalDownloaded = 0;
-        $allNeededFiles = [];
         $processed = false;
 
         foreach ($this->updateVariants as $variantKey => $variant) {
@@ -408,8 +409,6 @@ final class Mirror
 
             $processed = true;
             $totalSize += $result['size'] ?? 0;
-            $allNeededFiles = array_merge($allNeededFiles, $result['neededFiles']);
-            $allNeededFiles[] = $variant->localPath;
             $totalDuration += $result['duration'];
             $totalDownloaded += $result['downloaded'];
 
@@ -420,15 +419,7 @@ final class Mirror
             );
         }
 
-        if ($processed) {
-            $allNeededFiles = array_values(array_unique($allNeededFiles));
-
-            $this->log->debug(
-                $this->language->t('log.mirror_cleanup_deferred', count($allNeededFiles)),
-                $this->version,
-                $this->channel
-            );
-        } else {
+        if (!$processed) {
             $host = $mirror?->host ?? 'unknown';
             $this->log->warning($this->language->t('mirror.update_ver_parse_error', $host), $this->version, $this->channel);
         }
@@ -505,20 +496,16 @@ final class Mirror
             $this->platformsFound = array_merge($this->platformsFound, $parsedPlatforms);
 
             $webDir = $this->config->getWebDir();
-            $linkMethod = $this->config->getLinkMethod();
-            $useHashMap = $this->config->useHashMap();
-            if ($useHashMap && $this->hashMap->isAvailable()) {
-                $providerPath = $this->hashMap->toRelativePath($webDir, $variant->localPath);
-                $this->hashMap->addProvides($providerPath, $this->version, null);
+            if (!$this->allPublishedPathsSafe($parsed['files'])) {
+                $this->fileOps->deleteFile($variant->tmpPath);
+                return $result;
             }
-            $linkResult = $this->fileLinker->createLinks($webDir, $parsed['files'], $this->version, $linkMethod, $useHashMap);
 
-            $downloadFiles = $linkResult->filesToDownload;
-            $neededFiles = $linkResult->neededFiles;
-
-            if ($linkResult->linkedCount > 0) {
-                $this->updated = true;
-            }
+            $downloadFiles = $this->collectFilesToDownload($parsed['files'], $webDir);
+            $neededFiles = array_map(
+                static fn(DownloadableFile $file): string => Tools::ds($webDir, $file->path),
+                $parsed['files']
+            );
 
             $beforeDownload = $this->totalDownloads;
             $startTime = microtime(true);
@@ -542,7 +529,18 @@ final class Mirror
                 return $result;
             }
 
-            $this->fileOps->writeFile($variant->localPath, $parsed['content']);
+            if (!$this->allFilesReady($parsed['files'], $webDir)) {
+                $this->log->warning($this->language->t('mirror.required_files_not_downloaded'), $this->version, $this->channel);
+                $this->fileOps->deleteFile($variant->tmpPath);
+                return $result;
+            }
+
+            if (!$this->publishIndexContent($variant->localPath, $parsed['content'])) {
+                $this->log->warning($this->language->t('mirror.temp_move_failed', $variant->fixedPath), $this->version, $this->channel);
+                $this->fileOps->deleteFile($variant->tmpPath);
+                return $result;
+            }
+
             $this->fileOps->deleteFile($variant->tmpPath);
 
             $this->log->info(
@@ -565,8 +563,6 @@ final class Mirror
                 );
             }
 
-            $this->rebuildProvidesForVariantFiles($parsed['files'], $webDir);
-
             $result['processed'] = true;
             $result['size'] = $parsed['totalSize'];
             $result['neededFiles'] = $neededFiles;
@@ -581,6 +577,104 @@ final class Mirror
 
     /**
      * @param DownloadableFile[] $files
+     * @return DownloadableFile[]
+     */
+    private function collectFilesToDownload(array $files, string $webDir): array
+    {
+        $downloadFiles = [];
+
+        foreach ($files as $file) {
+            $targetPath = Tools::ds($webDir, $file->path);
+
+            if (!is_file($targetPath)) {
+                $downloadFiles[] = $file;
+                continue;
+            }
+
+            clearstatcache(true, $targetPath);
+            $currentSize = (int) (filesize($targetPath) ?: 0);
+            if ($currentSize !== $file->size) {
+                $downloadFiles[] = $file;
+                continue;
+            }
+
+            $knownHash = $this->contentIndex->getPublishedHash($file->path);
+            if ($knownHash === null) {
+                continue;
+            }
+
+            $actualHash = $this->blobStore->hashFile($targetPath);
+            if ($actualHash !== $knownHash) {
+                $downloadFiles[] = $file;
+            }
+        }
+
+        return $downloadFiles;
+    }
+
+    /**
+     * @param DownloadableFile[] $files
+     */
+    private function allFilesReady(array $files, string $webDir): bool
+    {
+        foreach ($files as $file) {
+            $targetPath = Tools::ds($webDir, $file->path);
+
+            if (!is_file($targetPath)) {
+                return false;
+            }
+
+            clearstatcache(true, $targetPath);
+            if ((int) (filesize($targetPath) ?: 0) !== $file->size) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param DownloadableFile[] $files
+     */
+    private function allPublishedPathsSafe(array $files): bool
+    {
+        foreach ($files as $file) {
+            $path = str_replace('\\', '/', $file->path);
+
+            if ($path === '' || str_starts_with($path, '/') || preg_match('#^[A-Za-z]:/#', $path)) {
+                $this->log->warning(sprintf('Unsafe path in update.ver: %s', $file->path), $this->version, $this->channel);
+                return false;
+            }
+
+            foreach (explode('/', $path) as $part) {
+                if ($part === '..') {
+                    $this->log->warning(sprintf('Unsafe path in update.ver: %s', $file->path), $this->version, $this->channel);
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    private function publishIndexContent(string $targetPath, string $content): bool
+    {
+        $tempPath = $this->createPublishTempPath($targetPath);
+
+        if (!$this->fileOps->writeFile($tempPath, $content)) {
+            return false;
+        }
+
+        if (@rename($tempPath, $targetPath)) {
+            return true;
+        }
+
+        $this->fileOps->deleteFile($tempPath);
+        return false;
+    }
+
+    /**
+     * @param DownloadableFile[] $files
      */
     private function downloadFiles(array $files, MirrorInfo $mirror): bool
     {
@@ -591,13 +685,7 @@ final class Mirror
 
         $webDir = $this->config->getWebDir();
         $baseUrl = $mirror->getBaseUrl();
-        $useHashMap = $this->config->useHashMap() && $this->hashMap->isAvailable();
-
-        if ($useHashMap) {
-            return $this->downloadFilesWithHashMap($files, $mirror, $baseUrl, $webDir);
-        }
-
-        $tmpRoot = Tools::ds(TMP_PATH, 'downloads');
+        $tmpRoot = $this->blobStore->getDownloadTmpRoot();
         $results = $this->downloader->downloadMultiple($files, $baseUrl, $tmpRoot, $this->credential);
 
         $allOk = true;
@@ -647,144 +735,27 @@ final class Mirror
                 continue;
             }
 
-            if (!$this->publishDownloadedFile($tempPath, $targetPath)) {
-                $allOk = false;
-                $this->log->warning(
-                    $this->language->t('mirror.temp_move_failed', $file->path),
-                    $this->version,
-                    $this->channel
-                );
-                $this->fileOps->deleteFile($tempPath);
-                continue;
-            }
-
-            $this->log->info(
-                $this->language->t(
-                    'mirror.downloaded_file',
-                    $mirror->host,
-                    basename($file->path),
-                    Tools::bytesToSize1024($result->downloadedBytes),
-                    Tools::bytesToSize1024((int) $result->getSpeed())
-                ),
-                $this->version,
-                $this->channel
-            );
-
-            if ($this->config->useHashMap()) {
-                $this->hashMap->updateFileEntry($webDir, $file->path);
-            }
-        }
-
-        return $allOk;
-    }
-
-    /**
-     * @param DownloadableFile[] $files
-     */
-    private function downloadFilesWithHashMap(array $files, MirrorInfo $mirror, string $baseUrl, string $webDir): bool
-    {
-        $tmpRoot = Tools::ds(TMP_PATH, 'downloads');
-        $hashAlgorithm = $this->hashMap->getHashAlgorithm();
-
-        $this->log->debug($this->language->t('mirror.hash_map_temp_dir', $hashAlgorithm, $tmpRoot), $this->version, $this->channel);
-
-        $results = $this->downloader->downloadMultiple($files, $baseUrl, $tmpRoot, $this->credential);
-
-        $allOk = true;
-
-        foreach ($files as $file) {
-            $result = $results[$file->path] ?? null;
-            $tempPath = Tools::ds($tmpRoot, $file->path);
-            $targetPath = Tools::ds($webDir, $file->path);
-
-            if ($result === null) {
-                $allOk = false;
-                $this->log->warning(
-                    $this->language->t('mirror.download_result_missing', $file->path),
-                    $this->version,
-                    $this->channel
-                );
-                $this->fileOps->deleteFile($tempPath);
-                continue;
-            }
-
-            if (!$result->isSuccessful()) {
-                $allOk = false;
-                $this->log->warning(
-                    $this->language->t(
-                        'mirror.download_failed',
-                        $file->path,
-                        $result->httpCode,
-                        $result->error ?? $this->language->t('common.na')
-                    ),
-                    $this->version,
-                    $this->channel
-                );
-                $this->fileOps->deleteFile($tempPath);
-                continue;
-            }
-
-            $this->totalDownloads += $result->downloadedBytes;
-
-            if (!is_file($tempPath)) {
-                $allOk = false;
-                $this->log->warning(
-                    $this->language->t('mirror.file_size_mismatch', $file->path, $file->size, 0),
-                    $this->version,
-                    $this->channel
-                );
-                continue;
-            }
-
-            if ($result->downloadedBytes !== $file->size) {
-                $allOk = false;
-                $this->fileOps->deleteFile($tempPath);
-                $this->log->warning(
-                    $this->language->t('mirror.file_size_mismatch', $file->path, $file->size, $result->downloadedBytes),
-                    $this->version,
-                    $this->channel
-                );
-                continue;
-            }
-
-            $hash = $this->hashMap->hashExistingFile($tempPath);
+            $hash = $this->blobStore->hashFile($tempPath);
             if ($hash === null) {
                 $allOk = false;
-                $this->log->warning($this->language->t('mirror.hash_calculation_failed', $hashAlgorithm, $file->path), $this->version, $this->channel);
+                $this->log->warning(
+                    $this->language->t('mirror.hash_calculation_failed', $this->blobStore->getHashAlgorithm(), $file->path),
+                    $this->version,
+                    $this->channel
+                );
                 $this->fileOps->deleteFile($tempPath);
                 continue;
             }
 
-            $sourceRelative = $this->hashMap->findPathByHash(
-                $hash,
-                static fn(string $path): bool => $path !== $file->path
-            );
-
-            if ($sourceRelative !== null) {
-                $sourcePath = Tools::ds($webDir, $sourceRelative);
-                if (is_file($sourcePath)) {
-                    $tempPublishPath = $this->createPublishTempPath($targetPath);
-
-                    if ($this->linkOrCopyFile($sourcePath, $tempPublishPath) && $this->publishTempToTarget($tempPublishPath, $targetPath)) {
-                        $this->log->info(
-                            $this->language->t('mirror.hash_match_reuse', $hashAlgorithm, $file->path, $sourceRelative),
-                            $this->version,
-                            $this->channel
-                        );
-                        $this->hashMap->addProvides($sourceRelative, $this->version, $file->path);
-                        $this->fileOps->deleteFile($tempPath);
-                        continue;
-                    }
-                } else {
-                    $this->log->debug(
-                        $this->language->t('mirror.hash_match_source_missing', $hashAlgorithm, $sourceRelative),
-                        $this->version,
-                        $this->channel
-                    );
-                }
+            $blobPath = $this->blobStore->ensureBlob($tempPath, $hash, $file->size);
+            if ($blobPath === null) {
+                $allOk = false;
+                $this->log->warning(sprintf('Failed to store blob for %s', $file->path), $this->version, $this->channel);
+                $this->fileOps->deleteFile($tempPath);
+                continue;
             }
 
-            if (!$this->publishDownloadedFile($tempPath, $targetPath)) {
+            if (!$this->publishedPathManager->publishFromBlob($blobPath, $targetPath, $hash, $file->size)) {
                 $allOk = false;
                 $this->log->warning(
                     $this->language->t('mirror.temp_move_failed', $file->path),
@@ -793,65 +764,33 @@ final class Mirror
                 );
                 $this->fileOps->deleteFile($tempPath);
                 continue;
-            }
-
-            $this->hashMap->updateEntryFromHash($file->path, $hash, $file->size);
-
-            $this->log->debug($this->language->t('mirror.temp_store_success', $file->path), $this->version, $this->channel);
-
-            $this->log->info(
-                $this->language->t(
-                    'mirror.downloaded_file',
-                    $mirror->host,
-                    basename($file->path),
-                    Tools::bytesToSize1024($result->downloadedBytes),
-                    Tools::bytesToSize1024((int) $result->getSpeed())
-                ),
-                $this->version,
-                $this->channel
-            );
-        }
-
-        return $allOk;
-    }
-
-    private function linkOrCopyFile(string $sourcePath, string $targetPath): bool
-    {
-        return match ($this->config->getLinkMethod()) {
-            \Nod32Mirror\Enum\LinkMethod::Hardlink => $this->fileOps->createHardlink($sourcePath, $targetPath),
-            \Nod32Mirror\Enum\LinkMethod::Symlink => $this->fileOps->createSymlink($sourcePath, $targetPath),
-            default => $this->fileOps->copyFile($sourcePath, $targetPath),
-        };
-    }
-
-    private function publishDownloadedFile(string $tempPath, string $targetPath): bool
-    {
-        $tempPublishPath = $this->createPublishTempPath($targetPath);
-
-        if (!@rename($tempPath, $tempPublishPath)) {
-            if (!@copy($tempPath, $tempPublishPath)) {
-                return false;
             }
 
             $this->fileOps->deleteFile($tempPath);
+            $this->contentIndex->recordPublished(
+                $file->path,
+                $hash,
+                $file->size,
+                $this->version,
+                $this->channel ?? 'default',
+                $this->storageConfig->getLinkMethod()->value,
+                $blobPath
+            );
+
+            $this->log->info(
+                $this->language->t(
+                    'mirror.downloaded_file',
+                    $mirror->host,
+                    basename($file->path),
+                    Tools::bytesToSize1024($result->downloadedBytes),
+                    Tools::bytesToSize1024((int) $result->getSpeed())
+                ),
+                $this->version,
+                $this->channel
+            );
         }
 
-        return $this->publishTempToTarget($tempPublishPath, $targetPath);
-    }
-
-    private function publishTempToTarget(string $tempPath, string $targetPath): bool
-    {
-        $this->fileOps->createDirectory(dirname($targetPath));
-
-        if (@rename($tempPath, $targetPath)) {
-            return true;
-        }
-
-        if (!@copy($tempPath, $targetPath)) {
-            return false;
-        }
-
-        return true;
+        return $allOk;
     }
 
     private function createPublishTempPath(string $targetPath): string
@@ -866,43 +805,7 @@ final class Mirror
     }
 
     /**
-     * @param DownloadableFile[] $files
-     */
-    private function rebuildProvidesForVariantFiles(array $files, string $webDir): void
-    {
-        if (!$this->config->useHashMap() || !$this->hashMap->isAvailable()) {
-            return;
-        }
-
-        foreach ($files as $file) {
-            $targetPath = Tools::ds($webDir, $file->path);
-            if (!is_file($targetPath)) {
-                continue;
-            }
-
-            $filePath = $this->hashMap->toRelativePath($webDir, $targetPath);
-            $providerPath = null;
-
-            $knownHash = $this->hashMap->getHashFor($filePath);
-            if ($knownHash !== null) {
-                $providerPath = $this->hashMap->findPathByHash($knownHash);
-            }
-
-            if ($providerPath === null) {
-                $this->hashMap->updateFileEntry($webDir, $file->path);
-                $providerPath = $filePath;
-            }
-
-            $consumerPath = $providerPath !== $filePath ? $filePath : null;
-            $this->hashMap->addProvides($providerPath, $this->version, $consumerPath);
-        }
-    }
-
-    /**
-     * Rebuild hash-map provides from existing local update.ver files.
-     *
-     * This is needed when a version is already up to date and no download
-     * happens in the current run.
+     * Re-read local update.ver variants for metadata such as platforms.
      */
     public function rebuildProvidesFromLocalVariants(): void
     {
@@ -910,17 +813,9 @@ final class Mirror
             return;
         }
 
-        $useHashMap = $this->config->useHashMap() && $this->hashMap->isAvailable();
-        $webDir = $this->config->getWebDir();
-
         foreach ($this->updateVariants as $variant) {
             if (!is_file($variant->localPath)) {
                 continue;
-            }
-
-            if ($useHashMap) {
-                $providerPath = $this->hashMap->toRelativePath($webDir, $variant->localPath);
-                $this->hashMap->addProvides($providerPath, $this->version, null);
             }
 
             $content = $this->fileOps->readFile($variant->localPath, false);
@@ -943,10 +838,6 @@ final class Mirror
             }
 
             $this->platformsFound = array_merge($this->platformsFound, $parsedPlatforms);
-
-            if ($useHashMap) {
-                $this->rebuildProvidesForVariantFiles($parsed['files'], $webDir);
-            }
         }
     }
 

@@ -9,14 +9,13 @@ script:
   timezone: "Europe/Moscow"   # PHP timezone identifier; leave empty for system default
   memory_limit: "32M"         # PHP memory_limit
   debug_update: false         # Dump raw update.ver files for debugging
-  link_method: "hardlink"     # How to publish files: hardlink, symlink, copy
   debug_html: false           # Dump all downloaded pages for pattern debugging
-  hash_map:
-    enabled: false            # Use data/hash-map.json for hash-based reuse
-    algorithm: "xxh3"         # Hash algorithm: any supported by hash_algos()
-    exclude:                  # Relative paths or glob patterns to skip in hash-map
-      - "./index.json"
-      - "./index.html"
+  storage:
+    dir: "storage"            # Internal content-addressed storage, next to www/data/log
+    hash: "sha256"            # Blob hash algorithm; must be supported by hash_algos()
+    link_method: "hardlink"   # Publish from blob via hardlink, softlink, or copy
+    gc:
+      enabled: false          # Delete unreferenced published files/blobs immediately when true
   generate:
     export_credentials: false # Include credentials in generated JSON/HTML
     json:

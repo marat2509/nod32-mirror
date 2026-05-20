@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Nod32Mirror\Config;
 
-use Nod32Mirror\Enum\LinkMethod;
 use Nod32Mirror\Enum\LogLevel;
 use Nod32Mirror\Enum\MirrorStrategy;
 use Nod32Mirror\Enum\ProxyType;
+use Nod32Mirror\Enum\StorageLinkMethod;
 use Nod32Mirror\Exception\ConfigException;
 use Nod32Mirror\Exception\ConfigKeyNotFoundException;
 use Nod32Mirror\Tools;
@@ -101,12 +101,14 @@ final class Config
             'timezone' => null,
             'memory_limit' => '32M',
             'debug_update' => false,
-            'link_method' => LinkMethod::Hardlink->value,
             'debug_html' => false,
-            'hash_map' => [
-                'enabled' => false,
-                'algorithm' => 'xxh3',
-                'exclude' => [],
+            'storage' => [
+                'dir' => 'storage',
+                'hash' => 'sha256',
+                'link_method' => StorageLinkMethod::Hardlink->value,
+                'gc' => [
+                    'enabled' => false,
+                ],
             ],
             'web_dir' => 'www',
             'generate' => [
@@ -120,44 +122,49 @@ final class Config
 
         $script['debug_update'] = !empty($script['debug_update']);
         $script['debug_html'] = !empty($script['debug_html']);
-        if (!isset($script['hash_map']) || !is_array($script['hash_map'])) {
-            $script['hash_map'] = ['enabled' => false, 'algorithm' => 'xxh3', 'exclude' => []];
-        }
 
-        $script['hash_map']['enabled'] = !empty($script['hash_map']['enabled']);
         $script['generate']['export_credentials'] = !empty($script['generate']['export_credentials']);
         $script['generate']['json']['enabled'] = !empty($script['generate']['json']['enabled']);
         $script['generate']['html']['enabled'] = !empty($script['generate']['html']['enabled']);
         $script['generate']['html']['only_table'] = !empty($script['generate']['html']['only_table']);
 
-        $script['hash_map']['algorithm'] = $this->normalizeHashMapAlgorithm($script['hash_map']['algorithm'] ?? 'xxh3');
-
-        $script['hash_map']['exclude'] = $this->normalizeHashMapExclude($script['hash_map']['exclude'] ?? []);
+        $script['storage'] = $this->normalizeStorageConfig(
+            is_array($script['storage'] ?? null) ? $script['storage'] : []
+        );
 
         return $script;
     }
 
     /**
-     * @return string[]
+     * @param array<string, mixed> $storageConfig
+     * @return array<string, mixed>
      */
-    private function normalizeHashMapExclude(mixed $value): array
+    private function normalizeStorageConfig(array $storageConfig): array
     {
-        if (is_array($value)) {
-            return array_values(array_filter(array_map('trim', $value), 'strlen'));
+        $defaults = [
+            'dir' => 'storage',
+            'hash' => 'sha256',
+            'link_method' => StorageLinkMethod::Hardlink->value,
+            'gc' => [
+                'enabled' => false,
+            ],
+        ];
+
+        $storage = array_replace_recursive($defaults, $storageConfig);
+        $storage['dir'] = is_string($storage['dir'] ?? null) && trim($storage['dir']) !== ''
+            ? trim((string) $storage['dir'])
+            : 'storage';
+        $storage['hash'] = is_string($storage['hash'] ?? null) && trim($storage['hash']) !== ''
+            ? strtolower(trim((string) $storage['hash']))
+            : 'sha256';
+        $storage['link_method'] = StorageLinkMethod::fromString((string) ($storage['link_method'] ?? 'hardlink'))->value;
+
+        if (!isset($storage['gc']) || !is_array($storage['gc'])) {
+            $storage['gc'] = ['enabled' => false];
         }
+        $storage['gc']['enabled'] = !empty($storage['gc']['enabled']);
 
-        if (is_string($value)) {
-            return Tools::parseCommaList($value);
-        }
-
-        return [];
-    }
-
-    private function normalizeHashMapAlgorithm(mixed $value): string
-    {
-        $value = is_string($value) ? strtolower(trim($value)) : 'xxh3';
-
-        return $value !== '' ? $value : 'xxh3';
+        return $storage;
     }
 
     /**
@@ -448,6 +455,11 @@ final class Config
         if (!empty($logConfig['rotate']['enabled']) && ($logConfig['rotate']['qty'] ?? 0) < 1) {
             throw new ConfigException('Log rotation quantity must be at least 1');
         }
+
+        $storageHash = $this->getStorageHashAlgorithm();
+        if (!in_array($storageHash, hash_algos(), true)) {
+            throw new ConfigException('Unsupported storage hash algorithm: ' . $storageHash);
+        }
     }
 
     private function setupEnvironment(): void
@@ -468,6 +480,7 @@ final class Config
         $webDir = $this->getWebDir();
         $dataDir = $this->getDataDir();
         $logDir = $this->config['log']['file']['dir'] ?? 'log';
+        $storageDir = (string) ($this->config['script']['storage']['dir'] ?? 'storage');
 
         // Handle relative paths
         if (!$this->isAbsolutePath($webDir)) {
@@ -490,11 +503,17 @@ final class Config
         $this->config['data']['dir'] = Tools::cleanPath($dataDir);
         $this->config['log']['file']['dir'] = Tools::cleanPath($logDir);
 
+        if (!$this->isAbsolutePath($storageDir)) {
+            $storageDir = Tools::ds(dirname($this->config['script']['web_dir']), $storageDir);
+        }
+        $this->config['script']['storage']['dir'] = Tools::cleanPath($storageDir);
+
         // Create directories
         Tools::ensureDirectory(PATTERN);
         Tools::ensureDirectory($this->config['data']['dir']);
         Tools::ensureDirectory($this->config['log']['file']['dir']);
         Tools::ensureDirectory($this->config['script']['web_dir']);
+        Tools::ensureDirectory($this->config['script']['storage']['dir']);
         Tools::ensureDirectory(TMP_PATH);
 
         if (!empty($this->config['script']['debug_html'])) {
@@ -562,30 +581,26 @@ final class Config
         return $this->config['data']['dir'] ?? Tools::ds(SELF, 'data');
     }
 
-    public function getLinkMethod(): LinkMethod
+    public function getStorageDir(): string
     {
-        $method = $this->config['script']['link_method'] ?? 'copy';
-        return LinkMethod::fromString($method);
+        $dir = $this->config['script']['storage']['dir'] ?? Tools::ds(dirname($this->getWebDir()), 'storage');
+        return is_string($dir) && $dir !== '' ? $dir : Tools::ds(dirname($this->getWebDir()), 'storage');
     }
 
-    public function useHashMap(): bool
+    public function getStorageHashAlgorithm(): string
     {
-        return !empty($this->config['script']['hash_map']['enabled']);
+        $algorithm = $this->config['script']['storage']['hash'] ?? 'sha256';
+        return is_string($algorithm) && $algorithm !== '' ? strtolower($algorithm) : 'sha256';
     }
 
-    /**
-     * @return string[]
-     */
-    public function getHashMapExclude(): array
+    public function getStorageLinkMethod(): StorageLinkMethod
     {
-        $exclude = $this->config['script']['hash_map']['exclude'] ?? [];
-        return is_array($exclude) ? $exclude : [];
+        return StorageLinkMethod::fromString((string) ($this->config['script']['storage']['link_method'] ?? 'hardlink'));
     }
 
-    public function getHashMapAlgorithm(): string
+    public function isStorageGcEnabled(): bool
     {
-        $algorithm = $this->config['script']['hash_map']['algorithm'] ?? 'xxh3';
-        return is_string($algorithm) && $algorithm !== '' ? $algorithm : 'xxh3';
+        return !empty($this->config['script']['storage']['gc']['enabled']);
     }
 
     public function getTimeout(): int

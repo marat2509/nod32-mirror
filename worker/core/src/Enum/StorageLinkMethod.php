@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Nod32Mirror\Enum;
 
-enum LinkMethod: string
+enum StorageLinkMethod: string
 {
     case Hardlink = 'hardlink';
-    case Symlink = 'symlink';
+    case Softlink = 'softlink';
     case Copy = 'copy';
 
     public static function fromString(string $method): self
     {
-        return self::tryFrom(strtolower(trim($method))) ?? self::Copy;
+        return self::tryFrom(strtolower(trim($method))) ?? self::Hardlink;
     }
 }

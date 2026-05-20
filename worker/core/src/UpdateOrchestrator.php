@@ -18,10 +18,13 @@ use Nod32Mirror\Mirror\MirrorSelector;
 use Nod32Mirror\Parser\Parser;
 use Nod32Mirror\Report\HtmlReportGenerator;
 use Nod32Mirror\Report\JsonReportGenerator;
+use Nod32Mirror\Storage\BlobStore;
+use Nod32Mirror\Storage\ContentIndex;
+use Nod32Mirror\Storage\ReferenceCollector;
+use Nod32Mirror\Storage\StorageConfig;
+use Nod32Mirror\Storage\StorageGarbageCollector;
 use Nod32Mirror\ValueObject\Credential;
-use Nod32Mirror\ValueObject\DownloadableFile;
 use Nod32Mirror\ValueObject\MirrorInfo;
-use Nod32Mirror\FileSystem\HashMapIndex;
 
 final class UpdateOrchestrator
 {
@@ -45,7 +48,8 @@ final class UpdateOrchestrator
     /** @var Credential|null Global working credential */
     private ?Credential $globalCredential = null;
 
-    private ?string $hashMapPath = null;
+    /** @var resource|null */
+    private $lockHandle = null;
 
     public function __construct(
         private readonly Config $config,
@@ -61,7 +65,11 @@ final class UpdateOrchestrator
         private readonly MirrorSelector $mirrorSelector,
         private readonly HtmlReportGenerator $htmlGenerator,
         private readonly JsonReportGenerator $jsonGenerator,
-        private readonly HashMapIndex $hashMap,
+        private readonly StorageConfig $storageConfig,
+        private readonly BlobStore $blobStore,
+        private readonly ContentIndex $contentIndex,
+        private readonly ReferenceCollector $referenceCollector,
+        private readonly StorageGarbageCollector $storageGarbageCollector,
         /** @var array<string, array<string, mixed>> */
         private readonly array $directories
     ) {
@@ -73,26 +81,37 @@ final class UpdateOrchestrator
         $this->log->trace($this->language->t('log.running', __METHOD__));
         $this->log->info($this->language->t('script.run', $this->getVersion()));
 
-        $this->loadStoredSizes();
-        $this->initHashMap();
-
-        $enabledVersions = $this->versionConfig->getEnabledVersions();
-        $this->log->info($this->language->t('script.enabled_versions', implode(', ', $enabledVersions)));
-
-        // Pre-select best mirrors if strategy is 'best'
-        $this->preselectMirrors($enabledVersions);
-
-        foreach ($enabledVersions as $version) {
-            $this->processVersion($version);
+        if (!$this->acquireUpdateLock()) {
+            $this->log->warning('Another update or storage GC process is already running');
+            return;
         }
 
-        $this->cleanupTmpDirectory();
-        $this->finalizeHashMap();
-        $this->logSummary();
-        $this->generateReports();
+        try {
+            $this->loadStoredSizes();
+            $this->initStorage();
+            $this->cleanupPublishTempFiles();
 
-        $this->log->info($this->language->t('script.total_working_time', Tools::secondsToHumanReadable(time() - $this->startTime)));
-        $this->log->info($this->language->t('script.stopping'));
+            $enabledVersions = $this->versionConfig->getEnabledVersions();
+            $this->log->info($this->language->t('script.enabled_versions', implode(', ', $enabledVersions)));
+
+            // Pre-select best mirrors if strategy is 'best'
+            $this->preselectMirrors($enabledVersions);
+
+            foreach ($enabledVersions as $version) {
+                $this->processVersion($version);
+            }
+
+            $this->cleanupTmpDirectory();
+            $this->finalizeStorage();
+            $this->blobStore->cleanupRunTmp();
+            $this->logSummary();
+            $this->generateReports();
+
+            $this->log->info($this->language->t('script.total_working_time', Tools::secondsToHumanReadable(time() - $this->startTime)));
+            $this->log->info($this->language->t('script.stopping'));
+        } finally {
+            $this->releaseUpdateLock();
+        }
     }
 
     /**
@@ -288,8 +307,8 @@ final class UpdateOrchestrator
                 $prevSize = $this->totalSizes[$version] ?? 0;
                 $this->setDatabaseSize($version, $prevSize);
 
-                // Keep hash-map provides populated for up-to-date versions,
-                // otherwise finalizeHashMap() may treat their files as extra.
+                // Re-read local indexes so reporting metadata stays populated
+                // when no download happens in the current run.
                 $this->mirror->rebuildProvidesFromLocalVariants();
                 $this->platformsFound[$version] = $this->mirror->getPlatformsFound();
             } else {
@@ -471,153 +490,83 @@ final class UpdateOrchestrator
         }
     }
 
-    private function initHashMap(): void
-    {
-        if (!$this->config->useHashMap()) {
-            $this->log->debug($this->language->t('log.hashmap_init_skipped'));
-            return;
-        }
-
-        $this->hashMapPath = Tools::ds($this->config->getDataDir(), 'hash-map.json');
-        $this->log->debug($this->language->t('log.hashmap_init_load', $this->hashMapPath));
-        $this->hashMap->load($this->hashMapPath);
-
-        if ($this->hashMap->wasLoaded()) {
-            $this->log->debug($this->language->t('script.hash_map_loaded'));
-            $this->log->debug($this->language->t('log.hashmap_init_reset_provides'));
-            $this->hashMap->resetProvides();
-        } else {
-            $this->log->debug($this->language->t('script.hash_map_missing'));
-        }
-    }
-
-    private function finalizeHashMap(): void
+    private function cleanupPublishTempFiles(): void
     {
         $webDir = $this->config->getWebDir();
-        $exclude = $this->config->getHashMapExclude();
-        $this->log->debug($this->language->t('log.hashmap_finalize_started', $webDir));
-
-        $referencedFiles = $this->collectPublishedIndexReferences($webDir);
-
-        if (empty($referencedFiles)) {
-            $this->log->warning($this->language->t('global_cleanup.skipped_no_references'));
-        } else {
-            $deleted = $this->hashMap->deleteUnreferencedFiles($webDir, $referencedFiles, $exclude);
-            if (!empty($deleted)) {
-                $this->log->info($this->language->t('script.hash_map_cleanup_removed', count($deleted)));
-            }
-        }
-
-        if (!$this->config->useHashMap()) {
-            $this->log->debug($this->language->t('log.hashmap_finalize_skipped'));
+        if (!is_dir($webDir)) {
             return;
         }
 
-        if (!$this->hashMap->isAvailable()) {
-            $this->log->warning($this->language->t('log.hashmap_finalize_algo_missing'));
-            return;
-        }
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($webDir, \RecursiveDirectoryIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::SELF_FIRST
+        );
 
-        if (!$this->hashMap->wasLoaded()) {
-            $this->log->debug($this->language->t('log.hashmap_finalize_rebuild'));
-            $this->hashMap->rebuildFromWebDir($webDir, $exclude);
-        } else {
-            foreach ($referencedFiles as $relativePath) {
-                $this->hashMap->updateFileEntry($webDir, $relativePath);
-            }
-        }
-
-        $path = $this->hashMapPath ?? Tools::ds($this->config->getDataDir(), 'hash-map.json');
-        $this->log->debug($this->language->t('log.hashmap_finalize_save', $path));
-        $this->hashMap->save($path);
-    }
-
-    /**
-     * Build the authoritative set of files reachable from published local update.ver files.
-     *
-     * @return string[]
-     */
-    private function collectPublishedIndexReferences(string $webDir): array
-    {
-        $referenced = [];
-        $indexCount = 0;
-
-        foreach ($this->versionConfig->getEnabledVersions() as $version) {
-            if (!isset($this->directories[$version])) {
+        foreach ($iterator as $fileObject) {
+            if ($fileObject->isDir()) {
                 continue;
             }
 
-            $platforms = $this->versionConfig->getVersionPlatforms($version);
-            $channels = $this->versionConfig->getVersionChannels($version);
-            $this->mirror->init($version, $this->directories[$version], $platforms, $channels);
-
-            foreach ($this->mirror->getUpdateVariants() as $variant) {
-                $indexRelativePath = $this->hashMap->toRelativePath($webDir, $variant->localPath);
-
-                if (!is_file($variant->localPath)) {
-                    $this->log->warning(
-                        $this->language->t('global_cleanup.index_missing', $indexRelativePath),
-                        $version,
-                        $variant->getChannel()
-                    );
-                    continue;
-                }
-
-                $content = @file_get_contents($variant->localPath);
-                if ($content === false) {
-                    $this->log->warning(
-                        $this->language->t('global_cleanup.index_unreadable', $indexRelativePath),
-                        $version,
-                        $variant->getChannel()
-                    );
-                    continue;
-                }
-
-                if (!preg_match_all('#\[\w+\][^\[]+#', $content, $matches)) {
-                    $this->log->warning(
-                        $this->language->t('global_cleanup.index_parse_failed', $indexRelativePath),
-                        $version,
-                        $variant->getChannel()
-                    );
-                    continue;
-                }
-
-                $parsed = $this->parser->parseUpdateFile(
-                    $matches[0],
-                    fn(DownloadableFile $file): bool => $this->fileMatchesPlatforms($file, $platforms)
-                );
-
-                $referenced[$indexRelativePath] = true;
-                $indexCount++;
-
-                foreach ($parsed['files'] as $file) {
-                    $relativePath = $this->hashMap->toRelativePath($webDir, Tools::ds($webDir, $file->path));
-                    if ($relativePath !== '') {
-                        $referenced[$relativePath] = true;
-                    }
-                }
+            $path = $fileObject->getPathname();
+            if (preg_match('/\.publish-[a-f0-9]+\.tmp$/i', $path)) {
+                @unlink($path);
             }
         }
-
-        $this->log->debug($this->language->t('global_cleanup.references_collected', count($referenced), $indexCount));
-
-        return array_keys($referenced);
     }
 
-    /**
-     * @param string[]|true $platforms
-     */
-    private function fileMatchesPlatforms(DownloadableFile $file, array|bool $platforms): bool
+    private function acquireUpdateLock(): bool
     {
-        if ($file->platform === null) {
-            return true;
+        $lockDir = Tools::ds($this->config->getDataDir(), 'locks');
+        Tools::ensureDirectory($lockDir);
+
+        $lockPath = Tools::ds($lockDir, 'update.lock');
+        $handle = @fopen($lockPath, 'c');
+        if ($handle === false) {
+            return false;
         }
 
-        if ($platforms === true || empty($platforms)) {
-            return true;
+        if (!flock($handle, LOCK_EX | LOCK_NB)) {
+            fclose($handle);
+            return false;
         }
 
-        return in_array($file->platform, $platforms, true);
+        ftruncate($handle, 0);
+        fwrite($handle, sprintf("%s\npid=%s\n", ContentIndex::now(), getmypid() ?: 'unknown'));
+        $this->lockHandle = $handle;
+
+        return true;
+    }
+
+    private function releaseUpdateLock(): void
+    {
+        if ($this->lockHandle === null) {
+            return;
+        }
+
+        flock($this->lockHandle, LOCK_UN);
+        fclose($this->lockHandle);
+        $this->lockHandle = null;
+    }
+
+    private function initStorage(): void
+    {
+        $path = Tools::ds($this->config->getDataDir(), 'content-index.json');
+        $this->contentIndex->load($path, $this->storageConfig->getHashAlgorithm());
+        $this->contentIndex->setHashAlgorithm($this->storageConfig->getHashAlgorithm());
+        $this->log->debug(sprintf('Storage index initialized: %s', $path));
+    }
+
+    private function finalizeStorage(): void
+    {
+        $webDir = $this->config->getWebDir();
+        $references = $this->referenceCollector->collect($webDir);
+        $this->contentIndex->syncVersionRefs($references);
+
+        $gcState = $this->storageGarbageCollector->run($webDir, $references);
+        $this->contentIndex->syncVersionRefs($references);
+
+        $this->storageGarbageCollector->saveState(Tools::ds($this->config->getDataDir(), 'gc-state.json'), $gcState);
+        $this->contentIndex->save(Tools::ds($this->config->getDataDir(), 'content-index.json'));
     }
 
     private function logSummary(): void

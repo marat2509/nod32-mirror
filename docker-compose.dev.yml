@@ -11,6 +11,7 @@ services:
             - ./docker-data/www:/app/www
             - ./docker-data/data:/app/data
             - ./docker-data/log:/app/log
+            - ./docker-data/storage:/app/storage
 
     nod32-mirror-nginx:
         container_name: nod32-mirror-nginx
