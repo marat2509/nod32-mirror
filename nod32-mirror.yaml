@@ -1,6 +1,6 @@
 # nod32-mirror configuration
 # - All keys are lowercase and match the worker defaults.
-# - Paths can be relative to repo root or absolute.
+# - script.dir can be relative to app root or absolute; runtime paths are relative to script.dir.
 # - Log levels accept names (error, warning, notice, info, debug, trace) or numbers 0–5.
 
 script:
@@ -10,10 +10,12 @@ script:
   memory_limit: "32M"         # PHP memory_limit
   debug_update: false         # Dump raw update.ver files for debugging
   debug_html: false           # Dump all downloaded pages for pattern debugging
+  dir: "/data"                # Base directory for runtime folders below
+  web_dir: "www"              # Public web root served by nginx, relative to script.dir
   storage:
-    dir: "storage"            # Internal content-addressed storage, next to www/data/log
+    dir: "storage"            # Internal content-addressed storage, relative to script.dir
     hash: "sha256"            # Blob hash algorithm; must be supported by hash_algos()
-    link_method: "hardlink"   # Publish from blob via hardlink, softlink, or copy
+    link_method: "hardlink"   # hardlink works because /data/www and /data/storage share one mount
     gc:
       enabled: false          # Delete unreferenced published files/blobs immediately when true
   generate:
@@ -52,14 +54,14 @@ log:
   file:
     enabled: false            # Enable file logging
     level: "debug"            # File verbosity
-    dir: "log"                # Log directory (will be created if missing)
+    dir: "log"                # Log directory, relative to script.dir
     rotate:
       enabled: true
       size: "100K"            # Rotate when file >= size (supports K/M/G suffix)
       qty: 5                  # Keep N rotated archives (*.log.N.gz)
 
 data:
-  dir: "data"                 # Runtime data directory (keys, timestamps, debug)
+  dir: "data"                 # Runtime data directory, relative to script.dir
 
 find:
   enabled: true               # Enable built-in key searcher

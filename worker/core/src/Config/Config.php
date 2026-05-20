@@ -102,6 +102,7 @@ final class Config
             'memory_limit' => '32M',
             'debug_update' => false,
             'debug_html' => false,
+            'dir' => SELF,
             'storage' => [
                 'dir' => 'storage',
                 'hash' => 'sha256',
@@ -120,6 +121,9 @@ final class Config
 
         $script = array_replace_recursive($defaults, $scriptConfig);
 
+        $script['dir'] = is_string($script['dir'] ?? null) && trim($script['dir']) !== ''
+            ? trim((string) $script['dir'])
+            : SELF;
         $script['debug_update'] = !empty($script['debug_update']);
         $script['debug_html'] = !empty($script['debug_html']);
 
@@ -477,35 +481,26 @@ final class Config
 
     private function setupDirectories(): void
     {
+        $rootDir = (string) ($this->config['script']['dir'] ?? SELF);
         $webDir = $this->getWebDir();
         $dataDir = $this->getDataDir();
         $logDir = $this->config['log']['file']['dir'] ?? 'log';
         $storageDir = (string) ($this->config['script']['storage']['dir'] ?? 'storage');
 
-        // Handle relative paths
-        if (!$this->isAbsolutePath($webDir)) {
-            $webDir = Tools::ds(SELF, $webDir);
-            $this->config['script']['web_dir'] = $webDir;
+        if (!$this->isAbsolutePath($rootDir)) {
+            $rootDir = Tools::ds(SELF, $rootDir);
         }
+        $rootDir = Tools::cleanPath($rootDir);
 
-        if (!$this->isAbsolutePath($dataDir)) {
-            $dataDir = Tools::ds(SELF, $dataDir);
-            $this->config['data']['dir'] = $dataDir;
-        }
+        $webDir = $this->resolvePath($webDir, $rootDir);
+        $dataDir = $this->resolvePath($dataDir, $rootDir);
+        $logDir = $this->resolvePath((string) $logDir, $rootDir);
+        $storageDir = $this->resolvePath($storageDir, $rootDir);
 
-        if (!$this->isAbsolutePath($logDir)) {
-            $logDir = Tools::ds(SELF, $logDir);
-            $this->config['log']['file']['dir'] = $logDir;
-        }
-
-        // Clean trailing separators
-        $this->config['script']['web_dir'] = Tools::cleanPath($this->config['script']['web_dir']);
-        $this->config['data']['dir'] = Tools::cleanPath($dataDir);
-        $this->config['log']['file']['dir'] = Tools::cleanPath($logDir);
-
-        if (!$this->isAbsolutePath($storageDir)) {
-            $storageDir = Tools::ds(dirname($this->config['script']['web_dir']), $storageDir);
-        }
+        $this->config['script']['dir'] = $rootDir;
+        $this->config['script']['web_dir'] = $webDir;
+        $this->config['data']['dir'] = $dataDir;
+        $this->config['log']['file']['dir'] = $logDir;
         $this->config['script']['storage']['dir'] = Tools::cleanPath($storageDir);
 
         // Create directories
@@ -528,6 +523,20 @@ final class Config
         }
 
         return str_starts_with($path, '/');
+    }
+
+    private function resolvePath(string $path, string $rootDir): string
+    {
+        $path = trim($path);
+        if ($path === '') {
+            return $rootDir;
+        }
+
+        if (!$this->isAbsolutePath($path)) {
+            $path = Tools::ds($rootDir, $path);
+        }
+
+        return Tools::cleanPath($path);
     }
 
     /**

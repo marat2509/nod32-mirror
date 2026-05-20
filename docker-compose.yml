@@ -7,10 +7,7 @@ services:
             UPDATE_INTERVAL: 3600 # update interval in seconds
         volumes:
             - ./nod32-mirror.yaml:/app/nod32-mirror.yaml
-            - ./docker-data/www:/app/www
-            - ./docker-data/data:/app/data
-            - ./docker-data/log:/app/log
-            - ./docker-data/storage:/app/storage
+            - ./docker-data:/data
 
     nod32-mirror-nginx:
         container_name: nod32-mirror-nginx
@@ -19,4 +16,5 @@ services:
         ports:
             - 8084:80
         volumes:
-            - ./docker-data/www:/app/www
+            - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+            - ./docker-data/www:/data/www

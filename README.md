@@ -37,6 +37,8 @@ Default config:
 
 ```yaml
 script:
+  dir: /data
+  web_dir: www
   storage:
     dir: storage
     hash: sha256
@@ -45,8 +47,15 @@ script:
       enabled: false
 ```
 
-`link_method` can be `hardlink`, `softlink`, or `copy`. The canonical
-metadata file is `data/content-index.json`.
+The Docker example mounts `./docker-data` into the worker as `/data`.
+`script.dir` is the base directory for relative runtime paths such as
+`web_dir`, `data.dir`, `log.file.dir`, and `storage.dir`. Absolute paths in
+those fields are still accepted and override `script.dir`.
+
+`link_method` can be `hardlink`, `softlink`, or `copy`. Use `copy` when
+`storage` and `www` are separate Docker mounts. `hardlink` requires both paths
+to be on the same filesystem. The canonical metadata file is
+`<data.dir>/content-index.json`, for example `/data/data/content-index.json`.
 
 Schema (published paths are relative to `webDir`):
 
@@ -58,7 +67,7 @@ Schema (published paths are relative to `webDir`):
 		"abcdef": {
 			"hash": "abcdef",
 			"size": 104857600,
-			"blob_path": "/app/storage/blobs/sha256/ab/cd/abcdef",
+			"blob_path": "/data/storage/blobs/sha256/ab/cd/abcdef",
 			"published_paths": ["eset_upd/ep9/production/base/defs.nup"],
 			"version_ids": { "ep9": ["production"] },
 			"created_at": "2026-05-20T12:00:00+00:00",
