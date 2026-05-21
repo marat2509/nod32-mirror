@@ -109,6 +109,7 @@ final class Config
                 'link_method' => StorageLinkMethod::Hardlink->value,
                 'gc' => [
                     'enabled' => false,
+                    'excludes' => [],
                 ],
             ],
             'web_dir' => 'www',
@@ -151,6 +152,7 @@ final class Config
             'link_method' => StorageLinkMethod::Hardlink->value,
             'gc' => [
                 'enabled' => false,
+                'excludes' => [],
             ],
         ];
 
@@ -164,11 +166,36 @@ final class Config
         $storage['link_method'] = StorageLinkMethod::fromString((string) ($storage['link_method'] ?? 'hardlink'))->value;
 
         if (!isset($storage['gc']) || !is_array($storage['gc'])) {
-            $storage['gc'] = ['enabled' => false];
+            $storage['gc'] = ['enabled' => false, 'excludes' => []];
         }
         $storage['gc']['enabled'] = !empty($storage['gc']['enabled']);
+        $storage['gc']['excludes'] = $this->normalizeStringList($storage['gc']['excludes'] ?? []);
 
         return $storage;
+    }
+
+    /**
+     * @return string[]
+     */
+    private function normalizeStringList(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $items = [];
+        foreach ($value as $item) {
+            if (!is_string($item)) {
+                continue;
+            }
+
+            $item = trim(str_replace('\\', '/', $item));
+            if ($item !== '') {
+                $items[] = ltrim($item, '/');
+            }
+        }
+
+        return array_values(array_unique($items));
     }
 
     /**

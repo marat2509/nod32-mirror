@@ -89,6 +89,7 @@ final class UpdateOrchestrator
         try {
             $this->loadStoredSizes();
             $this->initStorage();
+            $this->cleanupStorageTmpDirectory();
             $this->cleanupPublishTempFiles();
 
             $enabledVersions = $this->versionConfig->getEnabledVersions();
@@ -103,13 +104,13 @@ final class UpdateOrchestrator
 
             $this->cleanupTmpDirectory();
             $this->finalizeStorage();
-            $this->blobStore->cleanupRunTmp();
             $this->logSummary();
             $this->generateReports();
 
             $this->log->info($this->language->t('script.total_working_time', Tools::secondsToHumanReadable(time() - $this->startTime)));
             $this->log->info($this->language->t('script.stopping'));
         } finally {
+            $this->blobStore->cleanupRunTmp();
             $this->releaseUpdateLock();
         }
     }
@@ -490,6 +491,19 @@ final class UpdateOrchestrator
     private function cleanupTmpDirectory(): void
     {
         foreach (glob(Tools::ds(TMP_PATH, '*')) ?: [] as $folder) {
+            Tools::clearDirectory($folder);
+            @rmdir($folder);
+        }
+    }
+
+    private function cleanupStorageTmpDirectory(): void
+    {
+        $tmpDir = $this->storageConfig->getTmpDir();
+        if (!is_dir($tmpDir)) {
+            return;
+        }
+
+        foreach (glob(Tools::ds($tmpDir, '*')) ?: [] as $folder) {
             Tools::clearDirectory($folder);
             @rmdir($folder);
         }
