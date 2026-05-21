@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nod32Mirror\Storage;
 
 use Nod32Mirror\FileSystem\SafeFileOperations;
+use Nod32Mirror\Log\Language;
 use Nod32Mirror\Log\Log;
 use Nod32Mirror\Tools;
 
@@ -15,7 +16,8 @@ final class BlobStore
     public function __construct(
         private readonly StorageConfig $storageConfig,
         private readonly SafeFileOperations $fileOps,
-        private readonly Log $log
+        private readonly Log $log,
+        private readonly Language $language
     ) {
         $this->runId = gmdate('YmdHis') . '-' . bin2hex(random_bytes(4));
     }
@@ -117,7 +119,7 @@ final class BlobStore
         }
 
         if (@rename($stagingPath, $blobPath)) {
-            $this->log->debug(sprintf('Storage blob created: %s', $blobPath));
+            $this->log->debug($this->language->t('storage.blob_created', $blobPath));
             return $blobPath;
         }
 
@@ -157,7 +159,7 @@ final class BlobStore
         );
 
         if (@rename($path, $target)) {
-            $this->log->warning(sprintf('Storage quarantined file: %s -> %s', $path, $target));
+            $this->log->warning($this->language->t('storage.quarantined_file', $path, $target));
             return $target;
         }
 

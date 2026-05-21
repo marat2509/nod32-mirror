@@ -661,7 +661,7 @@ final class Mirror
     {
         foreach ($files as $file) {
             if ($this->normalizePublishedPath($file->path) === null) {
-                $this->log->warning(sprintf('Unsafe path in update.ver: %s', $file->path), $this->version, $this->channel);
+                $this->log->warning($this->language->t('mirror.unsafe_path_in_update_ver', $file->path), $this->version, $this->channel);
                 return false;
             }
         }
@@ -732,7 +732,7 @@ final class Mirror
             if ($relativePath === null) {
                 $allOk = false;
                 $this->fileOps->deleteFile($tempPath);
-                $this->log->warning(sprintf('Unsafe path in update.ver: %s', $file->path), $this->version, $this->channel);
+                $this->log->warning($this->language->t('mirror.unsafe_path_in_update_ver', $file->path), $this->version, $this->channel);
                 continue;
             }
 
@@ -793,7 +793,7 @@ final class Mirror
             $blobPath = $this->blobStore->ensureBlob($tempPath, $hash, $file->size);
             if ($blobPath === null) {
                 $allOk = false;
-                $this->log->warning(sprintf('Failed to store blob for %s', $file->path), $this->version, $this->channel);
+                $this->log->warning($this->language->t('storage.blob_store_failed', $file->path), $this->version, $this->channel);
                 $this->fileOps->deleteFile($tempPath);
                 continue;
             }

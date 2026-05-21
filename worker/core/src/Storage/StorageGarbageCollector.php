@@ -6,6 +6,7 @@ namespace Nod32Mirror\Storage;
 
 use Nod32Mirror\Config\Config;
 use Nod32Mirror\FileSystem\SafeFileOperations;
+use Nod32Mirror\Log\Language;
 use Nod32Mirror\Log\Log;
 use Nod32Mirror\Tools;
 use Nod32Mirror\ValueObject\ReferenceCollection;
@@ -20,7 +21,8 @@ final class StorageGarbageCollector
         private readonly ContentIndex $contentIndex,
         private readonly BlobStore $blobStore,
         private readonly SafeFileOperations $fileOps,
-        private readonly Log $log
+        private readonly Log $log,
+        private readonly Language $language
     ) {
     }
 
@@ -63,7 +65,7 @@ final class StorageGarbageCollector
         if (!empty($missing)) {
             $state['skipped_reason'] = 'missing_referenced_paths';
             $state['errors'] = array_merge($state['errors'], array_map(
-                static fn(string $path): string => 'Missing referenced path: ' . $path,
+                fn(string $path): string => $this->language->t('storage.gc_missing_referenced_path', $path),
                 $missing
             ));
             $state['finished_at'] = ContentIndex::now();
@@ -133,7 +135,7 @@ final class StorageGarbageCollector
             if ($this->fileOps->deleteFile($absolutePath)) {
                 $deleted[] = $relativePath;
                 $this->contentIndex->removePublished($relativePath);
-                $this->log->debug(sprintf('Storage GC deleted published path: %s', $relativePath));
+                $this->log->debug($this->language->t('storage.gc_deleted_published_path', $relativePath));
             }
         }
 
@@ -178,7 +180,7 @@ final class StorageGarbageCollector
 
             if (is_file($blobPath) && $this->fileOps->deleteFile($blobPath)) {
                 $deleted[] = $blobPath;
-                $this->log->debug(sprintf('Storage GC deleted blob: %s', $blobPath));
+                $this->log->debug($this->language->t('storage.gc_deleted_blob', $blobPath));
             }
 
             $this->contentIndex->removeHash($hash);
@@ -192,7 +194,7 @@ final class StorageGarbageCollector
             if (is_file($blobPath) && $this->fileOps->deleteFile($blobPath)) {
                 $deleted[] = $blobPath;
                 $this->contentIndex->removeHash($hash);
-                $this->log->debug(sprintf('Storage GC deleted orphan blob: %s', $blobPath));
+                $this->log->debug($this->language->t('storage.gc_deleted_orphan_blob', $blobPath));
             }
         }
 

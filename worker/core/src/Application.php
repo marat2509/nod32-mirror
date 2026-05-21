@@ -96,8 +96,8 @@ final class Application
         // File system services
         $this->fileOps = new SafeFileOperations($this->log, $this->language);
         $this->storageConfig = new StorageConfig($this->config);
-        $this->blobStore = new BlobStore($this->storageConfig, $this->fileOps, $this->log);
-        $this->contentIndex = new ContentIndex($this->fileOps, $this->log);
+        $this->blobStore = new BlobStore($this->storageConfig, $this->fileOps, $this->log, $this->language);
+        $this->contentIndex = new ContentIndex($this->fileOps, $this->log, $this->language);
         $this->publishedPathManager = new PublishedPathManager($this->storageConfig, $this->blobStore, $this->fileOps);
 
         $this->mirror = new Mirror(
@@ -129,7 +129,8 @@ final class Application
             $this->contentIndex,
             $this->blobStore,
             $this->fileOps,
-            $this->log
+            $this->log,
+            $this->language
         );
 
         $this->mirrorSelector = new MirrorSelector(

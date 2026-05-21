@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nod32Mirror\Storage;
 
 use Nod32Mirror\FileSystem\SafeFileOperations;
+use Nod32Mirror\Log\Language;
 use Nod32Mirror\Log\Log;
 use Nod32Mirror\Tools;
 use Nod32Mirror\ValueObject\ReferenceCollection;
@@ -18,7 +19,8 @@ final class ContentIndex
 
     public function __construct(
         private readonly SafeFileOperations $fileOps,
-        private readonly Log $log
+        private readonly Log $log,
+        private readonly Language $language
     ) {
         $this->reset('sha256');
     }
@@ -38,7 +40,7 @@ final class ContentIndex
 
         $decoded = json_decode($content, true);
         if (!is_array($decoded)) {
-            $this->log->warning(sprintf('Storage index is invalid JSON: %s', $path));
+            $this->log->warning($this->language->t('storage.index_invalid_json', $path));
             return;
         }
 
@@ -46,11 +48,7 @@ final class ContentIndex
             ? strtolower(trim((string) $decoded['hash_algorithm']))
             : $hashAlgorithm;
         if ($storedAlgorithm !== $hashAlgorithm) {
-            $this->log->warning(sprintf(
-                'Storage index hash algorithm mismatch, starting with empty index: stored=%s current=%s',
-                $storedAlgorithm,
-                $hashAlgorithm
-            ));
+            $this->log->warning($this->language->t('storage.index_hash_algorithm_mismatch', $storedAlgorithm, $hashAlgorithm));
             return;
         }
 
@@ -70,13 +68,13 @@ final class ContentIndex
         $this->fileOps->createDirectory(dirname($path));
         $tmpPath = $path . '.tmp-' . bin2hex(random_bytes(6));
         if (!Tools::writeJsonPrettyTabsFile($tmpPath, $this->index)) {
-            $this->log->warning(sprintf('Storage index JSON encoding failed: %s', json_last_error_msg()));
+            $this->log->warning($this->language->t('storage.index_json_encoding_failed', json_last_error_msg()));
             return;
         }
 
         if (!@rename($tmpPath, $path)) {
             $this->fileOps->deleteFile($tmpPath);
-            $this->log->warning(sprintf('Storage index save failed: %s', $path));
+            $this->log->warning($this->language->t('storage.index_save_failed', $path));
         }
     }
 

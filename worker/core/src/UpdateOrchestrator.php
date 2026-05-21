@@ -82,7 +82,7 @@ final class UpdateOrchestrator
         $this->log->info($this->language->t('script.run', $this->getVersion()));
 
         if (!$this->acquireUpdateLock()) {
-            $this->log->warning('Another update or storage GC process is already running');
+            $this->log->warning($this->language->t('storage.update_lock_busy'));
             return;
         }
 
@@ -566,7 +566,7 @@ final class UpdateOrchestrator
         $path = Tools::ds($this->config->getDataDir(), 'content-index.json');
         $this->contentIndex->load($path, $this->storageConfig->getHashAlgorithm());
         $this->contentIndex->setHashAlgorithm($this->storageConfig->getHashAlgorithm());
-        $this->log->debug(sprintf('Storage index initialized: %s', $path));
+        $this->log->debug($this->language->t('storage.index_initialized', $path));
     }
 
     private function finalizeStorage(): void

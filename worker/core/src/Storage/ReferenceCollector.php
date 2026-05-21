@@ -58,14 +58,14 @@ final class ReferenceCollector
 
                 $content = $this->fileOps->readFile($variant->localPath, false);
                 if ($content === null) {
-                    $message = sprintf('Published index is unreadable: %s', $indexRelativePath);
+                    $message = $this->language->t('global_cleanup.index_unreadable', $indexRelativePath);
                     $references->addError($message);
                     $this->log->warning($message, $version, $variant->getChannel());
                     continue;
                 }
 
                 if (!preg_match_all('#\[\w+\][^\[]+#', $content, $matches)) {
-                    $message = sprintf('Published index parse failed: %s', $indexRelativePath);
+                    $message = $this->language->t('global_cleanup.index_parse_failed', $indexRelativePath);
                     $references->addError($message);
                     $this->log->warning($message, $version, $variant->getChannel());
                     continue;
@@ -83,7 +83,7 @@ final class ReferenceCollector
                 foreach ($parsed['files'] as $file) {
                     $filePath = $this->normalizePublishedPath($file->path);
                     if ($filePath === null) {
-                        $this->log->warning(sprintf('Unsafe path in published index skipped: %s', $file->path), $version, $channel);
+                        $this->log->warning($this->language->t('global_cleanup.unsafe_path_skipped', $file->path), $version, $channel);
                         continue;
                     }
 
