@@ -131,7 +131,7 @@ final class StorageGarbageCollector
             $absolutePath = $fileObject->getPathname();
             $relativePath = $this->toRelativePath($webDir, $absolutePath);
 
-            if ($references->hasPath($relativePath) || $this->isProtectedPath($relativePath)) {
+            if ($references->hasPath($relativePath) || $this->isExcludedPath($relativePath)) {
                 continue;
             }
 
@@ -235,28 +235,108 @@ final class StorageGarbageCollector
         return $files;
     }
 
-    private function isProtectedPath(string $relativePath): bool
+    private function isExcludedPath(string $relativePath): bool
     {
         $relativePath = str_replace('\\', '/', ltrim($relativePath, '/'));
-
-        if (preg_match('/\.publish-[a-f0-9]+\.tmp$/i', $relativePath)) {
-            return true;
-        }
 
         $scriptConfig = $this->config->getOrDefault('script', []);
         $generate = is_array($scriptConfig) ? ($scriptConfig['generate'] ?? []) : [];
 
-        $protected = [];
+        $excludes = [];
         if (is_array($generate)) {
             if (!empty($generate['html']['enabled'])) {
-                $protected[] = (string) ($generate['html']['filename'] ?? 'index.html');
+                $excludes[] = (string) ($generate['html']['filename'] ?? 'index.html');
             }
             if (!empty($generate['json']['enabled'])) {
-                $protected[] = (string) ($generate['json']['filename'] ?? 'index.json');
+                $excludes[] = (string) ($generate['json']['filename'] ?? 'index.json');
             }
         }
 
-        return in_array($relativePath, $protected, true);
+        $configuredExcludes = $this->config->getOrDefault('script.storage.gc.excludes', []);
+        if (is_array($configuredExcludes)) {
+            foreach ($configuredExcludes as $exclude) {
+                if (is_string($exclude) && trim($exclude) !== '') {
+                    $excludes[] = $exclude;
+                }
+            }
+        }
+
+        foreach ($excludes as $exclude) {
+            $exclude = $this->normalizeExcludePattern((string) $exclude);
+            if ($exclude === '') {
+                continue;
+            }
+
+            if ($this->matchesExclude($relativePath, $exclude)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function normalizeExcludePattern(string $exclude): string
+    {
+        $exclude = str_replace('\\', '/', trim($exclude));
+        $exclude = ltrim($exclude, '/');
+
+        while (str_starts_with($exclude, './')) {
+            $exclude = substr($exclude, 2);
+        }
+
+        return $exclude;
+    }
+
+    private function matchesExclude(string $relativePath, string $exclude): bool
+    {
+        if (str_ends_with($exclude, '/')) {
+            return str_starts_with($relativePath, $exclude);
+        }
+
+        if (!str_contains($exclude, '*') && !str_contains($exclude, '?') && !str_contains($exclude, '[')) {
+            return $relativePath === $exclude || str_starts_with($relativePath, rtrim($exclude, '/') . '/');
+        }
+
+        return (bool) @preg_match($this->globToRegex($exclude), $relativePath);
+    }
+
+    private function globToRegex(string $pattern): string
+    {
+        $regex = '';
+        $length = strlen($pattern);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $pattern[$i];
+
+            if ($char === '*') {
+                if (($pattern[$i + 1] ?? '') === '*') {
+                    $regex .= '.*';
+                    $i++;
+                } else {
+                    $regex .= '[^/]*';
+                }
+                continue;
+            }
+
+            if ($char === '?') {
+                $regex .= '[^/]';
+                continue;
+            }
+
+            if ($char === '[') {
+                $end = strpos($pattern, ']', $i + 1);
+                if ($end !== false) {
+                    $class = substr($pattern, $i, $end - $i + 1);
+                    $regex .= $class;
+                    $i = $end;
+                    continue;
+                }
+            }
+
+            $regex .= preg_quote($char, '#');
+        }
+
+        return '#^' . $regex . '$#';
     }
 
     private function toRelativePath(string $baseDir, string $absolutePath): string

@@ -18,6 +18,7 @@ script:
     link_method: "hardlink"   # hardlink works because /data/www and /data/storage share one mount
     gc:
       enabled: false          # Delete unreferenced published files/blobs immediately when true
+      excludes: []            # Paths/prefixes/globs ignored by GC; leading / or ./ is ignored
   generate:
     export_credentials: false # Include credentials in generated JSON/HTML
     json:

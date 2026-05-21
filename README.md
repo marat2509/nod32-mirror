@@ -45,6 +45,7 @@ script:
     link_method: hardlink
     gc:
       enabled: false
+      excludes: []
 ```
 
 The Docker example mounts `./docker-data` into the worker as `/data`.
@@ -56,6 +57,12 @@ those fields are still accepted and override `script.dir`.
 `storage` and `www` are separate Docker mounts. `hardlink` requires both paths
 to be on the same filesystem. The canonical metadata file is
 `<data.dir>/content-index.json`, for example `/data/data/content-index.json`.
+
+`script.storage.gc.excludes` contains paths, prefixes, or glob patterns relative
+to `web_dir` that GC must leave untouched, for example `custom/`, `robots.txt`,
+`*.json`, or `.well-known/**`. In globs, `*` matches within one path segment and
+`**` matches across directories. Leading `/` or `./` is ignored, so
+`/robots.txt`, `./robots.txt`, and `robots.txt` are equivalent.
 
 Schema (published paths are relative to `webDir`):
 
