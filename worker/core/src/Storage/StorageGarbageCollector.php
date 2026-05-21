@@ -83,12 +83,7 @@ final class StorageGarbageCollector
      */
     public function saveState(string $path, array $state): void
     {
-        $json = Tools::jsonEncodePrettyTabs($state);
-        if ($json === false) {
-            return;
-        }
-
-        $this->fileOps->writeFile($path, $json . PHP_EOL);
+        Tools::writeJsonPrettyTabsFile($path, $state);
     }
 
     /**

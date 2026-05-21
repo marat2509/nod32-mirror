@@ -43,13 +43,10 @@ final class JsonReportGenerator implements ReportGeneratorInterface
     {
         $this->log->trace($this->language->t('log.running', __METHOD__));
         $this->log->info($this->language->t('report.generating_json'));
-
-        $json = $this->generate($metadata);
-
-        $dir = dirname($targetPath);
-        Tools::ensureDirectory($dir);
-
-        file_put_contents($targetPath, $json . PHP_EOL);
+        if (!Tools::writeJsonPrettyTabsFile($targetPath, $metadata)) {
+            $this->log->warning($this->language->t('report.json_encoding_failed', json_last_error_msg()));
+            return;
+        }
 
         $this->log->debug($this->language->t('report.saved_to', $targetPath));
     }

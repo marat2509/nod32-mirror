@@ -67,15 +67,10 @@ final class ContentIndex
     {
         $this->index['updated_at'] = self::now();
 
-        $json = Tools::jsonEncodePrettyTabs($this->index);
-        if ($json === false) {
-            $this->log->warning(sprintf('Storage index JSON encoding failed: %s', json_last_error_msg()));
-            return;
-        }
-
         $this->fileOps->createDirectory(dirname($path));
         $tmpPath = $path . '.tmp-' . bin2hex(random_bytes(6));
-        if (!$this->fileOps->writeFile($tmpPath, $json . PHP_EOL)) {
+        if (!Tools::writeJsonPrettyTabsFile($tmpPath, $this->index)) {
+            $this->log->warning(sprintf('Storage index JSON encoding failed: %s', json_last_error_msg()));
             return;
         }
 

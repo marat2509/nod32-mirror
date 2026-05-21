@@ -161,9 +161,78 @@ final class Tools
             return false;
         }
 
-        return preg_replace_callback('/^( +)/m', static function (array $matches): string {
-            return str_repeat("\t", (int) (strlen($matches[1]) / 4));
-        }, $json) ?? $json;
+        return self::jsonIndentSpacesToTabs($json);
+    }
+
+    public static function writeJsonPrettyTabsFile(string $path, mixed $data): bool
+    {
+        $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            return false;
+        }
+
+        $dir = dirname($path);
+        self::ensureDirectory($dir);
+
+        $handle = @fopen($path, 'wb');
+        if ($handle === false) {
+            return false;
+        }
+
+        $offset = 0;
+        $length = strlen($json);
+
+        while ($offset < $length) {
+            $newlinePos = strpos($json, "\n", $offset);
+            if ($newlinePos === false) {
+                $line = substr($json, $offset);
+                $offset = $length;
+                $suffix = PHP_EOL;
+            } else {
+                $line = substr($json, $offset, $newlinePos - $offset);
+                $offset = $newlinePos + 1;
+                $suffix = "\n";
+            }
+
+            if (@fwrite($handle, self::jsonLineIndentSpacesToTabs($line) . $suffix) === false) {
+                @fclose($handle);
+                return false;
+            }
+        }
+
+        return @fclose($handle);
+    }
+
+    private static function jsonIndentSpacesToTabs(string $json): string
+    {
+        $result = '';
+        $offset = 0;
+        $length = strlen($json);
+
+        while ($offset < $length) {
+            $newlinePos = strpos($json, "\n", $offset);
+            if ($newlinePos === false) {
+                $result .= self::jsonLineIndentSpacesToTabs(substr($json, $offset));
+                break;
+            }
+
+            $result .= self::jsonLineIndentSpacesToTabs(substr($json, $offset, $newlinePos - $offset)) . "\n";
+            $offset = $newlinePos + 1;
+        }
+
+        return $result;
+    }
+
+    private static function jsonLineIndentSpacesToTabs(string $line): string
+    {
+        $spaceCount = strspn($line, ' ');
+        if ($spaceCount < 4) {
+            return $line;
+        }
+
+        return str_repeat("\t", intdiv($spaceCount, 4))
+            . str_repeat(' ', $spaceCount % 4)
+            . substr($line, $spaceCount);
     }
 
     /**

@@ -432,10 +432,7 @@ final class UpdateOrchestrator
         $sizes = $this->totalSizes;
         $sizes[$version] = $size ?? 0;
 
-        file_put_contents(
-            $sizesFile,
-            Tools::jsonEncodePrettyTabs($sizes)
-        );
+        Tools::writeJsonPrettyTabsFile($sizesFile, $sizes);
 
         $this->totalSizes = $sizes;
     }
@@ -459,10 +456,7 @@ final class UpdateOrchestrator
 
         $timestamps[$version] = time();
 
-        file_put_contents(
-            $tsFile,
-            Tools::jsonEncodePrettyTabs($timestamps)
-        );
+        Tools::writeJsonPrettyTabsFile($tsFile, $timestamps);
     }
 
     private function getTimestamp(string $version): ?int
