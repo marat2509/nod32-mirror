@@ -433,7 +433,7 @@ final class UpdateOrchestrator
 
         file_put_contents(
             $sizesFile,
-            json_encode($sizes, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+            Tools::jsonEncodePrettyTabs($sizes)
         );
 
         $this->totalSizes = $sizes;
@@ -460,7 +460,7 @@ final class UpdateOrchestrator
 
         file_put_contents(
             $tsFile,
-            json_encode($timestamps, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+            Tools::jsonEncodePrettyTabs($timestamps)
         );
     }
 

@@ -154,6 +154,18 @@ final class Tools
         return rtrim($path, '/\\' . DIRECTORY_SEPARATOR);
     }
 
+    public static function jsonEncodePrettyTabs(mixed $data): string|false
+    {
+        $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            return false;
+        }
+
+        return preg_replace_callback('/^( +)/m', static function (array $matches): string {
+            return str_repeat("\t", (int) (strlen($matches[1]) / 4));
+        }, $json) ?? $json;
+    }
+
     /**
      * Recursively delete directory contents
      */

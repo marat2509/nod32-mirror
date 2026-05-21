@@ -217,7 +217,7 @@ final class JsonKeyStorage implements KeyStorageInterface
         $dir = dirname($this->filePath);
         Tools::ensureDirectory($dir);
 
-        $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $json = Tools::jsonEncodePrettyTabs($data);
 
         if ($json !== false) {
             file_put_contents($this->filePath, $json);

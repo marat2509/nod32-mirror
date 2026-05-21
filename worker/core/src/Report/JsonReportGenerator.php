@@ -26,7 +26,7 @@ final class JsonReportGenerator implements ReportGeneratorInterface
     {
         $this->log->trace($this->language->t('log.running', __METHOD__));
 
-        $json = json_encode($metadata, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $json = Tools::jsonEncodePrettyTabs($metadata);
 
         if ($json === false) {
             $this->log->warning($this->language->t('report.json_encoding_failed', json_last_error_msg()));

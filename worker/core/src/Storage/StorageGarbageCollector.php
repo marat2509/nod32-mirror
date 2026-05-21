@@ -83,7 +83,7 @@ final class StorageGarbageCollector
      */
     public function saveState(string $path, array $state): void
     {
-        $json = json_encode($state, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $json = Tools::jsonEncodePrettyTabs($state);
         if ($json === false) {
             return;
         }

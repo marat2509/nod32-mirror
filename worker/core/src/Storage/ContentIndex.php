@@ -6,6 +6,7 @@ namespace Nod32Mirror\Storage;
 
 use Nod32Mirror\FileSystem\SafeFileOperations;
 use Nod32Mirror\Log\Log;
+use Nod32Mirror\Tools;
 use Nod32Mirror\ValueObject\ReferenceCollection;
 
 final class ContentIndex
@@ -66,7 +67,7 @@ final class ContentIndex
     {
         $this->index['updated_at'] = self::now();
 
-        $json = json_encode($this->index, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $json = Tools::jsonEncodePrettyTabs($this->index);
         if ($json === false) {
             $this->log->warning(sprintf('Storage index JSON encoding failed: %s', json_last_error_msg()));
             return;
