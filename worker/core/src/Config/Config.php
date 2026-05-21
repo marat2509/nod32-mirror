@@ -115,8 +115,8 @@ final class Config
             'web_dir' => 'www',
             'generate' => [
                 'export_credentials' => false,
-                'json' => ['enabled' => true, 'filename' => 'index.json'],
-                'html' => ['enabled' => true, 'filename' => 'index.html', 'codepage' => 'utf-8', 'only_table' => false],
+                'json' => ['enabled' => true, 'path' => 'index.json'],
+                'html' => ['enabled' => true, 'path' => 'index.html', 'codepage' => 'utf-8', 'only_table' => false],
             ],
         ];
 
@@ -132,6 +132,14 @@ final class Config
         $script['generate']['json']['enabled'] = !empty($script['generate']['json']['enabled']);
         $script['generate']['html']['enabled'] = !empty($script['generate']['html']['enabled']);
         $script['generate']['html']['only_table'] = !empty($script['generate']['html']['only_table']);
+        $script['generate']['json']['path'] = $this->normalizeRelativePath(
+            (string) ($script['generate']['json']['path'] ?? 'index.json'),
+            'index.json'
+        );
+        $script['generate']['html']['path'] = $this->normalizeRelativePath(
+            (string) ($script['generate']['html']['path'] ?? 'index.html'),
+            'index.html'
+        );
 
         $script['storage'] = $this->normalizeStorageConfig(
             is_array($script['storage'] ?? null) ? $script['storage'] : []
@@ -196,6 +204,28 @@ final class Config
         }
 
         return array_values(array_unique($items));
+    }
+
+    private function normalizeRelativePath(string $path, string $default): string
+    {
+        $path = str_replace('\\', '/', trim($path));
+        $path = ltrim($path, '/');
+
+        while (str_starts_with($path, './')) {
+            $path = substr($path, 2);
+        }
+
+        if ($path === '') {
+            return $default;
+        }
+
+        foreach (explode('/', $path) as $part) {
+            if ($part === '..') {
+                return $default;
+            }
+        }
+
+        return $path;
     }
 
     /**

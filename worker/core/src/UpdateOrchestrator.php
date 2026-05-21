@@ -616,13 +616,13 @@ final class UpdateOrchestrator
         $webDir = $this->config->getWebDir();
 
         if (!empty($generateConfig['html']['enabled'])) {
-            $filename = $generateConfig['html']['filename'] ?? 'index.html';
-            $this->htmlGenerator->save($metadata, Tools::ds($webDir, $filename));
+            $path = $generateConfig['html']['path'] ?? 'index.html';
+            $this->htmlGenerator->save($metadata, Tools::ds($webDir, (string) $path));
         }
 
         if (!empty($generateConfig['json']['enabled'])) {
-            $filename = $generateConfig['json']['filename'] ?? 'index.json';
-            $this->jsonGenerator->save($metadata, Tools::ds($webDir, $filename));
+            $path = $generateConfig['json']['path'] ?? 'index.json';
+            $this->jsonGenerator->save($metadata, Tools::ds($webDir, (string) $path));
         }
     }
 

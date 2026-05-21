@@ -46,6 +46,13 @@ script:
     gc:
       enabled: false
       excludes: []
+  generate:
+    json:
+      enabled: true
+      path: index.json
+    html:
+      enabled: true
+      path: index.html
 ```
 
 The Docker example mounts `./docker-data` into the worker as `/data`.
@@ -63,6 +70,10 @@ to `web_dir` that GC must leave untouched, for example `custom/`, `robots.txt`,
 `*.json`, or `.well-known/**`. In globs, `*` matches within one path segment and
 `**` matches across directories. Leading `/` or `./` is ignored, so
 `/robots.txt`, `./robots.txt`, and `robots.txt` are equivalent.
+
+Report paths are configured with `script.generate.json.path` and
+`script.generate.html.path`. They are relative to `web_dir`; parent directories
+are created automatically.
 
 Schema (published paths are relative to `webDir`):
 

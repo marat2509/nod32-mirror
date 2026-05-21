@@ -23,10 +23,10 @@ script:
     export_credentials: false # Include credentials in generated JSON/HTML
     json:
       enabled: true           # Emit JSON report
-      filename: "index.json"  # JSON filename
+      path: "index.json"      # JSON report path relative to web_dir
     html:
       enabled: true           # Emit HTML report
-      filename: "index.html"  # HTML filename
+      path: "index.html"      # HTML report path relative to web_dir
       codepage: "utf-8"       # HTML codepage
       only_table: false       # Export only table (for embedding elsewhere)
 

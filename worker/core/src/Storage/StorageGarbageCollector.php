@@ -245,10 +245,10 @@ final class StorageGarbageCollector
         $excludes = [];
         if (is_array($generate)) {
             if (!empty($generate['html']['enabled'])) {
-                $excludes[] = (string) ($generate['html']['filename'] ?? 'index.html');
+                $excludes[] = (string) ($generate['html']['path'] ?? 'index.html');
             }
             if (!empty($generate['json']['enabled'])) {
-                $excludes[] = (string) ($generate['json']['filename'] ?? 'index.json');
+                $excludes[] = (string) ($generate['json']['path'] ?? 'index.json');
             }
         }
 
