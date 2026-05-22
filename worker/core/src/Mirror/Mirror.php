@@ -6,6 +6,8 @@ namespace Nod32Mirror\Mirror;
 
 use Nod32Mirror\Config\Config;
 use Nod32Mirror\Contract\DownloaderInterface;
+use Nod32Mirror\Enum\StatusAction;
+use Nod32Mirror\Enum\StatusPhase;
 use Nod32Mirror\FileSystem\SafeFileOperations;
 use Nod32Mirror\Log\Log;
 use Nod32Mirror\Log\Language;
@@ -14,6 +16,7 @@ use Nod32Mirror\Storage\BlobStore;
 use Nod32Mirror\Storage\ContentIndex;
 use Nod32Mirror\Storage\PublishedPathManager;
 use Nod32Mirror\Storage\StorageConfig;
+use Nod32Mirror\Status\StatusReporter;
 use Nod32Mirror\Tools;
 use Nod32Mirror\ValueObject\Credential;
 use Nod32Mirror\ValueObject\DownloadableFile;
@@ -58,7 +61,8 @@ final class Mirror
         private readonly StorageConfig $storageConfig,
         private readonly BlobStore $blobStore,
         private readonly ContentIndex $contentIndex,
-        private readonly PublishedPathManager $publishedPathManager
+        private readonly PublishedPathManager $publishedPathManager,
+        private readonly StatusReporter $statusReporter
     ) {
     }
 
@@ -267,6 +271,13 @@ final class Mirror
         }
 
         $mirror = $this->mirrors[0];
+        $this->statusReporter->updateVersionAction(
+            $this->version,
+            StatusPhase::CheckingMirrorVersions,
+            StatusAction::CheckLocalDatabase,
+            $this->language->t('status.message.checking_local_database', $this->version),
+            mirror: $mirror->host
+        );
 
         foreach ($this->updateVariants as $variantKey => $variant) {
             $localVersion = $this->getDbVersion($variant->localPath);
@@ -341,6 +352,15 @@ final class Mirror
     private function downloadUpdateVer(MirrorInfo $mirror, UpdateVariant $variant): void
     {
         $this->log->trace($this->language->t('log.running', __METHOD__), $this->version, $this->channel);
+        $this->statusReporter->updateVersionAction(
+            $this->version,
+            StatusPhase::ProcessingVariant,
+            StatusAction::DownloadUpdateVer,
+            $this->language->t('status.message.downloading_update_ver', $variant->key),
+            $this->channel,
+            $variant->key,
+            $mirror->host
+        );
 
         if ($this->credential === null) {
             return;
@@ -405,6 +425,16 @@ final class Mirror
         $processed = false;
 
         foreach ($this->updateVariants as $variantKey => $variant) {
+            $this->statusReporter->updateVersionAction(
+                $this->version,
+                StatusPhase::ProcessingVariant,
+                StatusAction::ProcessVariant,
+                $this->language->t('status.message.processing_variant', $variant->key),
+                $variant->getChannel() ?? $this->primaryChannel,
+                $variant->key,
+                $mirror?->host
+            );
+
             $result = $this->processUpdateVariant($variant, $mirror);
 
             if (!$result['processed']) {
@@ -466,6 +496,15 @@ final class Mirror
             }
 
             $this->downloadUpdateVer($mirror, $variant);
+            $this->statusReporter->updateVersionAction(
+                $this->version,
+                StatusPhase::ProcessingVariant,
+                StatusAction::ParseUpdateVer,
+                $this->language->t('status.message.parsing_update_ver', $variant->key),
+                $this->channel,
+                $variant->key,
+                $mirror->host
+            );
 
             $content = $this->fileOps->readFile($variant->tmpPath, false);
 
@@ -508,6 +547,13 @@ final class Mirror
             }
 
             $downloadFiles = $this->collectFilesToDownload($parsed['files'], $webDir);
+            $this->statusReporter->updateVersionDownloads(
+                $this->version,
+                plannedFiles: count($downloadFiles),
+                processedFiles: 0,
+                downloadedBytes: 0
+            );
+
             $neededFiles = array_map(
                 fn(DownloadableFile $file): string => Tools::ds(
                     $webDir,
@@ -521,6 +567,15 @@ final class Mirror
 
             $downloadSuccess = true;
             if (!empty($downloadFiles)) {
+                $this->statusReporter->updateVersionAction(
+                    $this->version,
+                    StatusPhase::DownloadingFiles,
+                    StatusAction::DownloadBatch,
+                    $this->language->t('status.message.downloading_batch', count($downloadFiles)),
+                    $this->channel,
+                    $variant->key,
+                    $mirror->host
+                );
                 $downloadSuccess = $this->downloadFiles($downloadFiles, $mirror);
                 if ($downloadSuccess) {
                     $this->updated = true;
@@ -531,6 +586,11 @@ final class Mirror
 
             $duration = !empty($downloadFiles) ? (microtime(true) - $startTime) : 0;
             $downloaded = $this->totalDownloads - $beforeDownload;
+            $this->statusReporter->updateVersionDownloads(
+                $this->version,
+                processedFiles: count($downloadFiles),
+                downloadedBytes: $this->totalDownloads
+            );
 
             if (!$downloadSuccess) {
                 $this->log->warning($this->language->t('mirror.required_files_not_downloaded'), $this->version, $this->channel);
@@ -544,6 +604,15 @@ final class Mirror
                 return $result;
             }
 
+            $this->statusReporter->updateVersionAction(
+                $this->version,
+                StatusPhase::PublishingIndex,
+                StatusAction::PublishUpdateVer,
+                $this->language->t('status.message.publishing_update_ver', $variant->key),
+                $this->channel,
+                $variant->key,
+                $mirror->host
+            );
             if (!$this->publishIndexContent($variant->localPath, $parsed['content'])) {
                 $this->log->warning($this->language->t('mirror.temp_move_failed', $variant->fixedPath), $this->version, $this->channel);
                 $this->fileOps->deleteFile($variant->tmpPath);

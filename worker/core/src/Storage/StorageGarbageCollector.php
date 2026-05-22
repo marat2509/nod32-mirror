@@ -247,6 +247,9 @@ final class StorageGarbageCollector
             if (!empty($generate['json']['enabled'])) {
                 $excludes[] = (string) ($generate['json']['path'] ?? 'index.json');
             }
+            if (!empty($generate['status']['enabled'])) {
+                $excludes[] = (string) ($generate['status']['path'] ?? 'status.json');
+            }
         }
 
         $configuredExcludes = $this->config->getOrDefault('script.storage.gc.excludes', []);

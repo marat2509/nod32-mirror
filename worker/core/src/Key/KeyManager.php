@@ -7,8 +7,11 @@ namespace Nod32Mirror\Key;
 use Nod32Mirror\Config\Config;
 use Nod32Mirror\Contract\DownloaderInterface;
 use Nod32Mirror\Contract\KeyStorageInterface;
+use Nod32Mirror\Enum\StatusAction;
+use Nod32Mirror\Enum\StatusPhase;
 use Nod32Mirror\Log\Log;
 use Nod32Mirror\Log\Language;
+use Nod32Mirror\Status\StatusReporter;
 use Nod32Mirror\ValueObject\Credential;
 use Nod32Mirror\ValueObject\MirrorInfo;
 
@@ -19,7 +22,8 @@ final class KeyManager
         private readonly DownloaderInterface $downloader,
         private readonly Config $config,
         private readonly Log $log,
-        private readonly Language $language
+        private readonly Language $language,
+        private readonly StatusReporter $statusReporter
     ) {
     }
 
@@ -32,6 +36,12 @@ final class KeyManager
     public function findWorkingKey(string $version, string $updateFilePath, array $mirrors): ?array
     {
         $this->log->trace($this->language->t('log.running', __METHOD__), $version);
+        $this->statusReporter->updateVersionAction(
+            $version,
+            StatusPhase::CheckingKey,
+            StatusAction::TestStoredKey,
+            $this->language->t('status.message.testing_stored_keys', $version)
+        );
 
         $validKeys = $this->storage->getValidKeys($version);
 
@@ -88,6 +98,14 @@ final class KeyManager
         $workingMirrors = [];
 
         foreach ($mirrors as $mirror) {
+            $this->statusReporter->updateVersionAction(
+                $version,
+                StatusPhase::CheckingKey,
+                StatusAction::TestStoredKey,
+                $this->language->t('status.message.testing_key_mirror', $version),
+                mirror: $mirror
+            );
+
             $mirrorInfo = new MirrorInfo($mirror);
             $url = $mirrorInfo->buildUrl($updateFilePath);
 

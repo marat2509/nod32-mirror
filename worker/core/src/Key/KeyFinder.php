@@ -6,9 +6,12 @@ namespace Nod32Mirror\Key;
 
 use Nod32Mirror\Config\Config;
 use Nod32Mirror\Contract\DownloaderInterface;
+use Nod32Mirror\Enum\StatusAction;
+use Nod32Mirror\Enum\StatusPhase;
 use Nod32Mirror\Log\Log;
 use Nod32Mirror\Log\Language;
 use Nod32Mirror\Parser\Parser;
+use Nod32Mirror\Status\StatusReporter;
 use Nod32Mirror\Tools;
 use Nod32Mirror\ValueObject\Credential;
 use Nod32Mirror\ValueObject\MirrorInfo;
@@ -23,7 +26,8 @@ final class KeyFinder
         private readonly Parser $parser,
         private readonly Config $config,
         private readonly Log $log,
-        private readonly Language $language
+        private readonly Language $language,
+        private readonly StatusReporter $statusReporter
     ) {
     }
 
@@ -36,6 +40,12 @@ final class KeyFinder
     public function findKeys(string $version, string $updateFilePath, array $mirrors): ?array
     {
         $this->log->trace($this->language->t('log.running', __METHOD__), $version);
+        $this->statusReporter->updateVersionAction(
+            $version,
+            StatusPhase::FindingKey,
+            StatusAction::SearchKeys,
+            $this->language->t('status.message.searching_keys', $version)
+        );
 
         $findConfig = $this->config->getOrDefault('find', []);
 
@@ -118,6 +128,12 @@ final class KeyFinder
                 $url = str_replace('#PAGE#', (string) ($i * (int) $patternData['pageindex']), $url);
 
                 $attempts++;
+                $this->statusReporter->updateVersionAction(
+                    $version,
+                    StatusPhase::FindingKey,
+                    StatusAction::SearchKeys,
+                    $this->language->t('status.message.searching_keys_attempt', $attempts, $maxAttempts)
+                );
 
                 $result = $this->parseWebPage(
                     $version,

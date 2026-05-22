@@ -18,6 +18,7 @@ use Nod32Mirror\Mirror\MirrorSelector;
 use Nod32Mirror\Parser\Parser;
 use Nod32Mirror\Report\HtmlReportGenerator;
 use Nod32Mirror\Report\JsonReportGenerator;
+use Nod32Mirror\Status\StatusReporter;
 use Nod32Mirror\Storage\BlobStore;
 use Nod32Mirror\Storage\ContentIndex;
 use Nod32Mirror\Storage\PublishedPathManager;
@@ -50,6 +51,7 @@ final class Application
     private MirrorSelector $mirrorSelector;
     private HtmlReportGenerator $htmlGenerator;
     private JsonReportGenerator $jsonGenerator;
+    private StatusReporter $statusReporter;
     private UpdateOrchestrator $orchestrator;
 
     /**
@@ -68,6 +70,16 @@ final class Application
         $this->log = new Log($this->config, $this->language);
         $this->log->init();
 
+        $generateConfig = $scriptConfig['generate'] ?? [];
+        $statusConfig = is_array($generateConfig['status'] ?? null) ? $generateConfig['status'] : [];
+        $statusPath = Tools::ds($this->config->getWebDir(), (string) ($statusConfig['path'] ?? 'status.json'));
+        $this->statusReporter = new StatusReporter(
+            $statusPath,
+            $this->language,
+            $this->buildVersionNames($directories),
+            !empty($statusConfig['enabled'])
+        );
+
         // Build remaining services
         $this->versionConfig = new VersionConfig($this->config, $directories);
         $this->downloader = new GuzzleDownloader($this->config, $this->log, $this->language);
@@ -81,7 +93,8 @@ final class Application
             $this->downloader,
             $this->config,
             $this->log,
-            $this->language
+            $this->language,
+            $this->statusReporter
         );
 
         $this->keyFinder = new KeyFinder(
@@ -90,7 +103,8 @@ final class Application
             $this->parser,
             $this->config,
             $this->log,
-            $this->language
+            $this->language,
+            $this->statusReporter
         );
 
         // File system services
@@ -110,7 +124,8 @@ final class Application
             $this->storageConfig,
             $this->blobStore,
             $this->contentIndex,
-            $this->publishedPathManager
+            $this->publishedPathManager,
+            $this->statusReporter
         );
 
         $this->referenceCollector = new ReferenceCollector(
@@ -137,7 +152,8 @@ final class Application
             $this->downloader,
             $this->config,
             $this->log,
-            $this->language
+            $this->language,
+            $this->statusReporter
         );
 
         $this->htmlGenerator = new HtmlReportGenerator($this->config, $this->log, $this->language);
@@ -157,6 +173,7 @@ final class Application
             $this->mirrorSelector,
             $this->htmlGenerator,
             $this->jsonGenerator,
+            $this->statusReporter,
             $this->storageConfig,
             $this->blobStore,
             $this->contentIndex,
@@ -169,5 +186,20 @@ final class Application
     public function run(): void
     {
         $this->orchestrator->run();
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $directories
+     * @return array<string, string>
+     */
+    private function buildVersionNames(array $directories): array
+    {
+        $names = [];
+
+        foreach ($directories as $version => $settings) {
+            $names[$version] = (string) ($settings['name'] ?? $version);
+        }
+
+        return $names;
     }
 }

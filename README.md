@@ -53,6 +53,9 @@ script:
     html:
       enabled: true
       path: index.html
+    status:
+      enabled: true
+      path: status.json
 ```
 
 The Docker example mounts `./docker-data` into the worker as `/data`.
@@ -71,9 +74,47 @@ to `web_dir` that GC must leave untouched, for example `custom/`, `robots.txt`,
 `**` matches across directories. Leading `/` or `./` is ignored, so
 `/robots.txt`, `./robots.txt`, and `robots.txt` are equivalent.
 
-Report paths are configured with `script.generate.json.path` and
-`script.generate.html.path`. They are relative to `web_dir`; parent directories
-are created automatically.
+Report paths are configured with `script.generate.json.path`,
+`script.generate.html.path`, and `script.generate.status.path`. They are
+relative to `web_dir`; parent directories are created automatically.
+
+`status.json` is a runtime snapshot of the currently running update process. It
+is enabled by default and is written atomically so browser polling should always
+see valid JSON. The file stores only the current state, not an event history.
+Enum-backed fields such as `state`, `current.phase`, and `current.action` are
+objects with stable machine keys and localized labels:
+
+```json
+{
+	"schema_version": 1,
+	"state": { "key": "running", "label": "Running" },
+	"current": {
+		"phase": { "key": "processing_version", "label": "Processing version" },
+		"action": { "key": "checking_mirror_versions", "label": "Checking mirror versions" },
+		"version": "ep9",
+		"version_name": "ESET NOD32 Endpoint 9",
+		"channel": "production",
+		"variant": "production:file"
+	},
+	"versions": {
+		"items": {
+			"ep9": {
+				"database": {
+					"version": {
+						"local": 33200,
+						"remote": 33203,
+						"result": null
+					}
+				}
+			}
+		}
+	}
+}
+```
+
+The bundled `tools/index.html` polls `./status.json`. Polling frequency is
+configurable in the page UI and is stored in browser `localStorage` under
+`nod32Mirror.statusPollMs` with a default of 2000 ms.
 
 Schema (published paths are relative to `webDir`):
 

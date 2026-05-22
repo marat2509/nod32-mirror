@@ -7,8 +7,11 @@ namespace Nod32Mirror\Mirror;
 use Nod32Mirror\Config\Config;
 use Nod32Mirror\Contract\DownloaderInterface;
 use Nod32Mirror\Enum\MirrorStrategy;
+use Nod32Mirror\Enum\StatusAction;
+use Nod32Mirror\Enum\StatusPhase;
 use Nod32Mirror\Log\Language;
 use Nod32Mirror\Log\Log;
+use Nod32Mirror\Status\StatusReporter;
 use Nod32Mirror\ValueObject\Credential;
 use Nod32Mirror\ValueObject\MirrorInfo;
 use Nod32Mirror\ValueObject\MirrorTestResult;
@@ -25,7 +28,8 @@ final class MirrorSelector
         private readonly DownloaderInterface $downloader,
         private readonly Config $config,
         private readonly Log $log,
-        private readonly Language $language
+        private readonly Language $language,
+        private readonly StatusReporter $statusReporter
     ) {
     }
 
@@ -42,6 +46,11 @@ final class MirrorSelector
         $strategy = $this->config->getMirrorStrategy();
 
         $this->log->debug($this->language->t('mirror.selection_strategy', $strategy->label()));
+        $this->statusReporter->setCurrent(
+            StatusPhase::SelectingMirrors,
+            StatusAction::PreselectBestMirrors,
+            $this->language->t('status.message.selecting_mirrors', $strategy->label())
+        );
 
         return match ($strategy) {
             MirrorStrategy::Best => $this->selectBestMirrors($mirrors, $credential, $testUrls),
@@ -69,6 +78,13 @@ final class MirrorSelector
         $testResults = [];
 
         foreach ($mirrors as $mirror) {
+            $this->statusReporter->setCurrent(
+                StatusPhase::SelectingMirrors,
+                StatusAction::TestMirror,
+                $this->language->t('status.message.testing_mirror', $mirror),
+                mirror: $mirror
+            );
+
             $result = $this->testMirrorSpeed($mirror, $credential, $testUrls);
             $testResults[$mirror] = $result;
 

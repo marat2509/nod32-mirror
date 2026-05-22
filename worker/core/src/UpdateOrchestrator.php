@@ -9,6 +9,9 @@ use Nod32Mirror\Config\VersionConfig;
 use Nod32Mirror\Contract\DownloaderInterface;
 use Nod32Mirror\Contract\KeyStorageInterface;
 use Nod32Mirror\Enum\MirrorStrategy;
+use Nod32Mirror\Enum\StatusAction;
+use Nod32Mirror\Enum\StatusPhase;
+use Nod32Mirror\Enum\StatusState;
 use Nod32Mirror\Key\KeyFinder;
 use Nod32Mirror\Key\KeyManager;
 use Nod32Mirror\Log\Log;
@@ -18,6 +21,7 @@ use Nod32Mirror\Mirror\MirrorSelector;
 use Nod32Mirror\Parser\Parser;
 use Nod32Mirror\Report\HtmlReportGenerator;
 use Nod32Mirror\Report\JsonReportGenerator;
+use Nod32Mirror\Status\StatusReporter;
 use Nod32Mirror\Storage\BlobStore;
 use Nod32Mirror\Storage\ContentIndex;
 use Nod32Mirror\Storage\ReferenceCollector;
@@ -65,6 +69,7 @@ final class UpdateOrchestrator
         private readonly MirrorSelector $mirrorSelector,
         private readonly HtmlReportGenerator $htmlGenerator,
         private readonly JsonReportGenerator $jsonGenerator,
+        private readonly StatusReporter $statusReporter,
         private readonly StorageConfig $storageConfig,
         private readonly BlobStore $blobStore,
         private readonly ContentIndex $contentIndex,
@@ -87,12 +92,46 @@ final class UpdateOrchestrator
         }
 
         try {
+            $enabledVersions = $this->versionConfig->getEnabledVersions();
+            $this->statusReporter->startRun(
+                $this->getVersion(),
+                getmypid() ?: 'unknown',
+                $this->buildVersionNames($enabledVersions)
+            );
+            $this->statusReporter->setCurrent(
+                StatusPhase::AcquiringLock,
+                StatusAction::AcquireLock,
+                $this->language->t('status.message.lock_acquired')
+            );
+
+            $this->statusReporter->setCurrent(
+                StatusPhase::LoadingState,
+                StatusAction::LoadSizes,
+                $this->language->t('status.message.loading_state')
+            );
             $this->loadStoredSizes();
+
+            $this->statusReporter->setCurrent(
+                StatusPhase::InitializingStorage,
+                StatusAction::InitStorage,
+                $this->language->t('status.message.initializing_storage')
+            );
             $this->initStorage();
+
+            $this->statusReporter->setCurrent(
+                StatusPhase::StartupCleanup,
+                StatusAction::CleanupStorageTmp,
+                $this->language->t('status.message.cleaning_storage_tmp')
+            );
             $this->cleanupStorageTmpDirectory();
+
+            $this->statusReporter->setCurrent(
+                StatusPhase::StartupCleanup,
+                StatusAction::CleanupPublishTmp,
+                $this->language->t('status.message.cleaning_publish_tmp')
+            );
             $this->cleanupPublishTempFiles();
 
-            $enabledVersions = $this->versionConfig->getEnabledVersions();
             $this->log->info($this->language->t('script.enabled_versions', implode(', ', $enabledVersions)));
 
             // Pre-select best mirrors if strategy is 'best'
@@ -102,13 +141,22 @@ final class UpdateOrchestrator
                 $this->processVersion($version);
             }
 
+            $this->statusReporter->setCurrent(
+                StatusPhase::StartupCleanup,
+                StatusAction::CleanupTmp,
+                $this->language->t('status.message.cleaning_tmp')
+            );
             $this->cleanupTmpDirectory();
             $this->finalizeStorage();
             $this->logSummary();
             $this->generateReports();
+            $this->statusReporter->completeRun($this->language->t('status.message.run_completed'));
 
             $this->log->info($this->language->t('script.total_working_time', Tools::secondsToHumanReadable(time() - $this->startTime)));
             $this->log->info($this->language->t('script.stopping'));
+        } catch (\Throwable $e) {
+            $this->statusReporter->failRun($e);
+            throw $e;
         } finally {
             $this->blobStore->cleanupRunTmp();
             $this->releaseUpdateLock();
@@ -129,6 +177,11 @@ final class UpdateOrchestrator
             return;
         }
 
+        $this->statusReporter->setCurrent(
+            StatusPhase::SelectingMirrors,
+            StatusAction::PreselectBestMirrors,
+            $this->language->t('status.message.preselecting_best_mirrors')
+        );
         $this->log->info($this->language->t('mirror.preselecting_best'));
 
         // Collect test URLs for all versions
@@ -233,11 +286,27 @@ final class UpdateOrchestrator
     private function processVersion(string $version): void
     {
         if (!isset($this->directories[$version])) {
+            $this->statusReporter->startVersion(
+                $version,
+                StatusAction::ProcessVersion,
+                $this->language->t('status.message.processing_version', $version)
+            );
+            $this->statusReporter->finishVersion(
+                $version,
+                StatusState::Skipped,
+                StatusAction::ProcessVersion,
+                $this->language->t('config.version_not_in_directories', $version)
+            );
             $this->log->warning($this->language->t('config.version_not_in_directories', $version), $version);
             return;
         }
 
         $dirConfig = $this->directories[$version];
+        $this->statusReporter->startVersion(
+            $version,
+            StatusAction::ProcessVersion,
+            $this->language->t('status.message.processing_version', $version)
+        );
         $this->log->info($this->language->t('script.processing_version', $version), $version);
         $this->log->trace($this->language->t('mirror.init_for_version_in_dir', $version, $dirConfig['name'] ?? $version), $version);
 
@@ -249,6 +318,12 @@ final class UpdateOrchestrator
         $sourceFile = $this->mirror->getPrimarySourcePath();
 
         if ($sourceFile === null) {
+            $this->statusReporter->finishVersion(
+                $version,
+                StatusState::Skipped,
+                StatusAction::ProcessVersion,
+                $this->language->t('script.stopped')
+            );
             $this->log->warning($this->language->t('script.stopped'), $version);
             return;
         }
@@ -275,6 +350,12 @@ final class UpdateOrchestrator
             $keyResult = $this->keyFinder->findKeys($version, $sourceFile, $mirrors);
 
             if ($keyResult === null) {
+                $this->statusReporter->finishVersion(
+                    $version,
+                    StatusState::Failed,
+                    StatusAction::SearchKeys,
+                    $this->language->t('script.stopped')
+                );
                 $this->log->warning($this->language->t('script.stopped'), $version);
                 return;
             }
@@ -297,9 +378,15 @@ final class UpdateOrchestrator
 
         if (!empty($workingMirrors)) {
             $primaryMirror = $workingMirrors[0];
+            $this->statusReporter->updateVersionDatabase(
+                $version,
+                local: $oldVersion,
+                remote: $primaryMirror->dbVersion
+            );
 
             if ($this->mirror->allChannelsUpToDate()) {
                 $relevantVersion = $oldVersion ?? $primaryMirror->dbVersion;
+                $this->statusReporter->updateVersionDatabase($version, result: $relevantVersion);
                 $this->log->informer(
                     $this->language->t('report.database_relevant', $relevantVersion),
                     $version
@@ -316,10 +403,17 @@ final class UpdateOrchestrator
                 $result = $this->mirror->downloadSignature();
 
                 if (empty($result['processed'])) {
+                    $this->statusReporter->finishVersion(
+                        $version,
+                        StatusState::Failed,
+                        StatusAction::DownloadBatch,
+                        $this->language->t('script.stopped')
+                    );
                     $this->log->warning($this->language->t('script.stopped'), $version);
                     return;
                 }
 
+                $this->statusReporter->updateVersionDatabase($version, result: $primaryMirror->dbVersion);
                 $this->setDatabaseSize($version, $result['totalSize']);
                 $this->platformsFound[$version] = $this->mirror->getPlatformsFound();
 
@@ -351,9 +445,22 @@ final class UpdateOrchestrator
                 $this->touchTimestamp($version);
             }
         } else {
+            $this->statusReporter->finishVersion(
+                $version,
+                StatusState::Failed,
+                StatusAction::CheckingMirrorVersions,
+                $this->language->t('mirror.all_down')
+            );
             $this->log->warning($this->language->t('mirror.all_down'), $version);
+            return;
         }
 
+        $this->statusReporter->finishVersion(
+            $version,
+            StatusState::Completed,
+            StatusAction::Complete,
+            $this->language->t('script.version_completed', $version)
+        );
         $this->log->debug($this->language->t('script.version_completed', $version), $version);
     }
 
@@ -368,6 +475,13 @@ final class UpdateOrchestrator
         $updatedMirrors = [];
 
         foreach ($mirrors as $mirror) {
+            $this->statusReporter->updateVersionAction(
+                $version,
+                StatusPhase::CheckingMirrorVersions,
+                StatusAction::CheckRemoteVersion,
+                $this->language->t('status.message.checking_remote_version', $mirror->host),
+                mirror: $mirror->host
+            );
             $dbVersion = $this->getRemoteMirrorVersion($mirror, $credential, $sourceFile);
 
             if ($dbVersion !== null) {
@@ -384,6 +498,9 @@ final class UpdateOrchestrator
             $updatedMirrors,
             static fn(MirrorInfo $m): bool => $m->dbVersion === $maxVersion
         ));
+        if ($maxVersion > 0) {
+            $this->statusReporter->updateVersionDatabase($version, remote: $maxVersion);
+        }
     }
 
     private function getRemoteMirrorVersion(MirrorInfo $mirror, Credential $credential, string $sourceFile): ?int
@@ -571,15 +688,37 @@ final class UpdateOrchestrator
 
     private function finalizeStorage(): void
     {
+        $this->statusReporter->setCurrent(
+            StatusPhase::FinalizingStorage,
+            StatusAction::CollectReferences,
+            $this->language->t('status.message.collecting_references')
+        );
+        $this->statusReporter->updateStorage(StatusState::Running, StatusAction::CollectReferences);
+
         $webDir = $this->config->getWebDir();
         $references = $this->referenceCollector->collect($webDir);
         $this->contentIndex->syncVersionRefs($references);
 
+        $this->statusReporter->setCurrent(
+            StatusPhase::FinalizingStorage,
+            StatusAction::RunStorageGc,
+            $this->language->t('status.message.running_storage_gc')
+        );
+        $this->statusReporter->updateStorage(StatusState::Running, StatusAction::RunStorageGc);
+
         $gcState = $this->storageGarbageCollector->run($webDir, $references);
         $this->contentIndex->syncVersionRefs($references);
 
+        $this->statusReporter->setCurrent(
+            StatusPhase::FinalizingStorage,
+            StatusAction::FinalizeStorage,
+            $this->language->t('status.message.saving_storage_state')
+        );
+        $this->statusReporter->updateStorage(StatusState::Running, StatusAction::FinalizeStorage);
+
         $this->storageGarbageCollector->saveState(Tools::ds($this->config->getDataDir(), 'gc-state.json'), $gcState);
         $this->contentIndex->save(Tools::ds($this->config->getDataDir(), 'content-index.json'));
+        $this->statusReporter->updateStorage(StatusState::Completed);
     }
 
     private function logSummary(): void
@@ -611,13 +750,38 @@ final class UpdateOrchestrator
 
         if (!empty($generateConfig['html']['enabled'])) {
             $path = $generateConfig['html']['path'] ?? 'index.html';
+            $this->statusReporter->setCurrent(
+                StatusPhase::GeneratingIndex,
+                StatusAction::WriteIndexHtml,
+                $this->language->t('status.message.generating_html_report')
+            );
             $this->htmlGenerator->save($metadata, Tools::ds($webDir, (string) $path));
         }
 
         if (!empty($generateConfig['json']['enabled'])) {
             $path = $generateConfig['json']['path'] ?? 'index.json';
+            $this->statusReporter->setCurrent(
+                StatusPhase::GeneratingIndex,
+                StatusAction::WriteIndexJson,
+                $this->language->t('status.message.generating_json_report')
+            );
             $this->jsonGenerator->save($metadata, Tools::ds($webDir, (string) $path));
         }
+    }
+
+    /**
+     * @param string[] $versions
+     * @return array<string, string>
+     */
+    private function buildVersionNames(array $versions): array
+    {
+        $names = [];
+
+        foreach ($versions as $version) {
+            $names[$version] = (string) ($this->directories[$version]['name'] ?? $version);
+        }
+
+        return $names;
     }
 
     /**

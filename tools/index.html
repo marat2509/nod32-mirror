@@ -8,16 +8,19 @@
     :root {
       color-scheme: dark;
       font-family: "Inter", "Segoe UI", system-ui, sans-serif;
-      --bg: #0f172a;
-      --card: rgba(15, 23, 42, 0.78);
-      --border: rgba(148, 163, 184, 0.18);
-      --accent: #38bdf8;
-      --accent-soft: rgba(56, 189, 248, 0.12);
-      --text-primary: #e2e8f0;
-      --text-muted: #94a3b8;
-      --badge-bg: rgba(148, 163, 184, 0.12);
-      --badge-text: #cbd5f5;
-      --success: #22c55e;
+      --bg: #111315;
+      --card: #181b1f;
+      --surface-strong: #1f2328;
+      --border: #30363d;
+      --accent: #46c2a3;
+      --accent-soft: rgba(70, 194, 163, 0.14);
+      --text-primary: #e8edf2;
+      --text-muted: #9aa4af;
+      --badge-bg: rgba(154, 164, 175, 0.12);
+      --badge-text: #d3dae2;
+      --success: #40c463;
+      --danger: #f85149;
+      --radius: 8px;
     }
 
     * { box-sizing: border-box; }
@@ -25,45 +28,30 @@
     body {
       margin: 0;
       min-height: 100vh;
-      background:
-        radial-gradient(circle at top left, rgba(56, 189, 248, 0.25), transparent 45%),
-        radial-gradient(circle at bottom right, rgba(59, 130, 246, 0.3), transparent 50%),
-        var(--bg);
+      background: var(--bg);
       color: var(--text-primary);
       display: flex;
       justify-content: center;
-      padding: 48px 24px 64px;
+      padding: 28px 24px 44px;
     }
 
     main {
-      width: min(1200px, 100%);
+      width: min(1280px, 100%);
       display: flex;
       flex-direction: column;
-      gap: 32px;
+      gap: 20px;
     }
 
     header.hero {
       display: grid;
-      gap: 20px;
-      padding: 32px 36px;
-      border-radius: 28px;
-      background: linear-gradient(135deg, rgba(30, 64, 175, 0.6), rgba(56, 189, 248, 0.35));
-      border: 1px solid rgba(148, 163, 184, 0.2);
-      box-shadow: 0 40px 120px -50px rgba(56, 189, 248, 0.6);
+      gap: 16px;
     }
 
     header.hero h1 {
       margin: 0;
       font-weight: 700;
-      font-size: clamp(2rem, 2vw + 1rem, 2.6rem);
-      letter-spacing: 0.02em;
-    }
-
-    header.hero p {
-      margin: 0;
-      color: rgba(226, 232, 240, 0.9);
-      max-width: 60ch;
-      line-height: 1.6;
+      font-size: 1.55rem;
+      letter-spacing: 0;
     }
 
     .quick-stats {
@@ -74,10 +62,9 @@
 
     .stat-card {
       background: var(--card);
-      border-radius: 22px;
-      padding: 24px;
+      border-radius: var(--radius);
+      padding: 18px 20px;
       border: 1px solid var(--border);
-      backdrop-filter: blur(12px);
       display: flex;
       flex-direction: column;
       gap: 8px;
@@ -87,7 +74,7 @@
       font-size: 0.85rem;
       color: var(--text-muted);
       text-transform: uppercase;
-      letter-spacing: 0.12em;
+      letter-spacing: 0.08em;
     }
 
     .stat-value {
@@ -97,21 +84,20 @@
     }
 
     .stat-card strong {
-      font-size: 1.8rem;
+      font-size: 1.55rem;
       font-weight: 700;
     }
 
     .table-card {
       background: var(--card);
-      border-radius: 26px;
+      border-radius: var(--radius);
       border: 1px solid var(--border);
       overflow: hidden;
-      backdrop-filter: blur(10px);
     }
 
     .table-card header {
       padding: 24px 28px;
-      border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+      border-bottom: 1px solid var(--border);
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -124,7 +110,7 @@
 
     .table-card header .badge {
       padding: 4px 12px;
-      border-radius: 999px;
+      border-radius: 6px;
       font-size: 0.8rem;
       background: var(--accent-soft);
       color: var(--accent);
@@ -143,8 +129,7 @@
     thead {
       position: sticky;
       top: 0;
-      background: rgba(15, 23, 42, 0.98);
-      backdrop-filter: blur(10px);
+      background: var(--surface-strong);
       z-index: 2;
     }
 
@@ -152,14 +137,14 @@
       text-align: left;
       padding: 18px 24px;
       font-size: 0.95rem;
-      border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+      border-bottom: 1px solid var(--border);
       vertical-align: top;
     }
 
     th {
       text-transform: uppercase;
       font-size: 0.75rem;
-      letter-spacing: 0.1em;
+      letter-spacing: 0.08em;
       color: var(--text-muted);
     }
 
@@ -168,7 +153,7 @@
     }
 
     tbody tr:hover {
-      background: rgba(56, 189, 248, 0.06);
+      background: rgba(70, 194, 163, 0.07);
     }
 
     .channel-badge {
@@ -195,7 +180,7 @@
 
     .platform-badge {
       padding: 4px 10px;
-      border-radius: 18px;
+      border-radius: 6px;
       background: var(--badge-bg);
       color: var(--badge-text);
       font-size: 0.75rem;
@@ -247,12 +232,12 @@
       align-items: center;
       gap: 6px;
       padding: 4px 10px;
-      border-radius: 999px;
+      border-radius: 6px;
       background: var(--accent-soft);
       transition: background 0.25s ease;
     }
 
-    .files a:hover { background: rgba(56, 189, 248, 0.25); }
+    .files a:hover { background: rgba(70, 194, 163, 0.22); }
 
     .files .empty {
       color: var(--text-muted);
@@ -273,28 +258,121 @@
       align-items: center;
       gap: 6px;
       padding: 6px 12px;
-      border-radius: 999px;
+      border-radius: 6px;
       background: rgba(34, 197, 94, 0.12);
       color: var(--success);
       font-weight: 600;
     }
 
-    footer {
-      margin-top: 16px;
-      color: rgba(148, 163, 184, 0.75);
-      font-size: 0.85rem;
-      text-align: center;
+    .live-status {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      display: grid;
+      gap: 18px;
     }
+
+    .live-status-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .live-status-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .live-status-title h2 {
+      margin: 0;
+      font-size: 1.1rem;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      box-shadow: 0 0 0 5px rgba(148, 163, 184, 0.12);
+    }
+
+    .status-dot.running {
+      background: var(--accent);
+      box-shadow: 0 0 0 5px rgba(70, 194, 163, 0.12);
+    }
+
+    .status-dot.completed {
+      background: var(--success);
+      box-shadow: 0 0 0 5px rgba(34, 197, 94, 0.12);
+    }
+
+    .status-dot.failed {
+      background: var(--danger);
+      box-shadow: 0 0 0 5px rgba(248, 81, 73, 0.12);
+    }
+
+    .poll-control {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    .poll-control select {
+      color: var(--text-primary);
+      background: var(--surface-strong);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 10px;
+      outline: none;
+    }
+
+    .live-status-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 12px;
+    }
+
+    .status-field {
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .status-field span {
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 0.68rem;
+    }
+
+    .status-field strong {
+      font-size: 0.95rem;
+      overflow-wrap: anywhere;
+    }
+
+    .status-message {
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin: 0;
+    }
+
+    .status-message.error { color: #fca5a5; }
 
     #tooltip-portal {
       position: fixed;
       z-index: 9999;
       pointer-events: none;
       padding: 8px 12px;
-      border-radius: 10px;
-      background: rgba(15, 23, 42, 0.95);
+      border-radius: 6px;
+      background: #0d1117;
       color: var(--text-primary);
-      box-shadow: 0 12px 30px -15px rgba(56, 189, 248, 0.45);
+      box-shadow: 0 12px 30px -15px rgba(70, 194, 163, 0.45);
       font-size: 0.75rem;
       line-height: 1.2;
       opacity: 0;
@@ -307,20 +385,20 @@
       body { padding: 24px 14px 48px; }
 
       header.hero {
-        padding: 24px;
-        border-radius: 24px;
         gap: 16px;
       }
 
-      header.hero h1 { font-size: clamp(1.6rem, 4vw + 1rem, 2.2rem); }
-
-      header.hero p { font-size: 0.95rem; }
+      header.hero h1 { font-size: 1.35rem; }
 
       .quick-stats { grid-template-columns: 1fr; }
 
-      .stat-card { padding: 18px; }
+      .stat-card { padding: 16px; }
 
-      .table-card { border-radius: 22px; }
+      .live-status { padding: 16px; }
+
+      .live-status-head { align-items: flex-start; }
+
+      .table-card { border-radius: var(--radius); }
 
       .table-card header {
         padding: 20px;
@@ -336,16 +414,15 @@
       table { min-width: 0; }
 
       tbody tr {
-        background: rgba(15, 23, 42, 0.75);
-        border: 1px solid rgba(148, 163, 184, 0.16);
-        border-radius: 18px;
+        background: var(--surface-strong);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
         padding: 18px;
         margin: 0 0 18px 0;
-        box-shadow: 0 12px 40px -32px rgba(56, 189, 248, 0.5);
       }
 
       tbody tr:hover {
-        background: rgba(56, 189, 248, 0.12);
+        background: rgba(70, 194, 163, 0.08);
       }
 
       td {
@@ -361,7 +438,7 @@
         content: attr(data-label);
         text-transform: uppercase;
         font-size: 0.7rem;
-        letter-spacing: 0.12em;
+        letter-spacing: 0.08em;
         color: var(--text-muted);
       }
 
@@ -375,33 +452,81 @@
 <main>
   <header class="hero">
     <h1 id="title">ESET NOD32 - зеркало обновлений</h1>
-    <p>
-      Сводка по локальному зеркалу обновлений: актуальные версии, доступные платформы,
-      размер баз и дата последнего успешного синхронизационного запуска.
-    </p>
-    <div class="quick-stats">
-      <article class="stat-card">
-        <span class="label">Последнее обновление</span>
-        <div class="stat-value">
-          <strong id="last-update">—</strong>
-        </div>
-        <small id="last-update-relative" style="color:var(--text-muted);" data-iso-updated=""></small>
-      </article>
-      <article class="stat-card">
-        <span class="label">Суммарный объём</span>
-        <div class="stat-value" id="total-size-wrap">
-          <strong id="total-size">—</strong>
-        </div>
-      </article>
-      <article class="stat-card">
-        <span class="label">Кол-во веток</span>
-        <strong id="versions-count">—</strong>
-        <span class="status-pill" id="versions-status">
-          <span style="font-size:12px;">●</span> Загружается…
-        </span>
-      </article>
-    </div>
   </header>
+
+  <section class="live-status" aria-live="polite">
+    <div class="live-status-head">
+      <div class="live-status-title">
+        <span class="status-dot" id="status-dot"></span>
+        <h2>Статус обновления</h2>
+      </div>
+      <label class="poll-control" for="status-poll-interval">
+        Опрос
+        <select id="status-poll-interval">
+          <option value="1000">1 сек</option>
+          <option value="2000">2 сек</option>
+          <option value="5000">5 сек</option>
+          <option value="10000">10 сек</option>
+          <option value="30000">30 сек</option>
+          <option value="60000">60 сек</option>
+        </select>
+      </label>
+    </div>
+    <div class="live-status-grid">
+      <div class="status-field">
+        <span>Состояние</span>
+        <strong id="status-state">—</strong>
+      </div>
+      <div class="status-field">
+        <span>Фаза</span>
+        <strong id="status-phase">—</strong>
+      </div>
+      <div class="status-field">
+        <span>Действие</span>
+        <strong id="status-action">—</strong>
+      </div>
+      <div class="status-field">
+        <span>Версия</span>
+        <strong id="status-version">—</strong>
+      </div>
+      <div class="status-field">
+        <span>Канал</span>
+        <strong id="status-channel">—</strong>
+      </div>
+      <div class="status-field">
+        <span>Время</span>
+        <strong id="status-elapsed">—</strong>
+      </div>
+      <div class="status-field">
+        <span>Обновлено</span>
+        <strong id="status-updated">—</strong>
+      </div>
+    </div>
+    <p class="status-message" id="status-message">Статус недоступен</p>
+  </section>
+
+  <section class="quick-stats" aria-label="Сводка зеркала">
+    <article class="stat-card">
+      <span class="label">Последнее обновление</span>
+      <div class="stat-value">
+        <strong id="last-update">—</strong>
+      </div>
+      <small id="last-update-relative" style="color:var(--text-muted);" data-iso-updated=""></small>
+    </article>
+    <article class="stat-card">
+      <span class="label">Суммарный объём</span>
+      <div class="stat-value" id="total-size-wrap">
+        <strong id="total-size">—</strong>
+      </div>
+    </article>
+    <article class="stat-card">
+      <span class="label">Кол-во веток</span>
+      <strong id="versions-count">—</strong>
+      <span class="status-pill" id="versions-status">
+        <span style="font-size:12px;">●</span> Загружается…
+      </span>
+    </article>
+  </section>
 
   <section class="table-card">
     <header>
@@ -431,15 +556,17 @@
     </div>
   </section>
 
-  <footer>
-    Создано для локального зеркала обновлений ESET NOD32 · Автоматически заполняется из JSON
-  </footer>
 </main>
 
 <div id="tooltip-portal" hidden></div>
 
 <script>
   const JSON_PATH = './index.json';
+  const STATUS_PATH = './status.json';
+  const STATUS_POLL_STORAGE_KEY = 'nod32Mirror.statusPollMs';
+  const DEFAULT_STATUS_POLL_MS = 2000;
+  const MIN_STATUS_POLL_MS = 1000;
+  const MAX_STATUS_POLL_MS = 60000;
 
   const els = {
     title: document.getElementById('title'),
@@ -452,6 +579,16 @@
     tableBadge: document.getElementById('table-badge'),
     tbody: document.getElementById('versions-body'),
     tooltip: document.getElementById('tooltip-portal'),
+    statusDot: document.getElementById('status-dot'),
+    statusState: document.getElementById('status-state'),
+    statusPhase: document.getElementById('status-phase'),
+    statusAction: document.getElementById('status-action'),
+    statusVersion: document.getElementById('status-version'),
+    statusChannel: document.getElementById('status-channel'),
+    statusElapsed: document.getElementById('status-elapsed'),
+    statusUpdated: document.getElementById('status-updated'),
+    statusMessage: document.getElementById('status-message'),
+    statusPollInterval: document.getElementById('status-poll-interval'),
   };
 
   const nf = new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
@@ -490,6 +627,47 @@
     const exp = Math.min(Math.floor(Math.log(Math.abs(num)) / Math.log(1024)), units.length - 1);
     const value = Math.abs(num) / Math.pow(1024, exp);
     return `${nf.format(value)} ${units[exp]}`;
+  }
+
+  function formatDuration(seconds) {
+    const sec = Number(seconds);
+    if (!Number.isFinite(sec) || sec < 0) return '—';
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = Math.floor(sec % 60);
+    if (h > 0) return `${h} ч ${String(m).padStart(2, '0')} мин`;
+    if (m > 0) return `${m} мин ${String(s).padStart(2, '0')} сек`;
+    return `${s} сек`;
+  }
+
+  function sanitizePollMs(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return DEFAULT_STATUS_POLL_MS;
+    return Math.min(Math.max(Math.round(n), MIN_STATUS_POLL_MS), MAX_STATUS_POLL_MS);
+  }
+
+  function getStoredPollMs() {
+    try {
+      return sanitizePollMs(localStorage.getItem(STATUS_POLL_STORAGE_KEY));
+    } catch {
+      return DEFAULT_STATUS_POLL_MS;
+    }
+  }
+
+  function savePollMs(value) {
+    const pollMs = sanitizePollMs(value);
+    try {
+      localStorage.setItem(STATUS_POLL_STORAGE_KEY, String(pollMs));
+    } catch {
+      // localStorage can be unavailable in restrictive browser modes.
+    }
+    return pollMs;
+  }
+
+  function setSelectPollValue(pollMs) {
+    const normalized = String(sanitizePollMs(pollMs));
+    const hasOption = Array.from(els.statusPollInterval.options).some(o => o.value === normalized);
+    els.statusPollInterval.value = hasOption ? normalized : String(DEFAULT_STATUS_POLL_MS);
   }
 
   function createPlatformBadges(platforms) {
@@ -846,6 +1024,92 @@
       currentController = null;
     }
   }
+
+  function enumText(value) {
+    if (!value) return '—';
+    if (typeof value === 'object') return value.label || value.key || '—';
+    return String(value);
+  }
+
+  function updateStatusDot(stateKey) {
+    els.statusDot.className = 'status-dot';
+    if (stateKey) {
+      els.statusDot.classList.add(String(stateKey));
+    }
+  }
+
+  function renderStatusUnavailable(message, isError = false) {
+    updateStatusDot('');
+    els.statusState.textContent = '—';
+    els.statusPhase.textContent = '—';
+    els.statusAction.textContent = '—';
+    els.statusVersion.textContent = '—';
+    els.statusChannel.textContent = '—';
+    els.statusElapsed.textContent = '—';
+    els.statusUpdated.textContent = '—';
+    els.statusMessage.textContent = message;
+    els.statusMessage.classList.toggle('error', isError);
+  }
+
+  function renderStatus(status) {
+    const current = status?.current || {};
+    const run = status?.run || {};
+    const stateKey = status?.state?.key || '';
+
+    updateStatusDot(stateKey);
+    els.statusState.textContent = enumText(status?.state);
+    els.statusPhase.textContent = enumText(current.phase);
+    els.statusAction.textContent = enumText(current.action);
+    els.statusVersion.textContent = current.version_name || current.version || '—';
+    els.statusChannel.textContent = current.channel || '—';
+    els.statusElapsed.textContent = formatDuration(run.elapsed_seconds);
+    els.statusUpdated.textContent = run.updated_at ? formatAbsolute(run.updated_at) : '—';
+
+    const failedMessage = stateKey === 'failed' ? status?.error?.message : null;
+    els.statusMessage.textContent = failedMessage || current.message || '—';
+    els.statusMessage.classList.toggle('error', Boolean(failedMessage));
+  }
+
+  let statusPollTimer = null;
+  let statusRequestActive = false;
+
+  async function loadStatus() {
+    if (statusRequestActive) return;
+    statusRequestActive = true;
+
+    try {
+      const res = await fetch(STATUS_PATH, { cache: 'no-store' });
+      if (res.status === 404) {
+        renderStatusUnavailable('Статус недоступен');
+        return;
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      renderStatus(await res.json());
+    } catch (error) {
+      console.error(error);
+      renderStatusUnavailable(`Ошибка загрузки статуса: ${error.message}`, true);
+    } finally {
+      statusRequestActive = false;
+    }
+  }
+
+  function startStatusPolling(pollMs = getStoredPollMs()) {
+    const normalized = sanitizePollMs(pollMs);
+    setSelectPollValue(normalized);
+
+    if (statusPollTimer) {
+      clearInterval(statusPollTimer);
+    }
+
+    loadStatus();
+    statusPollTimer = setInterval(loadStatus, normalized);
+  }
+
+  els.statusPollInterval.addEventListener('change', () => {
+    startStatusPolling(savePollMs(els.statusPollInterval.value));
+  });
+
+  startStatusPolling(getStoredPollMs());
 
   (async function init() {
     try {

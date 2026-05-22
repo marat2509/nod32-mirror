@@ -117,6 +117,7 @@ final class Config
                 'export_credentials' => false,
                 'json' => ['enabled' => true, 'path' => 'index.json'],
                 'html' => ['enabled' => true, 'path' => 'index.html', 'codepage' => 'utf-8', 'only_table' => false],
+                'status' => ['enabled' => true, 'path' => 'status.json'],
             ],
         ];
 
@@ -131,6 +132,7 @@ final class Config
         $script['generate']['export_credentials'] = !empty($script['generate']['export_credentials']);
         $script['generate']['json']['enabled'] = !empty($script['generate']['json']['enabled']);
         $script['generate']['html']['enabled'] = !empty($script['generate']['html']['enabled']);
+        $script['generate']['status']['enabled'] = !empty($script['generate']['status']['enabled']);
         $script['generate']['html']['only_table'] = !empty($script['generate']['html']['only_table']);
         $script['generate']['json']['path'] = $this->normalizeRelativePath(
             (string) ($script['generate']['json']['path'] ?? 'index.json'),
@@ -139,6 +141,10 @@ final class Config
         $script['generate']['html']['path'] = $this->normalizeRelativePath(
             (string) ($script['generate']['html']['path'] ?? 'index.html'),
             'index.html'
+        );
+        $script['generate']['status']['path'] = $this->normalizeRelativePath(
+            (string) ($script['generate']['status']['path'] ?? 'status.json'),
+            'status.json'
         );
 
         $script['storage'] = $this->normalizeStorageConfig(
