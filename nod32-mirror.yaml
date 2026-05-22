@@ -29,6 +29,9 @@ script:
       path: "index.html"      # HTML report path relative to web_dir
       codepage: "utf-8"       # HTML codepage
       only_table: false       # Export only table (for embedding elsewhere)
+    status:
+      enabled: true           # Emit Status JSON report
+      path: status.json       # Status JSON path relative to web_dir
 
 connection:
   threads: 32                 # Number of concurrent download threads
