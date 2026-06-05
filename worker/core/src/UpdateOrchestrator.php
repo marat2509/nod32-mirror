@@ -339,6 +339,10 @@ final class UpdateOrchestrator
         if ($this->globalCredential !== null) {
             // Validate global credential for this version
             $keyResult = $this->keyManager->testKey($this->globalCredential, $version, $sourceFile, $mirrors);
+
+            if ($keyResult === null) {
+                $this->keyManager->markKeyInvalid($this->globalCredential, $version);
+            }
         }
 
         if ($keyResult === null) {

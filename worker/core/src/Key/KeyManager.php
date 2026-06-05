@@ -11,8 +11,11 @@ use Nod32Mirror\Enum\StatusAction;
 use Nod32Mirror\Enum\StatusPhase;
 use Nod32Mirror\Log\Log;
 use Nod32Mirror\Log\Language;
+use Nod32Mirror\Parser\Parser;
 use Nod32Mirror\Status\StatusReporter;
+use Nod32Mirror\Tools;
 use Nod32Mirror\ValueObject\Credential;
+use Nod32Mirror\ValueObject\DownloadableFile;
 use Nod32Mirror\ValueObject\MirrorInfo;
 
 final class KeyManager
@@ -23,7 +26,8 @@ final class KeyManager
         private readonly Config $config,
         private readonly Log $log,
         private readonly Language $language,
-        private readonly StatusReporter $statusReporter
+        private readonly StatusReporter $statusReporter,
+        private readonly Parser $parser
     ) {
     }
 
@@ -107,12 +111,10 @@ final class KeyManager
             );
 
             $mirrorInfo = new MirrorInfo($mirror);
-            $url = $mirrorInfo->buildUrl($updateFilePath);
+            $responseTime = $this->testMirror($mirrorInfo, $credential, $version, $updateFilePath);
 
-            $result = $this->downloader->checkUrl($url, $credential);
-
-            if ($result->isSuccessful()) {
-                $workingMirrors[$mirror] = $mirrorInfo->withResponseTime((int) ($result->totalTime * 1000));
+            if ($responseTime !== null) {
+                $workingMirrors[$mirror] = $mirrorInfo->withResponseTime($responseTime);
             }
         }
 
@@ -129,6 +131,92 @@ final class KeyManager
             'credential' => $credential,
             'mirrors' => array_values($workingMirrors),
         ];
+    }
+
+    private function testMirror(
+        MirrorInfo $mirror,
+        Credential $credential,
+        string $version,
+        string $updateFilePath
+    ): ?int {
+        $indexPath = $this->createTempPath('key_check_index', $version, 'ver');
+        $indexResult = $this->downloader->downloadToFile(
+            $mirror->buildUrl($updateFilePath),
+            $indexPath,
+            $credential
+        );
+
+        if (!$indexResult->isSuccessful()) {
+            @unlink($indexPath);
+            return null;
+        }
+
+        $files = $this->parseDownloadableFiles($indexPath);
+        @unlink($indexPath);
+
+        $file = $this->pickRandomFile($files);
+        if ($file === null) {
+            return null;
+        }
+
+        $samplePath = $this->createTempPath('key_check_file', $version, 'tmp');
+        $fileResult = $this->downloader->downloadToFile(
+            $mirror->buildUrl($file->path),
+            $samplePath,
+            $credential
+        );
+        @unlink($samplePath);
+
+        if (!$fileResult->isSuccessful()) {
+            return null;
+        }
+
+        if ($fileResult->downloadedBytes !== $file->size) {
+            return null;
+        }
+
+        return (int) round(($indexResult->totalTime + $fileResult->totalTime) * 1000);
+    }
+
+    /**
+     * @return DownloadableFile[]
+     */
+    private function parseDownloadableFiles(string $indexPath): array
+    {
+        $content = @file_get_contents($indexPath);
+
+        if ($content === false || !preg_match_all('#\[\w+\][^\[]+#', $content, $matches)) {
+            return [];
+        }
+
+        $parsed = $this->parser->parseUpdateFile($matches[0]);
+
+        return $parsed['files'];
+    }
+
+    /**
+     * @param DownloadableFile[] $files
+     */
+    private function pickRandomFile(array $files): ?DownloadableFile
+    {
+        $files = array_values(array_filter(
+            $files,
+            static fn(DownloadableFile $file): bool => $file->path !== '' && $file->size >= 0
+        ));
+
+        if (empty($files)) {
+            return null;
+        }
+
+        return $files[array_rand($files)];
+    }
+
+    private function createTempPath(string $prefix, string $version, string $extension): string
+    {
+        return Tools::ds(
+            TMP_PATH,
+            sprintf('%s_%s_%s.%s', $prefix, md5($version), bin2hex(random_bytes(6)), $extension)
+        );
     }
 
     /**

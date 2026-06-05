@@ -94,7 +94,8 @@ final class Application
             $this->config,
             $this->log,
             $this->language,
-            $this->statusReporter
+            $this->statusReporter,
+            $this->parser
         );
 
         $this->keyFinder = new KeyFinder(
