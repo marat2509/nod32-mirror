@@ -7,7 +7,6 @@ namespace Nod32Mirror\Storage;
 use Nod32Mirror\FileSystem\SafeFileOperations;
 use Nod32Mirror\Log\Language;
 use Nod32Mirror\Log\Log;
-use Nod32Mirror\Tools;
 use Nod32Mirror\ValueObject\ReferenceCollection;
 
 final class ContentIndex
@@ -16,6 +15,8 @@ final class ContentIndex
     private array $index = [];
 
     private bool $loaded = false;
+
+    private ?string $lastSaveError = null;
 
     public function __construct(
         private readonly SafeFileOperations $fileOps,
@@ -64,11 +65,16 @@ final class ContentIndex
     public function save(string $path): void
     {
         $this->index['updated_at'] = self::now();
+        $this->lastSaveError = null;
 
         $this->fileOps->createDirectory(dirname($path));
         $tmpPath = $path . '.tmp-' . bin2hex(random_bytes(6));
-        if (!Tools::writeJsonPrettyTabsFile($tmpPath, $this->index)) {
-            $this->log->warning($this->language->t('storage.index_json_encoding_failed', json_last_error_msg()));
+        if (!$this->writeIndexJsonFile($tmpPath)) {
+            $this->fileOps->deleteFile($tmpPath);
+            $this->log->warning($this->language->t(
+                'storage.index_json_encoding_failed',
+                $this->lastSaveError ?? json_last_error_msg()
+            ));
             return;
         }
 
@@ -76,6 +82,122 @@ final class ContentIndex
             $this->fileOps->deleteFile($tmpPath);
             $this->log->warning($this->language->t('storage.index_save_failed', $path));
         }
+    }
+
+    private function writeIndexJsonFile(string $path): bool
+    {
+        $handle = @fopen($path, 'wb');
+        if ($handle === false) {
+            $this->lastSaveError = 'failed to open temporary index file';
+            return false;
+        }
+
+        $ok = $this->writeBytes($handle, "{\n")
+            && $this->writeProperty($handle, 1, 'hash_algorithm', $this->getHashAlgorithm(), true)
+            && $this->writeProperty($handle, 1, 'updated_at', (string) ($this->index['updated_at'] ?? self::now()), true)
+            && $this->writeObjectSection($handle, 1, 'hashes', $this->getHashes(), true)
+            && $this->writeObjectSection($handle, 1, 'published', $this->getPublished(), false)
+            && $this->writeBytes($handle, "}\n");
+
+        if (!@fclose($handle)) {
+            $this->lastSaveError = 'failed to close temporary index file';
+            return false;
+        }
+
+        return $ok;
+    }
+
+    /**
+     * @param resource $handle
+     */
+    private function writeProperty($handle, int $indentLevel, string $key, mixed $value, bool $comma): bool
+    {
+        $encodedKey = $this->encodeJson($key);
+        $encodedValue = $this->encodeJson($value);
+
+        if ($encodedKey === null || $encodedValue === null) {
+            return false;
+        }
+
+        return $this->writeBytes(
+            $handle,
+            str_repeat("\t", $indentLevel) . $encodedKey . ': ' . $encodedValue . ($comma ? ',' : '') . "\n"
+        );
+    }
+
+    /**
+     * @param resource $handle
+     * @param array<string, mixed> $entries
+     */
+    private function writeObjectSection($handle, int $indentLevel, string $key, array $entries, bool $comma): bool
+    {
+        $encodedKey = $this->encodeJson($key);
+        if ($encodedKey === null) {
+            return false;
+        }
+
+        if (!$this->writeBytes($handle, str_repeat("\t", $indentLevel) . $encodedKey . ": {\n")) {
+            return false;
+        }
+
+        $entryCount = count($entries);
+        $index = 0;
+        foreach ($entries as $entryKey => $entryValue) {
+            $index++;
+            $encodedEntryKey = $this->encodeJson((string) $entryKey);
+            $encodedEntryValue = $this->encodeJson($entryValue);
+
+            if ($encodedEntryKey === null || $encodedEntryValue === null) {
+                return false;
+            }
+
+            if (!$this->writeBytes(
+                $handle,
+                str_repeat("\t", $indentLevel + 1)
+                . $encodedEntryKey
+                . ': '
+                . $encodedEntryValue
+                . ($index < $entryCount ? ',' : '')
+                . "\n"
+            )) {
+                return false;
+            }
+        }
+
+        return $this->writeBytes($handle, str_repeat("\t", $indentLevel) . '}' . ($comma ? ',' : '') . "\n");
+    }
+
+    private function encodeJson(mixed $value): ?string
+    {
+        $encoded = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($encoded === false) {
+            $this->lastSaveError = json_last_error_msg();
+            return null;
+        }
+
+        return $encoded;
+    }
+
+    /**
+     * @param resource $handle
+     */
+    private function writeBytes($handle, string $content): bool
+    {
+        $length = strlen($content);
+        $written = 0;
+
+        while ($written < $length) {
+            $result = @fwrite($handle, substr($content, $written));
+
+            if ($result === false || $result === 0) {
+                $this->lastSaveError = 'failed to write temporary index file';
+                return false;
+            }
+
+            $written += $result;
+        }
+
+        return true;
     }
 
     public function wasLoaded(): bool
