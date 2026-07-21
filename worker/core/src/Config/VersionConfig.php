@@ -39,7 +39,7 @@ final class VersionConfig
             return false;
         }
 
-        return !empty($versionConfig['mirror']);
+        return !empty($versionConfig['enabled']);
     }
 
     /**

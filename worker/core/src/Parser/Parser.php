@@ -142,7 +142,7 @@ final class Parser
      * @param string[] $containers
      * @return array{files: DownloadableFile[], totalSize: int, content: string}
      */
-    public function parseUpdateFile(array $containers, callable $platformFilter = null): array
+    public function parseUpdateFile(array $containers, ?callable $platformFilter = null): array
     {
         $this->log->trace($this->language->t('log.running', __METHOD__));
 

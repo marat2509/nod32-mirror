@@ -214,7 +214,7 @@ final class KeyManager
     private function createTempPath(string $prefix, string $version, string $extension): string
     {
         return Tools::ds(
-            TMP_PATH,
+            $this->config->getTmpDir(),
             sprintf('%s_%s_%s.%s', $prefix, md5($version), bin2hex(random_bytes(6)), $extension)
         );
     }
@@ -249,8 +249,7 @@ final class KeyManager
 
         $this->storage->markKeyInvalid($credential->login, $credential->password, $version);
 
-        $findConfig = $this->config->getOrDefault('find', []);
-        if (!empty($findConfig['remove_invalid_keys'])) {
+        if (!empty($this->config->getOrDefault('credentials.discovery.remove_invalid', false))) {
             $this->storage->removeVersionFromValidKey($credential->login, $credential->password, $version);
         }
 

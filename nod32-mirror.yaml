@@ -1,92 +1,108 @@
 # nod32-mirror configuration
 # - All keys are lowercase and match the worker defaults.
-# - script.dir can be relative to app root or absolute; runtime paths are relative to script.dir.
+# - runtime.root is the global base directory for every relative directory.
+# - Any value may reference env://VARIABLE or file://path/to/value.
 # - Log levels accept names (error, warning, notice, info, debug, trace) or numbers 0–5.
 
-script:
-  language: "en"              # CLI/UI language (en, ru, ukr)
-  codepage: "utf-8"           # Codepage for stdout/log encoding
-  timezone: "Europe/Moscow"   # PHP timezone identifier; leave empty for system default
-  memory_limit: "32M"         # PHP memory_limit
-  debug_update: false         # Dump raw update.ver files for debugging
-  debug_html: false           # Dump all downloaded pages for pattern debugging
-  dir: "/data"                # Base directory for runtime folders below
-  web_dir: "www"              # Public web root served by nginx, relative to script.dir
-  storage:
-    dir: "storage"            # Internal content-addressed storage, relative to script.dir
-    hash: "sha256"            # Blob hash algorithm; must be supported by hash_algos()
-    link_method: "hardlink"   # hardlink works because /data/www and /data/storage share one mount
-    gc:
-      enabled: false          # Delete unreferenced published files/blobs immediately when true
-      excludes: []            # Paths/prefixes/globs ignored by GC; leading / or ./ is ignored
-  generate:
-    export_credentials: false # Include credentials in generated JSON/HTML
+runtime:
+  root: "/data"                     # Global base directory
+  temp: "tmp"                       # Temporary directory, relative to runtime.root or absolute
+  locale:
+    language: "en"                  # CLI/UI language (en, ru, ukr)
+    encoding: "utf-8"               # Runtime text encoding
+    timezone: "Europe/Moscow"       # PHP timezone; leave empty for system default
+  php:
+    memory_limit: "512M"            # PHP memory_limit applied at startup
+  debug:
+    update: false                   # Dump raw update.ver files
+    html: false                     # Dump downloaded pages used for credential discovery
+
+state:
+  root: "data"                      # Mutable application data, relative to runtime.root or absolute
+  database:
+    file: "content-index.sqlite"    # SQLite index, relative to state.root or absolute
+
+web:
+  root: "www"                       # Public web root, relative to runtime.root or absolute
+  reports:
+    export_credentials: false       # Include credentials in JSON/HTML reports
     json:
-      enabled: true           # Emit JSON report
-      path: "index.json"      # JSON report path relative to web_dir
+      enabled: true
+      file: "index.json"            # Relative to web.root
     html:
-      enabled: true           # Emit HTML report
-      path: "index.html"      # HTML report path relative to web_dir
-      codepage: "utf-8"       # HTML codepage
-      only_table: false       # Export only table (for embedding elsewhere)
+      enabled: true
+      file: "index.html"            # Relative to web.root
+      encoding: "utf-8"
+      table_only: false
     status:
-      enabled: true           # Emit Status JSON report
-      path: status.json       # Status JSON path relative to web_dir
+      enabled: true
+      file: "status.json"           # Relative to web.root
 
-connection:
-  threads: 32                 # Number of concurrent download threads
+storage:
+  root: "storage"                   # Content-addressed storage, relative to runtime.root or absolute
+  hash: "sha256"                    # Algorithm supported by hash_algos()
+  link_method: "hardlink"           # hardlink, softlink, or copy
+  gc:
+    enabled: false                  # Delete unreferenced published files and blobs
+    excludes: []                    # Paths, prefixes, or globs ignored by GC
+
+downloads:
+  concurrency: 32                   # Concurrent download workers
+  speed_limit: 0                    # Bytes per second (0 = unlimited)
   timeout:
-    download: 30              # Request timeout in seconds (for file downloads)
-    connect: 5                # Connection timeout in seconds
+    request: 30                     # Request timeout in seconds
+    connect: 5                      # Connection timeout in seconds
   retries:
-    attempts: 5               # Number of retry attempts (1 = no retries)
-    delay: 1                  # Base delay between retries in seconds (exponential backoff)
-  speed_limit: 0              # Bytes per second limit (0 = unlimited)
+    attempts: 5                     # 1 means no retries
+    delay: 1                        # Base delay in seconds (exponential backoff)
   proxy:
-    enabled: false            # Enable proxy for all requests
-    type: "http"              # Proxy type: http, socks4, socks4a, socks5
-    server: "proxy.example.com"
-    port: 3128
-    user: "username"
-    password: "pass"
+    enabled: false
+    type: "http"                    # http, socks4, socks4a, or socks5
+    endpoint:
+      host: "proxy.example.com"
+      port: 3128
+    credentials:
+      username: "username"
+      password: "pass"              # For example: env://PROXY_PASSWORD or file:///run/secrets/proxy_password
 
-log:
-  # Level: error|warning|notice|info|debug|trace or 0–5 (higher = more verbose)
+logging:
+  root: "log"                       # Log directory, relative to runtime.root or absolute
   stdout:
     enabled: true
-    level: "info"             # Console verbosity
+    level: "info"
   file:
-    enabled: false            # Enable file logging
-    level: "debug"            # File verbosity
-    dir: "log"                # Log directory, relative to script.dir
-    rotate:
+    enabled: false
+    level: "debug"
+    rotation:
       enabled: true
-      size: "100K"            # Rotate when file >= size (supports K/M/G suffix)
-      qty: 5                  # Keep N rotated archives (*.log.N.gz)
+      max_size: "100K"              # Supports K/M/G suffixes
+      keep: 5                       # Number of compressed archives to keep
 
-data:
-  dir: "data"                 # Runtime data directory, relative to script.dir
-
-find:
-  enabled: true               # Enable built-in key searcher
-  number_attempts: 5          # Attempts to request new key if last one fails
-  system: ""                  # Pattern name to force; empty means use all patterns
-  count_keys: 1               # How many valid keys to find before stopping
-  remove_invalid_keys: true   # Delete invalid keys from storage
-  user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" # UA for searching keys (overridable in pattern)
-  headers: []                 # Extra HTTP headers for key search (array of "Name: value"); overridable in pattern
-  query:                      # Search queries (string or list); overridable in pattern
-    - "nod32+username+password"
-  pageindex: 1                # Starting page index for ;PAGE; placeholder
-  page_qty: 5                 # Pages to iterate for ;PAGE; placeholder
-  pattern: "((EAV|TRIAL)-[0-9]{10}).+?([a-z0-9]{10})"  # Fallback regex if pattern file lacks it
-  recursion_level: 2          # Depth for recursive link scanning
-  errors_quantity: 5          # Retry count for failed downloads
+credentials:
+  discovery:
+    enabled: true                   # Enable built-in credential discovery
+    automatic: false                # Enable automatic discovery mode
+    attempts: 5                     # Attempts to request a new credential
+    required_count: 1               # Valid credentials required before stopping
+    remove_invalid: true            # Remove invalid credentials from storage
+    patterns:
+      selected: ""                  # Pattern file name; empty selects all patterns
+      fallback: "((EAV|TRIAL)-[0-9]{10}).+?([a-z0-9]{10})"
+    request:
+      user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      headers: []                   # Additional "Name: value" headers
+    search:
+      queries:
+        - "nod32+username+password"
+      first_page: 1                 # Starting value for the page placeholder
+      page_count: 5
+      recursion_depth: 2
+      error_limit: 5
 
 eset:
-  mirror:
-    strategy: "random"        # Mirror selection: random, best (test speed), first (use order)
-    list:                     # Primary mirror pool to iterate
+  mirrors:
+    strategy: "random"              # random, best, or first
+    hosts:
       - "update.eset.com"
       - "um01.eset.com"
       - "um02.eset.com"
@@ -111,48 +127,47 @@ eset:
       - "um21.eset.com"
       # - "um22.eset.com"
       - "um23.eset.com"
-
   versions:
-    platforms: []             # Limit processing to these platforms (empty = all)
-    channels: []              # Limit to these channels (production, deferred, pre-release, etc.)
-    overrides:                # Per-version overrides (mirror=true enables handling)
+    platforms: []                   # Empty means all platforms
+    channels: []                    # Empty means all channels
+    overrides:
       ep6:
-        mirror: true
+        enabled: true
         platforms: []
         channels: []
       ep8:
-        mirror: true
+        enabled: true
         platforms: []
         channels: []
       ep9:
-        mirror: true
+        enabled: true
         platforms: []
         channels: []
       ep10:
-        mirror: true
+        enabled: true
         platforms: []
         channels: []
       ep11:
-        mirror: true
+        enabled: true
         platforms: []
         channels: []
       ep12:
-        mirror: true
+        enabled: true
         platforms: []
         channels: []
       ep13:
-        mirror: true
+        enabled: true
         platforms: []
         channels: []
       v3:
-        mirror: true
+        enabled: true
         platforms: []
         channels: []
       v10:
-        mirror: true
+        enabled: true
         platforms: []
         channels: []
       v16:
-        mirror: true
+        enabled: true
         platforms: []
         channels: []

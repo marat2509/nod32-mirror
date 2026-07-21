@@ -47,16 +47,16 @@ final class KeyFinder
             $this->language->t('status.message.searching_keys', $version)
         );
 
-        $findConfig = $this->config->getOrDefault('find', []);
+        $findConfig = $this->config->getOrDefault('credentials.discovery', []);
 
         if (empty($findConfig['enabled'])) {
             return null;
         }
 
-        $globalMaxAttempts = max(1, (int) ($findConfig['number_attempts'] ?? 1));
-        $globalQueries = $this->normalizeQueryList($findConfig['query'] ?? []);
+        $globalMaxAttempts = max(1, (int) ($findConfig['attempts'] ?? 1));
+        $globalQueries = $this->normalizeQueryList($findConfig['search']['queries'] ?? []);
 
-        $patterns = $this->getPatternFiles($findConfig['system'] ?? null);
+        $patterns = $this->getPatternFiles($findConfig['patterns']['selected'] ?? null);
 
         foreach ($patterns as $patternFile) {
             $this->log->debug(
@@ -65,16 +65,16 @@ final class KeyFinder
             );
 
             $patternData = $this->parser->parsePatternFile($patternFile, [
-                'pageindex' => $findConfig['pageindex'] ?? 1,
-                'pattern' => [$findConfig['pattern'] ?? ''],
-                'page_qty' => $findConfig['page_qty'] ?? 1,
-                'recursion_level' => $findConfig['recursion_level'] ?? 1,
-                'user_agent' => $findConfig['user_agent'] ?? null,
-                'headers' => $findConfig['headers'] ?? [],
+                'pageindex' => $findConfig['search']['first_page'] ?? 1,
+                'pattern' => [$findConfig['patterns']['fallback'] ?? ''],
+                'page_qty' => $findConfig['search']['page_count'] ?? 1,
+                'recursion_level' => $findConfig['search']['recursion_depth'] ?? 1,
+                'user_agent' => $findConfig['request']['user_agent'] ?? null,
+                'headers' => $findConfig['request']['headers'] ?? [],
                 'query' => $globalQueries,
                 'number_attempts' => $globalMaxAttempts,
-                'count_keys' => $findConfig['count_keys'] ?? 1,
-                'errors_quantity' => $findConfig['errors_quantity'] ?? 5,
+                'count_keys' => $findConfig['required_count'] ?? 1,
+                'errors_quantity' => $findConfig['search']['error_limit'] ?? 5,
             ]);
 
             if (empty($patternData) || empty($patternData['link'])) {
@@ -177,8 +177,10 @@ final class KeyFinder
     ): ?array {
         $this->log->trace($this->language->t('log.running', __METHOD__), $version);
 
-        $findConfig = $this->config->getOrDefault('find', []);
-        $defaultUa = $findConfig['user_agent'] ?? 'Mozilla/5.0 (Windows; U; Windows NT 6.1; rv:2.2) Gecko/20110201';
+        $defaultUa = $this->config->getOrDefault(
+            'credentials.discovery.request.user_agent',
+            'Mozilla/5.0 (Windows; U; Windows NT 6.1; rv:2.2) Gecko/20110201'
+        );
         $ua = !empty($requestOptions['user_agent']) ? $requestOptions['user_agent'] : $defaultUa;
 
         $result = $this->downloader->get($url);
@@ -194,8 +196,7 @@ final class KeyFinder
         $logins = [];
         $passwords = [];
 
-        $scriptConfig = $this->config->getOrDefault('script', []);
-        if (!empty($scriptConfig['debug_html'])) {
+        if (!empty($this->config->getOrDefault('runtime.debug.html', false))) {
             $this->saveDebugHtml($content, $url);
         }
 

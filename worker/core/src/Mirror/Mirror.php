@@ -126,7 +126,7 @@ final class Mirror
                         $variantType,
                         $sourcePath,
                         $webDir,
-                        TMP_PATH,
+                        $this->config->getTmpDir(),
                         $verFolder
                     );
 
@@ -156,7 +156,7 @@ final class Mirror
                     ) ?? $sourcePath;
                 }
 
-                $tmpPath = Tools::ds(TMP_PATH, $fixedPath);
+                $tmpPath = Tools::ds($this->config->getTmpDir(), $fixedPath);
                 $localPath = Tools::ds($webDir, $fixedPath);
 
                 $this->updateVariants[$variantKey] = new UpdateVariant(

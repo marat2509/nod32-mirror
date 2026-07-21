@@ -64,15 +64,14 @@ final class Application
         $this->config->init();
 
         $this->language = new Language();
-        $scriptConfig = $this->config->getOrDefault('script', []);
-        $this->language->init($scriptConfig['language'] ?? 'en');
+        $this->language->init((string) $this->config->getOrDefault('runtime.locale.language', 'en'));
 
         $this->log = new Log($this->config, $this->language);
         $this->log->init();
 
-        $generateConfig = $scriptConfig['generate'] ?? [];
-        $statusConfig = is_array($generateConfig['status'] ?? null) ? $generateConfig['status'] : [];
-        $statusPath = Tools::ds($this->config->getWebDir(), (string) ($statusConfig['path'] ?? 'status.json'));
+        $statusConfig = $this->config->getOrDefault('web.reports.status', []);
+        $statusConfig = is_array($statusConfig) ? $statusConfig : [];
+        $statusPath = Tools::ds($this->config->getWebDir(), (string) ($statusConfig['file'] ?? 'status.json'));
         $this->statusReporter = new StatusReporter(
             $statusPath,
             $this->language,
@@ -112,7 +111,7 @@ final class Application
         $this->fileOps = new SafeFileOperations($this->log, $this->language);
         $this->storageConfig = new StorageConfig($this->config);
         $this->blobStore = new BlobStore($this->storageConfig, $this->fileOps, $this->log, $this->language);
-        $this->contentIndex = new ContentIndex($this->fileOps, $this->log, $this->language);
+        $this->contentIndex = new ContentIndex($this->fileOps, $this->language);
         $this->publishedPathManager = new PublishedPathManager($this->storageConfig, $this->blobStore, $this->fileOps);
 
         $this->mirror = new Mirror(

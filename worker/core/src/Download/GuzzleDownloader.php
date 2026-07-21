@@ -71,7 +71,7 @@ final class GuzzleDownloader implements DownloaderInterface
             }
         }
 
-        $speedLimit = (int) $this->config->getOrDefault('connection.speed_limit', 0);
+        $speedLimit = (int) $this->config->getOrDefault('downloads.speed_limit', 0);
         if ($speedLimit > 0) {
             $this->speedLimit = $speedLimit;
         }
@@ -83,20 +83,20 @@ final class GuzzleDownloader implements DownloaderInterface
     private function buildProxyString(): ?string
     {
         try {
-            $proxyConfig = $this->config->get('connection.proxy');
+            $proxyConfig = $this->config->get('downloads.proxy');
         } catch (\Exception) {
             return null;
         }
 
-        if (!is_array($proxyConfig) || empty($proxyConfig['server'])) {
+        if (!is_array($proxyConfig) || empty($proxyConfig['endpoint']['host'])) {
             return null;
         }
 
         $type = ProxyType::fromString($proxyConfig['type'] ?? 'http');
-        $server = $proxyConfig['server'];
-        $port = (int) ($proxyConfig['port'] ?? 80);
-        $user = $proxyConfig['user'] ?? '';
-        $password = $proxyConfig['password'] ?? '';
+        $server = $proxyConfig['endpoint']['host'];
+        $port = (int) ($proxyConfig['endpoint']['port'] ?? 80);
+        $user = $proxyConfig['credentials']['username'] ?? '';
+        $password = $proxyConfig['credentials']['password'] ?? '';
 
         $scheme = match ($type) {
             ProxyType::Socks4 => 'socks4',

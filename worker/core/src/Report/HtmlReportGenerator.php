@@ -26,12 +26,11 @@ final class HtmlReportGenerator implements ReportGeneratorInterface
     {
         $this->log->trace($this->language->t('log.running', __METHOD__));
 
-        $scriptConfig = $this->config->getOrDefault('script', []);
-        $generateConfig = $scriptConfig['generate'] ?? [];
-        $htmlConfig = $generateConfig['html'] ?? [];
-        $onlyTable = !empty($htmlConfig['only_table']);
-        $exportCredentials = !empty($generateConfig['export_credentials']);
-        $codepage = $htmlConfig['codepage'] ?? 'utf-8';
+        $reportsConfig = $this->config->getOrDefault('web.reports', []);
+        $htmlConfig = $reportsConfig['html'] ?? [];
+        $onlyTable = !empty($htmlConfig['table_only']);
+        $exportCredentials = !empty($reportsConfig['export_credentials']);
+        $codepage = $htmlConfig['encoding'] ?? 'utf-8';
 
         $esc = fn(mixed $value): string => htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, $codepage);
 
@@ -134,10 +133,7 @@ final class HtmlReportGenerator implements ReportGeneratorInterface
 
         $html = $this->generate($metadata);
 
-        $scriptConfig = $this->config->getOrDefault('script', []);
-        $generateConfig = $scriptConfig['generate'] ?? [];
-        $htmlConfig = $generateConfig['html'] ?? [];
-        $codepage = $htmlConfig['codepage'] ?? 'utf-8';
+        $codepage = $this->config->getOrDefault('web.reports.html.encoding', 'utf-8');
 
         $dir = dirname($targetPath);
         Tools::ensureDirectory($dir);

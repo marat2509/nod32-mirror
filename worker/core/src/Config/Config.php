@@ -65,7 +65,103 @@ final class Config
             throw new ConfigException('Configuration file is empty or invalid');
         }
 
+        $parsed = $this->resolveExternalValues($parsed);
         $this->config = $this->normalizeConfig($parsed);
+    }
+
+    /**
+     * @param array<mixed> $values
+     * @return array<mixed>
+     * @throws ConfigException
+     */
+    private function resolveExternalValues(array $values): array
+    {
+        foreach ($values as $key => $value) {
+            if (is_array($value)) {
+                $values[$key] = $this->resolveExternalValues($value);
+                continue;
+            }
+
+            if (is_string($value)) {
+                $values[$key] = $this->resolveExternalValue($value);
+            }
+        }
+
+        return $values;
+    }
+
+    private function resolveExternalValue(string $value): mixed
+    {
+        if (str_starts_with($value, 'env://')) {
+            $variable = substr($value, strlen('env://'));
+            if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $variable)) {
+                throw new ConfigException('Invalid environment variable reference: ' . $value);
+            }
+
+            $resolved = getenv($variable);
+            if ($resolved === false) {
+                throw new ConfigException('Environment variable is not defined: ' . $variable);
+            }
+
+            return $this->decodeExternalValue($resolved);
+        }
+
+        if (str_starts_with($value, 'file://')) {
+            $path = rawurldecode(substr($value, strlen('file://')));
+            if ($path === '') {
+                throw new ConfigException('File reference path is empty');
+            }
+
+            if (!$this->isAbsolutePath($path)) {
+                $path = Tools::ds(dirname($this->configPath), $path);
+            }
+            $path = Tools::cleanPath($path);
+
+            if (!is_file($path)) {
+                throw new ConfigException('Referenced configuration file not found: ' . $path);
+            }
+            if (!is_readable($path)) {
+                throw new ConfigException('Referenced configuration file is not readable: ' . $path);
+            }
+
+            $resolved = file_get_contents($path);
+            if ($resolved === false) {
+                throw new ConfigException('Failed to read referenced configuration file: ' . $path);
+            }
+
+            return $this->decodeExternalValue(rtrim($resolved, "\r\n"));
+        }
+
+        return $value;
+    }
+
+    private function decodeExternalValue(string $value): mixed
+    {
+        $normalized = strtolower(trim($value));
+        if ($normalized === 'true') {
+            return true;
+        }
+        if ($normalized === 'false') {
+            return false;
+        }
+        if ($normalized === 'null' || $normalized === '~') {
+            return null;
+        }
+
+        $trimmed = trim($value);
+        if ($trimmed !== '' && in_array($trimmed[0], ['[', '{'], true)) {
+            try {
+                $decoded = Yaml::parse($trimmed);
+            } catch (ParseException $e) {
+                throw new ConfigException('Failed to parse referenced configuration value: ' . $e->getMessage(), 0, $e);
+            }
+
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        return $value;
     }
 
     /**
@@ -76,82 +172,104 @@ final class Config
     {
         $config = $this->arrayChangeKeyCaseRecursive($config, CASE_LOWER);
 
-        $config['script'] = $this->normalizeScript($config['script'] ?? []);
-        $config['connection'] = $this->normalizeConnection($config['connection'] ?? []);
-        $config['log'] = $this->normalizeLog($config['log'] ?? []);
-        $config['data'] = $this->normalizeSection($config, 'data');
-        $config['find'] = $this->normalizeFind($config['find'] ?? []);
-        $config['eset'] = $this->normalizeSection($config, 'eset');
+        $eset = is_array($config['eset'] ?? null) ? $config['eset'] : [];
 
-        $config['eset']['mirror'] = $this->normalizeMirrorConfig($config['eset']['mirror'] ?? []);
-        $config['eset']['versions'] = $this->normalizeVersions($config['eset']['versions'] ?? []);
-
-        return $config;
+        return [
+            'runtime' => $this->normalizeRuntime(is_array($config['runtime'] ?? null) ? $config['runtime'] : []),
+            'state' => $this->normalizeState(is_array($config['state'] ?? null) ? $config['state'] : []),
+            'web' => $this->normalizeWeb(is_array($config['web'] ?? null) ? $config['web'] : []),
+            'storage' => $this->normalizeStorageConfig(is_array($config['storage'] ?? null) ? $config['storage'] : []),
+            'downloads' => $this->normalizeDownloads(is_array($config['downloads'] ?? null) ? $config['downloads'] : []),
+            'logging' => $this->normalizeLogging(is_array($config['logging'] ?? null) ? $config['logging'] : []),
+            'credentials' => $this->normalizeCredentials(is_array($config['credentials'] ?? null) ? $config['credentials'] : []),
+            'eset' => [
+                'mirrors' => $this->normalizeMirrors(is_array($eset['mirrors'] ?? null) ? $eset['mirrors'] : []),
+                'versions' => $this->normalizeVersions(is_array($eset['versions'] ?? null) ? $eset['versions'] : []),
+            ],
+        ];
     }
 
     /**
-     * @param array<string, mixed> $scriptConfig
+     * @param array<string, mixed> $runtimeConfig
      * @return array<string, mixed>
      */
-    private function normalizeScript(array $scriptConfig): array
+    private function normalizeRuntime(array $runtimeConfig): array
     {
         $defaults = [
-            'language' => 'en',
-            'codepage' => 'utf-8',
-            'timezone' => null,
-            'memory_limit' => '32M',
-            'debug_update' => false,
-            'debug_html' => false,
-            'dir' => SELF,
-            'storage' => [
-                'dir' => 'storage',
-                'hash' => 'sha256',
-                'link_method' => StorageLinkMethod::Hardlink->value,
-                'gc' => [
-                    'enabled' => false,
-                    'excludes' => [],
-                ],
+            'root' => SELF,
+            'temp' => 'tmp',
+            'locale' => [
+                'language' => 'en',
+                'encoding' => 'utf-8',
+                'timezone' => null,
             ],
-            'web_dir' => 'www',
-            'generate' => [
-                'export_credentials' => false,
-                'json' => ['enabled' => true, 'path' => 'index.json'],
-                'html' => ['enabled' => true, 'path' => 'index.html', 'codepage' => 'utf-8', 'only_table' => false],
-                'status' => ['enabled' => true, 'path' => 'status.json'],
+            'php' => ['memory_limit' => '512M'],
+            'debug' => [
+                'update' => false,
+                'html' => false,
             ],
         ];
 
-        $script = array_replace_recursive($defaults, $scriptConfig);
-
-        $script['dir'] = is_string($script['dir'] ?? null) && trim($script['dir']) !== ''
-            ? trim((string) $script['dir'])
+        $runtime = array_replace_recursive($defaults, $runtimeConfig);
+        $runtime['root'] = is_string($runtime['root'] ?? null) && trim($runtime['root']) !== ''
+            ? trim((string) $runtime['root'])
             : SELF;
-        $script['debug_update'] = !empty($script['debug_update']);
-        $script['debug_html'] = !empty($script['debug_html']);
+        $runtime['temp'] = is_string($runtime['temp'] ?? null) && trim($runtime['temp']) !== ''
+            ? trim((string) $runtime['temp'])
+            : 'tmp';
+        $runtime['debug']['update'] = !empty($runtime['debug']['update']);
+        $runtime['debug']['html'] = !empty($runtime['debug']['html']);
 
-        $script['generate']['export_credentials'] = !empty($script['generate']['export_credentials']);
-        $script['generate']['json']['enabled'] = !empty($script['generate']['json']['enabled']);
-        $script['generate']['html']['enabled'] = !empty($script['generate']['html']['enabled']);
-        $script['generate']['status']['enabled'] = !empty($script['generate']['status']['enabled']);
-        $script['generate']['html']['only_table'] = !empty($script['generate']['html']['only_table']);
-        $script['generate']['json']['path'] = $this->normalizeRelativePath(
-            (string) ($script['generate']['json']['path'] ?? 'index.json'),
-            'index.json'
-        );
-        $script['generate']['html']['path'] = $this->normalizeRelativePath(
-            (string) ($script['generate']['html']['path'] ?? 'index.html'),
-            'index.html'
-        );
-        $script['generate']['status']['path'] = $this->normalizeRelativePath(
-            (string) ($script['generate']['status']['path'] ?? 'status.json'),
-            'status.json'
+        return $runtime;
+    }
+
+    /**
+     * @param array<string, mixed> $stateConfig
+     * @return array<string, mixed>
+     */
+    private function normalizeState(array $stateConfig): array
+    {
+        $state = array_replace_recursive([
+            'root' => 'data',
+            'database' => ['file' => 'content-index.sqlite'],
+        ], $stateConfig);
+        $state['root'] = $this->normalizePathValue($state['root'] ?? null, 'data');
+        $state['database']['file'] = $this->normalizePathValue(
+            $state['database']['file'] ?? null,
+            'content-index.sqlite'
         );
 
-        $script['storage'] = $this->normalizeStorageConfig(
-            is_array($script['storage'] ?? null) ? $script['storage'] : []
-        );
+        return $state;
+    }
 
-        return $script;
+    /**
+     * @param array<string, mixed> $webConfig
+     * @return array<string, mixed>
+     */
+    private function normalizeWeb(array $webConfig): array
+    {
+        $web = array_replace_recursive([
+            'root' => 'www',
+            'reports' => [
+                'export_credentials' => false,
+                'json' => ['enabled' => true, 'file' => 'index.json'],
+                'html' => ['enabled' => true, 'file' => 'index.html', 'encoding' => 'utf-8', 'table_only' => false],
+                'status' => ['enabled' => true, 'file' => 'status.json'],
+            ],
+        ], $webConfig);
+        $web['root'] = $this->normalizePathValue($web['root'] ?? null, 'www');
+        $reports = &$web['reports'];
+        $reports['export_credentials'] = !empty($reports['export_credentials']);
+        $reports['json']['enabled'] = !empty($reports['json']['enabled']);
+        $reports['html']['enabled'] = !empty($reports['html']['enabled']);
+        $reports['status']['enabled'] = !empty($reports['status']['enabled']);
+        $reports['html']['table_only'] = !empty($reports['html']['table_only']);
+        $reports['json']['file'] = $this->normalizeRelativePath((string) $reports['json']['file'], 'index.json');
+        $reports['html']['file'] = $this->normalizeRelativePath((string) $reports['html']['file'], 'index.html');
+        $reports['status']['file'] = $this->normalizeRelativePath((string) $reports['status']['file'], 'status.json');
+        unset($reports);
+
+        return $web;
     }
 
     /**
@@ -161,7 +279,7 @@ final class Config
     private function normalizeStorageConfig(array $storageConfig): array
     {
         $defaults = [
-            'dir' => 'storage',
+            'root' => 'storage',
             'hash' => 'sha256',
             'link_method' => StorageLinkMethod::Hardlink->value,
             'gc' => [
@@ -171,9 +289,7 @@ final class Config
         ];
 
         $storage = array_replace_recursive($defaults, $storageConfig);
-        $storage['dir'] = is_string($storage['dir'] ?? null) && trim($storage['dir']) !== ''
-            ? trim((string) $storage['dir'])
-            : 'storage';
+        $storage['root'] = $this->normalizePathValue($storage['root'] ?? null, 'storage');
         $storage['hash'] = is_string($storage['hash'] ?? null) && trim($storage['hash']) !== ''
             ? strtolower(trim((string) $storage['hash']))
             : 'sha256';
@@ -186,6 +302,11 @@ final class Config
         $storage['gc']['excludes'] = $this->normalizeStringList($storage['gc']['excludes'] ?? []);
 
         return $storage;
+    }
+
+    private function normalizePathValue(mixed $value, string $default): string
+    {
+        return is_string($value) && trim($value) !== '' ? trim($value) : $default;
     }
 
     /**
@@ -235,15 +356,15 @@ final class Config
     }
 
     /**
-     * @param array<string, mixed> $connectionConfig
+     * @param array<string, mixed> $downloadsConfig
      * @return array<string, mixed>
      */
-    private function normalizeConnection(array $connectionConfig): array
+    private function normalizeDownloads(array $downloadsConfig): array
     {
         $defaults = [
-            'threads' => 32,
+            'concurrency' => 32,
             'timeout' => [
-                'download' => 30,
+                'request' => 30,
                 'connect' => 5,
             ],
             'retries' => [
@@ -254,85 +375,54 @@ final class Config
             'proxy' => [
                 'enabled' => false,
                 'type' => ProxyType::Http->value,
-                'server' => '',
-                'port' => 80,
-                'user' => '',
-                'password' => '',
+                'endpoint' => ['host' => '', 'port' => 80],
+                'credentials' => ['username' => '', 'password' => ''],
             ],
         ];
 
-        $connection = $defaults;
+        $downloads = array_replace_recursive($defaults, $downloadsConfig);
+        $downloads['concurrency'] = max(1, (int) $downloads['concurrency']);
+        $downloads['timeout']['request'] = max(1, (int) $downloads['timeout']['request']);
+        $downloads['timeout']['connect'] = max(1, (int) $downloads['timeout']['connect']);
+        $downloads['retries']['attempts'] = max(1, (int) $downloads['retries']['attempts']);
+        $downloads['retries']['delay'] = max(0, (int) $downloads['retries']['delay']);
+        $downloads['speed_limit'] = max(0, (int) $downloads['speed_limit']);
+        $downloads['proxy']['enabled'] = !empty($downloads['proxy']['enabled']);
+        $downloads['proxy']['type'] = ProxyType::fromString((string) $downloads['proxy']['type'])->value;
+        $downloads['proxy']['endpoint']['port'] = (int) $downloads['proxy']['endpoint']['port'];
 
-        // threads
-        if (isset($connectionConfig['threads'])) {
-            $connection['threads'] = (int) $connectionConfig['threads'];
-        } elseif (isset($connectionConfig['multidownload']['threads'])) {
-            // Legacy format
-            $connection['threads'] = (int) $connectionConfig['multidownload']['threads'];
-        }
-
-        // timeout (new nested format or legacy flat format)
-        if (isset($connectionConfig['timeout']) && is_array($connectionConfig['timeout'])) {
-            $connection['timeout']['download'] = (int) ($connectionConfig['timeout']['download'] ?? $defaults['timeout']['download']);
-            $connection['timeout']['connect'] = (int) ($connectionConfig['timeout']['connect'] ?? $defaults['timeout']['connect']);
-        } elseif (isset($connectionConfig['timeout']) && is_numeric($connectionConfig['timeout'])) {
-            // Legacy flat format
-            $connection['timeout']['download'] = (int) $connectionConfig['timeout'];
-            $connection['timeout']['connect'] = (int) ($connectionConfig['connect_timeout'] ?? $defaults['timeout']['connect']);
-        }
-
-        // retries (new nested format or legacy flat format)
-        if (isset($connectionConfig['retries']) && is_array($connectionConfig['retries'])) {
-            $connection['retries']['attempts'] = (int) ($connectionConfig['retries']['attempts'] ?? $defaults['retries']['attempts']);
-            $connection['retries']['delay'] = (int) ($connectionConfig['retries']['delay'] ?? $defaults['retries']['delay']);
-        } elseif (isset($connectionConfig['max_retries'])) {
-            // Legacy flat format
-            $connection['retries']['attempts'] = (int) $connectionConfig['max_retries'];
-            $connection['retries']['delay'] = (int) (($connectionConfig['retry_delay'] ?? 1000) / 1000); // convert ms to s
-        }
-
-        $connection['speed_limit'] = (int) ($connectionConfig['speed_limit'] ?? $defaults['speed_limit']);
-
-        if (isset($connectionConfig['proxy']) && is_array($connectionConfig['proxy'])) {
-            $connection['proxy']['enabled'] = !empty($connectionConfig['proxy']['enabled']);
-            $connection['proxy']['type'] = $connectionConfig['proxy']['type'] ?? ProxyType::Http->value;
-            $connection['proxy']['server'] = $connectionConfig['proxy']['server'] ?? '';
-            $connection['proxy']['port'] = (int) ($connectionConfig['proxy']['port'] ?? 80);
-            $connection['proxy']['user'] = $connectionConfig['proxy']['user'] ?? '';
-            $connection['proxy']['password'] = $connectionConfig['proxy']['password'] ?? '';
-        }
-
-        return $connection;
+        return $downloads;
     }
 
     /**
-     * @param array<string, mixed> $logConfig
+     * @param array<string, mixed> $loggingConfig
      * @return array<string, mixed>
      */
-    private function normalizeLog(array $logConfig): array
+    private function normalizeLogging(array $loggingConfig): array
     {
         $defaults = [
+            'root' => 'log',
             'stdout' => ['enabled' => true, 'level' => LogLevel::Debug->value],
             'file' => [
                 'enabled' => true,
                 'level' => LogLevel::Debug->value,
-                'dir' => 'log',
-                'rotate' => ['enabled' => true, 'size' => '100K', 'qty' => 5],
+                'rotation' => ['enabled' => true, 'max_size' => '100K', 'keep' => 5],
             ],
         ];
 
-        $merged = array_replace_recursive($defaults, $logConfig);
+        $merged = array_replace_recursive($defaults, $loggingConfig);
+        $merged['root'] = $this->normalizePathValue($merged['root'] ?? null, 'log');
 
         $merged['stdout']['enabled'] = !empty($merged['stdout']['enabled']);
         $merged['stdout']['level'] = LogLevel::fromMixed($merged['stdout']['level'] ?? LogLevel::Debug)->value;
 
         $merged['file']['enabled'] = !empty($merged['file']['enabled']);
         $merged['file']['level'] = LogLevel::fromMixed($merged['file']['level'] ?? LogLevel::Debug)->value;
-        $merged['file']['rotate']['enabled'] = !empty($merged['file']['rotate']['enabled']);
-        $merged['file']['rotate']['qty'] = (int) ($merged['file']['rotate']['qty'] ?? 5);
+        $merged['file']['rotation']['enabled'] = !empty($merged['file']['rotation']['enabled']);
+        $merged['file']['rotation']['keep'] = max(1, (int) ($merged['file']['rotation']['keep'] ?? 5));
 
-        $rotateSize = $merged['file']['rotate']['size'] ?? '100K';
-        $merged['file']['rotate']['size'] = is_numeric($rotateSize)
+        $rotateSize = $merged['file']['rotation']['max_size'] ?? '100K';
+        $merged['file']['rotation']['max_size'] = is_numeric($rotateSize)
             ? (int) $rotateSize
             : Tools::human2bytes((string) $rotateSize);
 
@@ -340,42 +430,52 @@ final class Config
     }
 
     /**
-     * @param array<string, mixed> $findConfig
+     * @param array<string, mixed> $credentialsConfig
      * @return array<string, mixed>
      */
-    private function normalizeFind(array $findConfig): array
+    private function normalizeCredentials(array $credentialsConfig): array
     {
-        $defaults = [
+        $credentials = array_replace_recursive(['discovery' => [
             'enabled' => false,
-            'auto' => false,
-            'remove_invalid_keys' => false,
-            'errors_quantity' => 1,
-            'user_agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'headers' => [],
-            'query' => [],
-            'number_attempts' => 1,
-            'pageindex' => 1,
-            'page_qty' => 1,
-            'recursion_level' => 1,
-            'pattern' => '',
-            'system' => null,
-            'count_keys' => 1,
-        ];
+            'automatic' => false,
+            'attempts' => 1,
+            'required_count' => 1,
+            'remove_invalid' => false,
+            'patterns' => ['selected' => null, 'fallback' => ''],
+            'request' => [
+                'user_agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'headers' => [],
+            ],
+            'search' => [
+                'queries' => [],
+                'first_page' => 1,
+                'page_count' => 1,
+                'recursion_depth' => 1,
+                'error_limit' => 5,
+            ],
+        ]], $credentialsConfig);
 
-        $find = array_replace_recursive($defaults, $findConfig);
+        $discovery = &$credentials['discovery'];
+        $discovery['enabled'] = !empty($discovery['enabled']);
+        $discovery['automatic'] = !empty($discovery['automatic']);
+        $discovery['remove_invalid'] = !empty($discovery['remove_invalid']);
+        $discovery['attempts'] = max(1, (int) $discovery['attempts']);
+        $discovery['required_count'] = max(1, (int) $discovery['required_count']);
+        $discovery['search']['first_page'] = max(1, (int) $discovery['search']['first_page']);
+        $discovery['search']['page_count'] = max(1, (int) $discovery['search']['page_count']);
+        $discovery['search']['recursion_depth'] = max(0, (int) $discovery['search']['recursion_depth']);
+        $discovery['search']['error_limit'] = max(1, (int) $discovery['search']['error_limit']);
 
-        $find['enabled'] = !empty($find['enabled']);
-        $find['auto'] = !empty($find['auto']);
-        $find['remove_invalid_keys'] = !empty($find['remove_invalid_keys']);
-        $find['errors_quantity'] = max(1, (int) ($find['errors_quantity'] ?? 1));
-
-        if (is_string($find['headers'])) {
-            $find['headers'] = array_filter(array_map('trim', preg_split('/[\r\n,]+/', $find['headers']) ?: []));
+        if (is_string($discovery['request']['headers'])) {
+            $discovery['request']['headers'] = array_filter(array_map(
+                'trim',
+                preg_split('/[\r\n,]+/', $discovery['request']['headers']) ?: []
+            ));
         }
+        $discovery['search']['queries'] = $this->normalizeQueryList($discovery['search']['queries'] ?? []);
+        unset($discovery);
 
-        $find['query'] = $this->normalizeQueryList($find['query'] ?? []);
-
-        return $find;
+        return $credentials;
     }
 
     /**
@@ -384,7 +484,7 @@ final class Config
      */
     private function normalizeVersions(array $versionsConfig): array
     {
-        $overrides = $versionsConfig['version_overrides'] ?? $versionsConfig['overrides'] ?? [];
+        $overrides = $versionsConfig['overrides'] ?? [];
 
         $normalized = [
             'platforms' => $this->normalizeList($versionsConfig['platforms'] ?? []),
@@ -398,38 +498,23 @@ final class Config
                 $normalized['overrides'][$version] = [
                     'platforms' => $this->normalizeList($settings['platforms'] ?? []),
                     'channels' => $this->normalizeList($settings['channels'] ?? []),
-                    'mirror' => !empty($settings['mirror']),
+                    'enabled' => !empty($settings['enabled']),
                 ];
             }
         }
-
-        $normalized['version_overrides'] = $normalized['overrides'];
 
         return $normalized;
     }
 
     /**
-     * @param array<string, mixed> $config
-     * @return array<string, mixed>
+     * @param array<string, mixed> $mirrorsConfig
+     * @return array{strategy: string, hosts: string[]}
      */
-    private function normalizeSection(array $config, string $key): array
-    {
-        return (isset($config[$key]) && is_array($config[$key])) ? $config[$key] : [];
-    }
-
-    /**
-     * Normalize mirror configuration
-     *
-     * Format: eset.mirror: { strategy: "best", list: ["host1", "host2"] }
-     *
-     * @param array<string, mixed> $mirrorConfig
-     * @return array{strategy: string, list: string[]}
-     */
-    private function normalizeMirrorConfig(array $mirrorConfig): array
+    private function normalizeMirrors(array $mirrorsConfig): array
     {
         return [
-            'strategy' => $this->normalizeMirrorStrategy($mirrorConfig['strategy'] ?? 'random'),
-            'list' => $this->normalizeMirrorList($mirrorConfig['list'] ?? []),
+            'strategy' => $this->normalizeMirrorStrategy($mirrorsConfig['strategy'] ?? 'random'),
+            'hosts' => $this->normalizeMirrorList($mirrorsConfig['hosts'] ?? []),
         ];
     }
 
@@ -514,12 +599,12 @@ final class Config
             throw new ConfigException('Unsupported operating system: ' . PHP_OS_FAMILY);
         }
 
-        if (empty($this->config['eset']['mirror'])) {
-            throw new ConfigException('Mirror list is empty. Please configure eset.mirror in config file.');
+        if (empty($this->config['eset']['mirrors']['hosts'])) {
+            throw new ConfigException('Mirror list is empty. Please configure eset.mirrors.hosts.');
         }
 
-        $logConfig = $this->config['log']['file'] ?? [];
-        if (!empty($logConfig['rotate']['enabled']) && ($logConfig['rotate']['qty'] ?? 0) < 1) {
+        $logConfig = $this->config['logging']['file'] ?? [];
+        if (!empty($logConfig['rotation']['enabled']) && ($logConfig['rotation']['keep'] ?? 0) < 1) {
             throw new ConfigException('Log rotation quantity must be at least 1');
         }
 
@@ -531,10 +616,15 @@ final class Config
 
     private function setupEnvironment(): void
     {
-        $scriptConfig = $this->config['script'];
+        $runtimeConfig = $this->config['runtime'];
 
-        if (!empty($scriptConfig['timezone'])) {
-            @date_default_timezone_set($scriptConfig['timezone']);
+        $memoryLimit = trim((string) ($runtimeConfig['php']['memory_limit'] ?? '512M'));
+        if ($memoryLimit !== '' && ini_set('memory_limit', $memoryLimit) === false) {
+            throw new ConfigException('Failed to set PHP memory_limit to: ' . $memoryLimit);
+        }
+
+        if (!empty($runtimeConfig['locale']['timezone'])) {
+            @date_default_timezone_set($runtimeConfig['locale']['timezone']);
         } else {
             @date_default_timezone_set(@date_default_timezone_get() ?: 'UTC');
         }
@@ -544,11 +634,13 @@ final class Config
 
     private function setupDirectories(): void
     {
-        $rootDir = (string) ($this->config['script']['dir'] ?? SELF);
-        $webDir = $this->getWebDir();
-        $dataDir = $this->getDataDir();
-        $logDir = $this->config['log']['file']['dir'] ?? 'log';
-        $storageDir = (string) ($this->config['script']['storage']['dir'] ?? 'storage');
+        $rootDir = (string) ($this->config['runtime']['root'] ?? SELF);
+        $webDir = (string) ($this->config['web']['root'] ?? 'www');
+        $dataDir = (string) ($this->config['state']['root'] ?? 'data');
+        $logDir = (string) ($this->config['logging']['root'] ?? 'log');
+        $storageDir = (string) ($this->config['storage']['root'] ?? 'storage');
+        $storageIndexPath = (string) ($this->config['state']['database']['file'] ?? 'content-index.sqlite');
+        $tmpDir = (string) ($this->config['runtime']['temp'] ?? 'tmp');
 
         if (!$this->isAbsolutePath($rootDir)) {
             $rootDir = Tools::ds(SELF, $rootDir);
@@ -559,33 +651,36 @@ final class Config
         $dataDir = $this->resolvePath($dataDir, $rootDir);
         $logDir = $this->resolvePath((string) $logDir, $rootDir);
         $storageDir = $this->resolvePath($storageDir, $rootDir);
+        $storageIndexPath = $this->resolvePath($storageIndexPath, $dataDir);
+        $tmpDir = $this->resolvePath($tmpDir, $rootDir);
 
-        $this->config['script']['dir'] = $rootDir;
-        $this->config['script']['web_dir'] = $webDir;
-        $this->config['data']['dir'] = $dataDir;
-        $this->config['log']['file']['dir'] = $logDir;
-        $this->config['script']['storage']['dir'] = Tools::cleanPath($storageDir);
+        $this->config['runtime']['root'] = $rootDir;
+        $this->config['runtime']['temp'] = Tools::cleanPath($tmpDir);
+        $this->config['web']['root'] = Tools::cleanPath($webDir);
+        $this->config['state']['root'] = Tools::cleanPath($dataDir);
+        $this->config['state']['database']['file'] = Tools::cleanPath($storageIndexPath);
+        $this->config['logging']['root'] = Tools::cleanPath($logDir);
+        $this->config['storage']['root'] = Tools::cleanPath($storageDir);
 
         // Create directories
         Tools::ensureDirectory(PATTERN);
-        Tools::ensureDirectory($this->config['data']['dir']);
-        Tools::ensureDirectory($this->config['log']['file']['dir']);
-        Tools::ensureDirectory($this->config['script']['web_dir']);
-        Tools::ensureDirectory($this->config['script']['storage']['dir']);
-        Tools::ensureDirectory(TMP_PATH);
+        Tools::ensureDirectory($this->config['state']['root']);
+        Tools::ensureDirectory($this->config['logging']['root']);
+        Tools::ensureDirectory($this->config['web']['root']);
+        Tools::ensureDirectory($this->config['storage']['root']);
+        Tools::ensureDirectory(dirname($this->config['state']['database']['file']));
+        Tools::ensureDirectory($this->config['runtime']['temp']);
 
-        if (!empty($this->config['script']['debug_html'])) {
-            Tools::ensureDirectory(Tools::ds($this->config['data']['dir'], DEBUG_DIR));
+        if (!empty($this->config['runtime']['debug']['html'])) {
+            Tools::ensureDirectory(Tools::ds($this->config['state']['root'], DEBUG_DIR));
         }
     }
 
     private function isAbsolutePath(string $path): bool
     {
-        if (PHP_OS_FAMILY === 'Windows') {
-            return (bool) preg_match('/^[A-Za-z]:[\\\\\\/]/', $path);
-        }
-
-        return str_starts_with($path, '/');
+        return str_starts_with($path, '/')
+            || (bool) preg_match('/^[A-Za-z]:[\\\\\\/]/', $path)
+            || str_starts_with($path, '\\\\');
     }
 
     private function resolvePath(string $path, string $rootDir): string
@@ -645,65 +740,83 @@ final class Config
 
     public function getWebDir(): string
     {
-        return $this->config['script']['web_dir'] ?? Tools::ds(SELF, 'www');
+        return $this->config['web']['root'] ?? Tools::ds(SELF, 'www');
     }
 
     public function getDataDir(): string
     {
-        return $this->config['data']['dir'] ?? Tools::ds(SELF, 'data');
+        return $this->config['state']['root'] ?? Tools::ds(SELF, 'data');
     }
 
     public function getStorageDir(): string
     {
-        $dir = $this->config['script']['storage']['dir'] ?? Tools::ds(dirname($this->getWebDir()), 'storage');
-        return is_string($dir) && $dir !== '' ? $dir : Tools::ds(dirname($this->getWebDir()), 'storage');
+        $dir = $this->config['storage']['root'] ?? Tools::ds($this->getBaseDir(), 'storage');
+        return is_string($dir) && $dir !== '' ? $dir : Tools::ds($this->getBaseDir(), 'storage');
+    }
+
+    public function getTmpDir(): string
+    {
+        $dir = $this->config['runtime']['temp'] ?? Tools::ds($this->getBaseDir(), 'tmp');
+        return is_string($dir) && $dir !== '' ? $dir : Tools::ds($this->getBaseDir(), 'tmp');
+    }
+
+    public function getBaseDir(): string
+    {
+        $dir = $this->config['runtime']['root'] ?? SELF;
+        return is_string($dir) && $dir !== '' ? $dir : SELF;
+    }
+
+    public function getStorageIndexPath(): string
+    {
+        $path = $this->config['state']['database']['file'] ?? Tools::ds($this->getDataDir(), 'content-index.sqlite');
+        return is_string($path) && $path !== '' ? $path : Tools::ds($this->getDataDir(), 'content-index.sqlite');
     }
 
     public function getStorageHashAlgorithm(): string
     {
-        $algorithm = $this->config['script']['storage']['hash'] ?? 'sha256';
+        $algorithm = $this->config['storage']['hash'] ?? 'sha256';
         return is_string($algorithm) && $algorithm !== '' ? strtolower($algorithm) : 'sha256';
     }
 
     public function getStorageLinkMethod(): StorageLinkMethod
     {
-        return StorageLinkMethod::fromString((string) ($this->config['script']['storage']['link_method'] ?? 'hardlink'));
+        return StorageLinkMethod::fromString((string) ($this->config['storage']['link_method'] ?? 'hardlink'));
     }
 
     public function isStorageGcEnabled(): bool
     {
-        return !empty($this->config['script']['storage']['gc']['enabled']);
+        return !empty($this->config['storage']['gc']['enabled']);
     }
 
     public function getTimeout(): int
     {
-        return (int) ($this->config['connection']['timeout']['download'] ?? 30);
+        return (int) ($this->config['downloads']['timeout']['request'] ?? 30);
     }
 
     public function getConnectTimeout(): int
     {
-        return (int) ($this->config['connection']['timeout']['connect'] ?? 5);
+        return (int) ($this->config['downloads']['timeout']['connect'] ?? 5);
     }
 
     public function getMaxThreads(): int
     {
-        return (int) ($this->config['connection']['threads'] ?? 32);
+        return (int) ($this->config['downloads']['concurrency'] ?? 32);
     }
 
     public function getMaxRetries(): int
     {
-        return (int) ($this->config['connection']['retries']['attempts'] ?? 3);
+        return (int) ($this->config['downloads']['retries']['attempts'] ?? 3);
     }
 
     public function getRetryDelay(): int
     {
         // Returns delay in milliseconds (config is in seconds)
-        return (int) (($this->config['connection']['retries']['delay'] ?? 1) * 1000);
+        return (int) (($this->config['downloads']['retries']['delay'] ?? 1) * 1000);
     }
 
     public function isProxyEnabled(): bool
     {
-        return !empty($this->config['connection']['proxy']['enabled']);
+        return !empty($this->config['downloads']['proxy']['enabled']);
     }
 
     /**
@@ -711,12 +824,12 @@ final class Config
      */
     public function getMirrorList(): array
     {
-        return $this->config['eset']['mirror']['list'] ?? [];
+        return $this->config['eset']['mirrors']['hosts'] ?? [];
     }
 
     public function getMirrorStrategy(): MirrorStrategy
     {
-        $strategy = $this->config['eset']['mirror']['strategy'] ?? 'random';
+        $strategy = $this->config['eset']['mirrors']['strategy'] ?? 'random';
         return MirrorStrategy::fromString($strategy);
     }
 

@@ -2,7 +2,7 @@
 FROM alpine:3.23 AS builder
 
 # Install build dependencies
-RUN apk add --no-cache build-base wget php85 php85-openssl php85-phar php85-mbstring php85-json php85-ctype php85-curl git && \
+RUN apk add --no-cache build-base wget php85 php85-openssl php85-phar php85-mbstring php85-json php85-ctype php85-curl php85-pdo_sqlite git && \
     ln -s /usr/bin/php85 /usr/bin/php
 
 # Install Composer
@@ -28,6 +28,7 @@ RUN apk add --no-cache \
     php85-iconv \
     php85-mbstring \
     php85-openssl \
+    php85-pdo_sqlite \
     php85-phar \
     php85-sockets \
     php85-zip \

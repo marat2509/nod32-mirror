@@ -6,198 +6,68 @@ namespace Nod32Mirror\Storage;
 
 use Nod32Mirror\FileSystem\SafeFileOperations;
 use Nod32Mirror\Log\Language;
-use Nod32Mirror\Log\Log;
 use Nod32Mirror\ValueObject\ReferenceCollection;
+use PDO;
+use RuntimeException;
+use Throwable;
 
 final class ContentIndex
 {
-    /** @var array<string, mixed> */
-    private array $index = [];
+    private const SCHEMA_VERSION = '1';
+
+    private ?PDO $database = null;
+
+    private ?string $databasePath = null;
+
+    private string $hashAlgorithm = 'sha256';
 
     private bool $loaded = false;
 
-    private ?string $lastSaveError = null;
-
     public function __construct(
         private readonly SafeFileOperations $fileOps,
-        private readonly Log $log,
         private readonly Language $language
     ) {
-        $this->reset('sha256');
     }
 
     public function load(string $path, string $hashAlgorithm): void
     {
-        $this->reset($hashAlgorithm);
+        $this->database = null;
+        $this->databasePath = $path;
+        $this->hashAlgorithm = strtolower(trim($hashAlgorithm));
+        $this->loaded = is_file($path);
 
-        if (!is_file($path)) {
-            return;
-        }
+        $this->fileOps->createDirectory(dirname($path));
+        $this->database = new PDO('sqlite:' . $path, null, null, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_STRINGIFY_FETCHES => false,
+        ]);
 
-        $content = $this->fileOps->readFile($path, false);
-        if ($content === null) {
-            return;
-        }
-
-        $decoded = json_decode($content, true);
-        if (!is_array($decoded)) {
-            $this->log->warning($this->language->t('storage.index_invalid_json', $path));
-            return;
-        }
-
-        $storedAlgorithm = is_string($decoded['hash_algorithm'] ?? null)
-            ? strtolower(trim((string) $decoded['hash_algorithm']))
-            : $hashAlgorithm;
-        if ($storedAlgorithm !== $hashAlgorithm) {
-            $this->log->warning($this->language->t('storage.index_hash_algorithm_mismatch', $storedAlgorithm, $hashAlgorithm));
-            return;
-        }
-
-        $this->index = [
-            'hash_algorithm' => $hashAlgorithm,
-            'updated_at' => $this->normalizeTimestamp($decoded['updated_at'] ?? null),
-            'hashes' => is_array($decoded['hashes'] ?? null) ? $decoded['hashes'] : [],
-            'published' => is_array($decoded['published'] ?? null) ? $decoded['published'] : [],
-        ];
-        $this->loaded = true;
+        $this->database->exec('PRAGMA foreign_keys = ON');
+        $this->database->exec('PRAGMA busy_timeout = 5000');
+        $this->database->exec('PRAGMA journal_mode = WAL');
+        $this->database->exec('PRAGMA synchronous = NORMAL');
+        $this->createSchema();
+        $this->initializeMetadata();
+        $this->database->beginTransaction();
     }
 
     public function save(string $path): void
     {
-        $this->index['updated_at'] = self::now();
-        $this->lastSaveError = null;
-
-        $this->fileOps->createDirectory(dirname($path));
-        $tmpPath = $path . '.tmp-' . bin2hex(random_bytes(6));
-        if (!$this->writeIndexJsonFile($tmpPath)) {
-            $this->fileOps->deleteFile($tmpPath);
-            $this->log->warning($this->language->t(
-                'storage.index_json_encoding_failed',
-                $this->lastSaveError ?? json_last_error_msg()
+        $database = $this->requireDatabase();
+        if ($this->databasePath !== $path) {
+            throw new RuntimeException(sprintf(
+                'Content index is open at %s and cannot be saved to %s',
+                $this->databasePath ?? '(unknown)',
+                $path
             ));
-            return;
         }
 
-        if (!@rename($tmpPath, $path)) {
-            $this->fileOps->deleteFile($tmpPath);
-            $this->log->warning($this->language->t('storage.index_save_failed', $path));
+        $this->setMetadata('updated_at', self::now());
+        if ($database->inTransaction()) {
+            $database->commit();
         }
-    }
-
-    private function writeIndexJsonFile(string $path): bool
-    {
-        $handle = @fopen($path, 'wb');
-        if ($handle === false) {
-            $this->lastSaveError = 'failed to open temporary index file';
-            return false;
-        }
-
-        $ok = $this->writeBytes($handle, "{\n")
-            && $this->writeProperty($handle, 1, 'hash_algorithm', $this->getHashAlgorithm(), true)
-            && $this->writeProperty($handle, 1, 'updated_at', (string) ($this->index['updated_at'] ?? self::now()), true)
-            && $this->writeObjectSection($handle, 1, 'hashes', $this->getHashes(), true)
-            && $this->writeObjectSection($handle, 1, 'published', $this->getPublished(), false)
-            && $this->writeBytes($handle, "}\n");
-
-        if (!@fclose($handle)) {
-            $this->lastSaveError = 'failed to close temporary index file';
-            return false;
-        }
-
-        return $ok;
-    }
-
-    /**
-     * @param resource $handle
-     */
-    private function writeProperty($handle, int $indentLevel, string $key, mixed $value, bool $comma): bool
-    {
-        $encodedKey = $this->encodeJson($key);
-        $encodedValue = $this->encodeJson($value);
-
-        if ($encodedKey === null || $encodedValue === null) {
-            return false;
-        }
-
-        return $this->writeBytes(
-            $handle,
-            str_repeat("\t", $indentLevel) . $encodedKey . ': ' . $encodedValue . ($comma ? ',' : '') . "\n"
-        );
-    }
-
-    /**
-     * @param resource $handle
-     * @param array<string, mixed> $entries
-     */
-    private function writeObjectSection($handle, int $indentLevel, string $key, array $entries, bool $comma): bool
-    {
-        $encodedKey = $this->encodeJson($key);
-        if ($encodedKey === null) {
-            return false;
-        }
-
-        if (!$this->writeBytes($handle, str_repeat("\t", $indentLevel) . $encodedKey . ": {\n")) {
-            return false;
-        }
-
-        $entryCount = count($entries);
-        $index = 0;
-        foreach ($entries as $entryKey => $entryValue) {
-            $index++;
-            $encodedEntryKey = $this->encodeJson((string) $entryKey);
-            $encodedEntryValue = $this->encodeJson($entryValue);
-
-            if ($encodedEntryKey === null || $encodedEntryValue === null) {
-                return false;
-            }
-
-            if (!$this->writeBytes(
-                $handle,
-                str_repeat("\t", $indentLevel + 1)
-                . $encodedEntryKey
-                . ': '
-                . $encodedEntryValue
-                . ($index < $entryCount ? ',' : '')
-                . "\n"
-            )) {
-                return false;
-            }
-        }
-
-        return $this->writeBytes($handle, str_repeat("\t", $indentLevel) . '}' . ($comma ? ',' : '') . "\n");
-    }
-
-    private function encodeJson(mixed $value): ?string
-    {
-        $encoded = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        if ($encoded === false) {
-            $this->lastSaveError = json_last_error_msg();
-            return null;
-        }
-
-        return $encoded;
-    }
-
-    /**
-     * @param resource $handle
-     */
-    private function writeBytes($handle, string $content): bool
-    {
-        $length = strlen($content);
-        $written = 0;
-
-        while ($written < $length) {
-            $result = @fwrite($handle, substr($content, $written));
-
-            if ($result === false || $result === 0) {
-                $this->lastSaveError = 'failed to write temporary index file';
-                return false;
-            }
-
-            $written += $result;
-        }
-
-        return true;
+        $database->exec('PRAGMA wal_checkpoint(PASSIVE)');
     }
 
     public function wasLoaded(): bool
@@ -207,12 +77,27 @@ final class ContentIndex
 
     public function getHashAlgorithm(): string
     {
-        return (string) ($this->index['hash_algorithm'] ?? 'sha256');
+        return $this->hashAlgorithm;
     }
 
     public function setHashAlgorithm(string $hashAlgorithm): void
     {
-        $this->index['hash_algorithm'] = $hashAlgorithm;
+        $hashAlgorithm = strtolower(trim($hashAlgorithm));
+        if ($hashAlgorithm === '') {
+            throw new RuntimeException('Content index hash algorithm cannot be empty');
+        }
+
+        $storedAlgorithm = $this->getMetadata('hash_algorithm');
+        if ($storedAlgorithm !== null && $storedAlgorithm !== $hashAlgorithm) {
+            throw new RuntimeException($this->language->t(
+                'storage.index_hash_algorithm_mismatch',
+                $storedAlgorithm,
+                $hashAlgorithm
+            ));
+        }
+
+        $this->hashAlgorithm = $hashAlgorithm;
+        $this->setMetadata('hash_algorithm', $hashAlgorithm);
     }
 
     public function recordPublished(
@@ -226,61 +111,144 @@ final class ContentIndex
     ): void {
         $relativePath = $this->normalizePath($relativePath);
         $hash = strtolower(trim($hash));
-        $now = self::now();
-
         if ($relativePath === '' || $hash === '') {
             return;
         }
 
-        $existingHash = $this->index['hashes'][$hash] ?? [];
-        $createdAt = is_array($existingHash)
-            ? $this->normalizeTimestamp($existingHash['created_at'] ?? null)
-            : $now;
+        $now = self::now();
+        $this->transaction(function (PDO $database) use (
+            $relativePath,
+            $hash,
+            $size,
+            $versionId,
+            $channel,
+            $linkMethod,
+            $blobPath,
+            $now
+        ): void {
+            $statement = $database->prepare(<<<'SQL'
+                INSERT INTO blobs (hash, size, blob_path, created_at, updated_at)
+                VALUES (:hash, :size, :blob_path, :created_at, :updated_at)
+                ON CONFLICT(hash) DO UPDATE SET
+                    size = excluded.size,
+                    blob_path = excluded.blob_path,
+                    updated_at = excluded.updated_at
+                SQL);
+            $statement->execute([
+                'hash' => $hash,
+                'size' => $size,
+                'blob_path' => $blobPath,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
 
-        $this->index['published'][$relativePath] = [
-            'hash' => $hash,
-            'size' => $size,
-            'version_id' => $versionId,
-            'channel' => $channel !== '' ? $channel : 'default',
-            'link_method' => $linkMethod,
-            'updated_at' => $now,
-        ];
-
-        $this->index['hashes'][$hash] = [
-            'hash' => $hash,
-            'size' => $size,
-            'blob_path' => $blobPath,
-            'published_paths' => [],
-            'version_ids' => [],
-            'created_at' => $createdAt,
-            'updated_at' => $now,
-        ];
-
-        $this->rebuildHashEntries();
+            $statement = $database->prepare(<<<'SQL'
+                INSERT INTO published_paths (path, hash, size, version_id, channel, link_method, updated_at)
+                VALUES (:path, :hash, :size, :version_id, :channel, :link_method, :updated_at)
+                ON CONFLICT(path) DO UPDATE SET
+                    hash = excluded.hash,
+                    size = excluded.size,
+                    version_id = excluded.version_id,
+                    channel = excluded.channel,
+                    link_method = excluded.link_method,
+                    updated_at = excluded.updated_at
+                SQL);
+            $statement->execute([
+                'path' => $relativePath,
+                'hash' => $hash,
+                'size' => $size,
+                'version_id' => $versionId,
+                'channel' => $channel !== '' ? $channel : 'default',
+                'link_method' => $linkMethod,
+                'updated_at' => $now,
+            ]);
+        });
     }
 
     public function getPublishedHash(string $relativePath): ?string
     {
-        $relativePath = $this->normalizePath($relativePath);
-        $hash = $this->index['published'][$relativePath]['hash'] ?? null;
-
-        return is_string($hash) && $hash !== '' ? $hash : null;
+        $value = $this->fetchPublishedColumn($relativePath, 'hash');
+        return is_string($value) && $value !== '' ? $value : null;
     }
 
     public function getPublishedSize(string $relativePath): ?int
     {
-        $relativePath = $this->normalizePath($relativePath);
-        $size = $this->index['published'][$relativePath]['size'] ?? null;
-
-        return is_numeric($size) ? (int) $size : null;
+        $value = $this->fetchPublishedColumn($relativePath, 'size');
+        return is_numeric($value) ? (int) $value : null;
     }
 
     public function getBlobPath(string $hash): ?string
     {
-        $hash = strtolower(trim($hash));
-        $blobPath = $this->index['hashes'][$hash]['blob_path'] ?? null;
+        $statement = $this->requireDatabase()->prepare('SELECT blob_path FROM blobs WHERE hash = :hash');
+        $statement->execute(['hash' => strtolower(trim($hash))]);
+        $value = $statement->fetchColumn();
 
-        return is_string($blobPath) && $blobPath !== '' ? $blobPath : null;
+        return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    /**
+     * @return iterable<string, array<string, mixed>>
+     */
+    public function iteratePublished(): iterable
+    {
+        $statement = $this->requireDatabase()->query(<<<'SQL'
+            SELECT path, hash, size, version_id, channel, link_method, updated_at
+            FROM published_paths
+            ORDER BY path
+            SQL);
+
+        while (($row = $statement->fetch()) !== false) {
+            $path = (string) $row['path'];
+            unset($row['path']);
+            $row['size'] = (int) $row['size'];
+            yield $path => $row;
+        }
+    }
+
+    /**
+     * @return iterable<string, array<string, mixed>>
+     */
+    public function iterateBlobs(): iterable
+    {
+        $statement = $this->requireDatabase()->query(<<<'SQL'
+            SELECT hash, size, blob_path, created_at, updated_at
+            FROM blobs
+            ORDER BY hash
+            SQL);
+
+        while (($row = $statement->fetch()) !== false) {
+            $hash = (string) $row['hash'];
+            $row['size'] = (int) $row['size'];
+            yield $hash => $row;
+        }
+    }
+
+    /**
+     * @return iterable<string, array<string, mixed>>
+     */
+    public function iterateUnreferencedBlobs(): iterable
+    {
+        $statement = $this->requireDatabase()->query(<<<'SQL'
+            SELECT b.hash, b.size, b.blob_path, b.created_at, b.updated_at
+            FROM blobs b
+            WHERE NOT EXISTS (
+                SELECT 1 FROM published_paths p WHERE p.hash = b.hash
+            )
+            ORDER BY b.hash
+            SQL);
+
+        while (($row = $statement->fetch()) !== false) {
+            $hash = (string) $row['hash'];
+            $row['size'] = (int) $row['size'];
+            yield $hash => $row;
+        }
+    }
+
+    public function hasHash(string $hash): bool
+    {
+        $statement = $this->requireDatabase()->prepare('SELECT 1 FROM blobs WHERE hash = :hash');
+        $statement->execute(['hash' => strtolower(trim($hash))]);
+        return $statement->fetchColumn() !== false;
     }
 
     /**
@@ -288,7 +256,7 @@ final class ContentIndex
      */
     public function getPublished(): array
     {
-        return is_array($this->index['published'] ?? null) ? $this->index['published'] : [];
+        return iterator_to_array($this->iteratePublished());
     }
 
     /**
@@ -296,94 +264,78 @@ final class ContentIndex
      */
     public function getHashes(): array
     {
-        return is_array($this->index['hashes'] ?? null) ? $this->index['hashes'] : [];
-    }
-
-    public function removePublished(string $relativePath): void
-    {
-        unset($this->index['published'][$this->normalizePath($relativePath)]);
-        $this->rebuildHashEntries();
-    }
-
-    public function removeHash(string $hash): void
-    {
-        unset($this->index['hashes'][strtolower(trim($hash))]);
-    }
-
-    public function syncVersionRefs(ReferenceCollection $references): void
-    {
-        $this->rebuildHashEntries($references);
-    }
-
-    private function rebuildHashEntries(?ReferenceCollection $references = null): void
-    {
-        $existing = $this->getHashes();
         $hashes = [];
+        foreach ($this->iterateBlobs() as $hash => $entry) {
+            $entry['published_paths'] = [];
+            $entry['version_ids'] = [];
+            $hashes[$hash] = $entry;
+        }
 
-        foreach ($this->getPublished() as $path => $entry) {
-            if (!is_array($entry)) {
-                continue;
-            }
-
-            $hash = is_string($entry['hash'] ?? null) ? strtolower(trim($entry['hash'])) : '';
-            if ($hash === '') {
-                continue;
-            }
-
-            $current = $existing[$hash] ?? [];
-            $now = self::now();
-
+        $statement = $this->requireDatabase()->query(<<<'SQL'
+            SELECT p.hash, p.path, r.version_id, r.channel
+            FROM published_paths p
+            LEFT JOIN version_references r ON r.path = p.path
+            ORDER BY p.hash, p.path, r.version_id, r.channel
+            SQL);
+        while (($row = $statement->fetch()) !== false) {
+            $hash = (string) $row['hash'];
             if (!isset($hashes[$hash])) {
-                $hashes[$hash] = [
-                    'hash' => $hash,
-                    'size' => (int) ($entry['size'] ?? ($current['size'] ?? 0)),
-                    'blob_path' => (string) ($current['blob_path'] ?? ''),
-                    'published_paths' => [],
-                    'version_ids' => [],
-                    'created_at' => $this->normalizeTimestamp($current['created_at'] ?? null),
-                    'updated_at' => $now,
-                ];
+                continue;
             }
 
-            $normalizedPath = $this->normalizePath((string) $path);
-            if (!in_array($normalizedPath, $hashes[$hash]['published_paths'], true)) {
-                $hashes[$hash]['published_paths'][] = $normalizedPath;
+            $path = (string) $row['path'];
+            if (!in_array($path, $hashes[$hash]['published_paths'], true)) {
+                $hashes[$hash]['published_paths'][] = $path;
             }
 
-            $versionChannels = $references?->getVersionChannelsForPath($normalizedPath) ?? [];
-            foreach ($versionChannels as $versionId => $channels) {
+            if ($row['version_id'] !== null && $row['channel'] !== null) {
+                $versionId = (string) $row['version_id'];
+                $channel = (string) $row['channel'];
                 $hashes[$hash]['version_ids'][$versionId] ??= [];
-                foreach ($channels as $channel) {
-                    if (!in_array($channel, $hashes[$hash]['version_ids'][$versionId], true)) {
-                        $hashes[$hash]['version_ids'][$versionId][] = $channel;
-                    }
+                if (!in_array($channel, $hashes[$hash]['version_ids'][$versionId], true)) {
+                    $hashes[$hash]['version_ids'][$versionId][] = $channel;
                 }
             }
         }
 
-        foreach ($hashes as &$entry) {
-            sort($entry['published_paths']);
-            ksort($entry['version_ids']);
-            foreach ($entry['version_ids'] as &$channels) {
-                sort($channels);
-            }
-            unset($channels);
-        }
-        unset($entry);
-
-        ksort($hashes);
-        $this->index['hashes'] = $hashes;
+        return $hashes;
     }
 
-    private function reset(string $hashAlgorithm): void
+    public function removePublished(string $relativePath): void
     {
-        $this->index = [
-            'hash_algorithm' => $hashAlgorithm,
-            'updated_at' => self::now(),
-            'hashes' => [],
-            'published' => [],
-        ];
-        $this->loaded = false;
+        $statement = $this->requireDatabase()->prepare('DELETE FROM published_paths WHERE path = :path');
+        $statement->execute(['path' => $this->normalizePath($relativePath)]);
+    }
+
+    public function removeHash(string $hash): void
+    {
+        $statement = $this->requireDatabase()->prepare('DELETE FROM blobs WHERE hash = :hash');
+        $statement->execute(['hash' => strtolower(trim($hash))]);
+    }
+
+    public function syncVersionRefs(ReferenceCollection $references): void
+    {
+        $this->transaction(function (PDO $database) use ($references): void {
+            $database->exec('DELETE FROM version_references');
+            $statement = $database->prepare(<<<'SQL'
+                INSERT INTO version_references (path, version_id, channel)
+                SELECT :path, :version_id, :channel
+                WHERE EXISTS (SELECT 1 FROM published_paths WHERE path = :path)
+                SQL);
+
+            foreach ($references->getPaths() as $path) {
+                $path = $this->normalizePath($path);
+                foreach ($references->getVersionChannelsForPath($path) as $versionId => $channels) {
+                    foreach ($channels as $channel) {
+                        $statement->execute([
+                            'path' => $path,
+                            'version_id' => $versionId,
+                            'channel' => $channel,
+                        ]);
+                    }
+                }
+            }
+        });
     }
 
     public static function now(): string
@@ -391,9 +343,135 @@ final class ContentIndex
         return gmdate('Y-m-d\TH:i:s+00:00');
     }
 
-    private function normalizeTimestamp(mixed $value): string
+    private function createSchema(): void
     {
-        return is_string($value) && $value !== '' ? $value : self::now();
+        $this->requireDatabase()->exec(<<<'SQL'
+            CREATE TABLE IF NOT EXISTS metadata (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS blobs (
+                hash TEXT PRIMARY KEY,
+                size INTEGER NOT NULL,
+                blob_path TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS published_paths (
+                path TEXT PRIMARY KEY,
+                hash TEXT NOT NULL,
+                size INTEGER NOT NULL,
+                version_id TEXT NOT NULL,
+                channel TEXT NOT NULL,
+                link_method TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (hash) REFERENCES blobs(hash)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_published_paths_hash
+                ON published_paths(hash);
+
+            CREATE TABLE IF NOT EXISTS version_references (
+                path TEXT NOT NULL,
+                version_id TEXT NOT NULL,
+                channel TEXT NOT NULL,
+                PRIMARY KEY (path, version_id, channel),
+                FOREIGN KEY (path) REFERENCES published_paths(path) ON DELETE CASCADE
+            );
+            SQL);
+    }
+
+    private function initializeMetadata(): void
+    {
+        $schemaVersion = $this->getMetadata('schema_version');
+        if ($schemaVersion !== null && $schemaVersion !== self::SCHEMA_VERSION) {
+            throw new RuntimeException(sprintf(
+                'Unsupported content index schema version: %s',
+                $schemaVersion
+            ));
+        }
+
+        $storedAlgorithm = $this->getMetadata('hash_algorithm');
+        if ($storedAlgorithm !== null && $storedAlgorithm !== $this->hashAlgorithm) {
+            throw new RuntimeException($this->language->t(
+                'storage.index_hash_algorithm_mismatch',
+                $storedAlgorithm,
+                $this->hashAlgorithm
+            ));
+        }
+
+        $this->transaction(function (): void {
+            $this->setMetadata('schema_version', self::SCHEMA_VERSION);
+            $this->setMetadata('hash_algorithm', $this->hashAlgorithm);
+            if ($this->getMetadata('created_at') === null) {
+                $this->setMetadata('created_at', self::now());
+            }
+            $this->setMetadata('updated_at', self::now());
+        });
+    }
+
+    private function getMetadata(string $key): ?string
+    {
+        $statement = $this->requireDatabase()->prepare('SELECT value FROM metadata WHERE key = :key');
+        $statement->execute(['key' => $key]);
+        $value = $statement->fetchColumn();
+
+        return is_string($value) ? $value : null;
+    }
+
+    private function setMetadata(string $key, string $value): void
+    {
+        $statement = $this->requireDatabase()->prepare(<<<'SQL'
+            INSERT INTO metadata (key, value) VALUES (:key, :value)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            SQL);
+        $statement->execute(['key' => $key, 'value' => $value]);
+    }
+
+    private function fetchPublishedColumn(string $relativePath, string $column): mixed
+    {
+        if (!in_array($column, ['hash', 'size'], true)) {
+            throw new RuntimeException('Unsupported published-path column: ' . $column);
+        }
+
+        $statement = $this->requireDatabase()->prepare(
+            sprintf('SELECT %s FROM published_paths WHERE path = :path', $column)
+        );
+        $statement->execute(['path' => $this->normalizePath($relativePath)]);
+
+        return $statement->fetchColumn();
+    }
+
+    private function transaction(callable $callback): void
+    {
+        $database = $this->requireDatabase();
+        $ownsTransaction = !$database->inTransaction();
+        if ($ownsTransaction) {
+            $database->beginTransaction();
+        }
+
+        try {
+            $callback($database);
+            if ($ownsTransaction) {
+                $database->commit();
+            }
+        } catch (Throwable $exception) {
+            if ($ownsTransaction && $database->inTransaction()) {
+                $database->rollBack();
+            }
+            throw $exception;
+        }
+    }
+
+    private function requireDatabase(): PDO
+    {
+        if ($this->database === null) {
+            throw new RuntimeException('Content index has not been loaded');
+        }
+
+        return $this->database;
     }
 
     private function normalizePath(string $path): string

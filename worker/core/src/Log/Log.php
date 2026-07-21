@@ -35,7 +35,7 @@ final class Log
             return;
         }
 
-        $this->logConfig = $this->config->getOrDefault('log', []);
+        $this->logConfig = $this->config->getOrDefault('logging', []);
         $this->buildLogger();
         $this->initialized = true;
     }
@@ -95,7 +95,7 @@ final class Log
         $monologLevel = $this->mapToMonologLevel($level);
         $finalMessage = $versionLabel . ($level === LogLevel::Trace ? '[trace] ' . $text : $text);
 
-        if ($logToFile && !empty($fileConfig['rotate']['enabled'])) {
+        if ($logToFile && !empty($fileConfig['rotation']['enabled'])) {
             $this->rotateIfNeeded($fileConfig);
         }
 
@@ -115,7 +115,7 @@ final class Log
 
         $fileConfig = $this->logConfig['file'] ?? [];
         if (!empty($fileConfig['enabled'])) {
-            $filePath = Tools::ds($fileConfig['dir'] ?? 'log', LOG_FILE);
+            $filePath = Tools::ds($this->logConfig['root'] ?? 'log', LOG_FILE);
             $minLevel = $this->mapToMonologLevel(LogLevel::fromMixed($fileConfig['level'] ?? LogLevel::Debug));
 
             $this->fileHandler = new StreamHandler($filePath, $minLevel);
@@ -142,12 +142,12 @@ final class Log
             return;
         }
 
-        $limit = (int) ($fileConfig['rotate']['size'] ?? 0);
+        $limit = (int) ($fileConfig['rotation']['max_size'] ?? 0);
         if ($limit <= 0) {
             return;
         }
 
-        $filePath = Tools::ds($fileConfig['dir'] ?? 'log', LOG_FILE);
+        $filePath = Tools::ds($this->logConfig['root'] ?? 'log', LOG_FILE);
         if (!file_exists($filePath)) {
             return;
         }
@@ -158,7 +158,7 @@ final class Log
         }
 
         $archExt = Tools::getArchiveExtension();
-        $qty = (int) ($fileConfig['rotate']['qty'] ?? 5);
+        $qty = (int) ($fileConfig['rotation']['keep'] ?? 5);
 
         for ($i = $qty; $i > 1; $i--) {
             @unlink($filePath . '.' . $i . $archExt);

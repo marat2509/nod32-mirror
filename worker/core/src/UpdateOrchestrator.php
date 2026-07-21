@@ -510,7 +510,7 @@ final class UpdateOrchestrator
     private function getRemoteMirrorVersion(MirrorInfo $mirror, Credential $credential, string $sourceFile): ?int
     {
         $url = $mirror->buildUrl($sourceFile);
-        $tmpFile = Tools::ds(TMP_PATH, 'version_check_' . md5($mirror->host) . '.ver');
+        $tmpFile = Tools::ds($this->config->getTmpDir(), 'version_check_' . md5($mirror->host) . '.ver');
 
         $result = $this->downloader->downloadToFile($url, $tmpFile, $credential);
 
@@ -605,7 +605,7 @@ final class UpdateOrchestrator
 
     private function cleanupTmpDirectory(): void
     {
-        foreach (glob(Tools::ds(TMP_PATH, '*')) ?: [] as $folder) {
+        foreach (glob(Tools::ds($this->config->getTmpDir(), '*')) ?: [] as $folder) {
             Tools::clearDirectory($folder);
             @rmdir($folder);
         }
@@ -684,7 +684,7 @@ final class UpdateOrchestrator
 
     private function initStorage(): void
     {
-        $path = Tools::ds($this->config->getDataDir(), 'content-index.json');
+        $path = $this->storageConfig->getIndexPath();
         $this->contentIndex->load($path, $this->storageConfig->getHashAlgorithm());
         $this->contentIndex->setHashAlgorithm($this->storageConfig->getHashAlgorithm());
         $this->log->debug($this->language->t('storage.index_initialized', $path));
@@ -721,7 +721,7 @@ final class UpdateOrchestrator
         $this->statusReporter->updateStorage(StatusState::Running, StatusAction::FinalizeStorage);
 
         $this->storageGarbageCollector->saveState(Tools::ds($this->config->getDataDir(), 'gc-state.json'), $gcState);
-        $this->contentIndex->save(Tools::ds($this->config->getDataDir(), 'content-index.json'));
+        $this->contentIndex->save($this->storageConfig->getIndexPath());
         $this->statusReporter->updateStorage(StatusState::Completed);
     }
 
@@ -746,14 +746,13 @@ final class UpdateOrchestrator
 
     private function generateReports(): void
     {
-        $scriptConfig = $this->config->getOrDefault('script', []);
-        $generateConfig = $scriptConfig['generate'] ?? [];
+        $reportsConfig = $this->config->getOrDefault('web.reports', []);
 
         $metadata = $this->buildMetadata();
         $webDir = $this->config->getWebDir();
 
-        if (!empty($generateConfig['html']['enabled'])) {
-            $path = $generateConfig['html']['path'] ?? 'index.html';
+        if (!empty($reportsConfig['html']['enabled'])) {
+            $path = $reportsConfig['html']['file'] ?? 'index.html';
             $this->statusReporter->setCurrent(
                 StatusPhase::GeneratingIndex,
                 StatusAction::WriteIndexHtml,
@@ -762,8 +761,8 @@ final class UpdateOrchestrator
             $this->htmlGenerator->save($metadata, Tools::ds($webDir, (string) $path));
         }
 
-        if (!empty($generateConfig['json']['enabled'])) {
-            $path = $generateConfig['json']['path'] ?? 'index.json';
+        if (!empty($reportsConfig['json']['enabled'])) {
+            $path = $reportsConfig['json']['file'] ?? 'index.json';
             $this->statusReporter->setCurrent(
                 StatusPhase::GeneratingIndex,
                 StatusAction::WriteIndexJson,
@@ -794,9 +793,7 @@ final class UpdateOrchestrator
     private function buildMetadata(): array
     {
         $webDir = $this->config->getWebDir();
-        $scriptConfig = $this->config->getOrDefault('script', []);
-        $generateConfig = $scriptConfig['generate'] ?? [];
-        $exportCredentials = !empty($generateConfig['export_credentials']);
+        $exportCredentials = !empty($this->config->getOrDefault('web.reports.export_credentials', false));
 
         $enabledVersions = $this->versionConfig->getEnabledVersions();
         $versions = [];

@@ -25,9 +25,14 @@ final class StorageConfig
         return Tools::ds($this->getStorageDir(), 'blobs');
     }
 
+    public function getIndexPath(): string
+    {
+        return $this->config->getStorageIndexPath();
+    }
+
     public function getTmpDir(): string
     {
-        return Tools::ds($this->getStorageDir(), 'tmp');
+        return $this->config->getTmpDir();
     }
 
     public function getQuarantineDir(): string

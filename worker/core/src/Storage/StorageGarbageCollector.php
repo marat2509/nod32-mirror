@@ -73,7 +73,7 @@ final class StorageGarbageCollector
         }
 
         $state['deleted_published_paths'] = $this->deleteUnreferencedPublishedPaths($webDir, $references);
-        $state['deleted_blobs'] = $this->deleteUnreferencedBlobs($webDir, $references);
+        $state['deleted_blobs'] = $this->deleteUnreferencedBlobs();
         $state['completed'] = true;
         $state['finished_at'] = ContentIndex::now();
 
@@ -145,32 +145,13 @@ final class StorageGarbageCollector
     /**
      * @return string[]
      */
-    private function deleteUnreferencedBlobs(string $webDir, ReferenceCollection $references): array
+    private function deleteUnreferencedBlobs(): array
     {
-        $liveHashes = [];
-
-        foreach ($this->contentIndex->getPublished() as $relativePath => $entry) {
-            if (!is_array($entry) || !$references->hasPath((string) $relativePath)) {
-                continue;
-            }
-
-            $hash = is_string($entry['hash'] ?? null) ? strtolower(trim($entry['hash'])) : '';
-            if ($hash === '') {
-                continue;
-            }
-
-            $absolutePath = Tools::ds($webDir, (string) $relativePath);
-            if (!is_file($absolutePath)) {
-                continue;
-            }
-
-            $liveHashes[$hash] = true;
-        }
-
         $deleted = [];
-        foreach ($this->contentIndex->getHashes() as $hash => $entry) {
+        $deletedHashes = [];
+        foreach ($this->contentIndex->iterateUnreferencedBlobs() as $hash => $entry) {
             $hash = strtolower(trim((string) $hash));
-            if ($hash === '' || isset($liveHashes[$hash])) {
+            if ($hash === '') {
                 continue;
             }
 
@@ -178,16 +159,24 @@ final class StorageGarbageCollector
                 ? $entry['blob_path']
                 : $this->blobStore->getBlobPath($hash);
 
-            if (is_file($blobPath) && $this->fileOps->deleteFile($blobPath)) {
-                $deleted[] = $blobPath;
-                $this->log->debug($this->language->t('storage.gc_deleted_blob', $blobPath));
+            if (!is_file($blobPath)) {
+                $deletedHashes[] = $hash;
+                continue;
             }
 
+            if ($this->fileOps->deleteFile($blobPath)) {
+                $deleted[] = $blobPath;
+                $deletedHashes[] = $hash;
+                $this->log->debug($this->language->t('storage.gc_deleted_blob', $blobPath));
+            }
+        }
+
+        foreach ($deletedHashes as $hash) {
             $this->contentIndex->removeHash($hash);
         }
 
         foreach ($this->findBlobFiles() as $hash => $blobPath) {
-            if (isset($liveHashes[$hash])) {
+            if ($this->contentIndex->hasHash($hash)) {
                 continue;
             }
 
@@ -202,15 +191,14 @@ final class StorageGarbageCollector
     }
 
     /**
-     * @return array<string, string>
+     * @return iterable<string, string>
      */
-    private function findBlobFiles(): array
+    private function findBlobFiles(): iterable
     {
-        $files = [];
         $root = Tools::ds($this->storageConfig->getBlobDir(), $this->storageConfig->getHashAlgorithm());
 
         if (!is_dir($root)) {
-            return $files;
+            return;
         }
 
         $iterator = new RecursiveIteratorIterator(
@@ -225,34 +213,31 @@ final class StorageGarbageCollector
 
             $hash = strtolower($fileObject->getBasename());
             if (preg_match('/^[a-f0-9]+$/', $hash)) {
-                $files[$hash] = $fileObject->getPathname();
+                yield $hash => $fileObject->getPathname();
             }
         }
-
-        return $files;
     }
 
     private function isExcludedPath(string $relativePath): bool
     {
         $relativePath = str_replace('\\', '/', ltrim($relativePath, '/'));
 
-        $scriptConfig = $this->config->getOrDefault('script', []);
-        $generate = is_array($scriptConfig) ? ($scriptConfig['generate'] ?? []) : [];
+        $reports = $this->config->getOrDefault('web.reports', []);
 
         $excludes = [];
-        if (is_array($generate)) {
-            if (!empty($generate['html']['enabled'])) {
-                $excludes[] = (string) ($generate['html']['path'] ?? 'index.html');
+        if (is_array($reports)) {
+            if (!empty($reports['html']['enabled'])) {
+                $excludes[] = (string) ($reports['html']['file'] ?? 'index.html');
             }
-            if (!empty($generate['json']['enabled'])) {
-                $excludes[] = (string) ($generate['json']['path'] ?? 'index.json');
+            if (!empty($reports['json']['enabled'])) {
+                $excludes[] = (string) ($reports['json']['file'] ?? 'index.json');
             }
-            if (!empty($generate['status']['enabled'])) {
-                $excludes[] = (string) ($generate['status']['path'] ?? 'status.json');
+            if (!empty($reports['status']['enabled'])) {
+                $excludes[] = (string) ($reports['status']['file'] ?? 'status.json');
             }
         }
 
-        $configuredExcludes = $this->config->getOrDefault('script.storage.gc.excludes', []);
+        $configuredExcludes = $this->config->getOrDefault('storage.gc.excludes', []);
         if (is_array($configuredExcludes)) {
             foreach ($configuredExcludes as $exclude) {
                 if (is_string($exclude) && trim($exclude) !== '') {
