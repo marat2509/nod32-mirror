@@ -508,14 +508,67 @@ final class Config
 
     /**
      * @param array<string, mixed> $mirrorsConfig
-     * @return array{strategy: string, hosts: string[]}
+     * @return array<string, mixed>
      */
     private function normalizeMirrors(array $mirrorsConfig): array
     {
+        $discoveryConfig = is_array($mirrorsConfig['discovery'] ?? null)
+            ? $mirrorsConfig['discovery']
+            : [];
+        $fetchConfig = is_array($discoveryConfig['fetch'] ?? null)
+            ? $discoveryConfig['fetch']
+            : [];
+        $validationConfig = is_array($discoveryConfig['validation'] ?? null)
+            ? $discoveryConfig['validation']
+            : [];
+
+        $pool = strtolower(trim((string) ($discoveryConfig['pool'] ?? 'merge')));
+        if (!in_array($pool, ['merge', 'discovered'], true)) {
+            throw new ConfigException('Unsupported mirror discovery pool mode: ' . $pool);
+        }
+
         return [
             'strategy' => $this->normalizeMirrorStrategy($mirrorsConfig['strategy'] ?? 'random'),
             'hosts' => $this->normalizeMirrorList($mirrorsConfig['hosts'] ?? []),
+            'discovery' => [
+                'enabled' => !empty($discoveryConfig['enabled']),
+                'pool' => $pool,
+                'fetch' => [
+                    'versions' => $this->normalizeList($fetchConfig['versions'] ?? true),
+                ],
+                'validation' => [
+                    'max_hosts' => max(1, (int) ($validationConfig['max_hosts'] ?? 100)),
+                    'allow_ports' => !empty($validationConfig['allow_ports']),
+                    'allow_private_addresses' => !empty($validationConfig['allow_private_addresses']),
+                    'allowed_hosts' => $this->normalizeAllowedHosts($validationConfig['allowed_hosts'] ?? null),
+                ],
+            ],
         ];
+    }
+
+    /**
+     * @return string[]|null
+     */
+    private function normalizeAllowedHosts(mixed $allowedHosts): ?array
+    {
+        if ($allowedHosts === null || $allowedHosts === []) {
+            return null;
+        }
+
+        if (!is_array($allowedHosts)) {
+            throw new ConfigException('eset.mirrors.discovery.validation.allowed_hosts must be a list or null');
+        }
+
+        $normalized = [];
+        foreach ($allowedHosts as $allowedHost) {
+            if (!is_string($allowedHost) || trim($allowedHost) === '') {
+                throw new ConfigException('Mirror allowed_hosts entries must be non-empty strings');
+            }
+
+            $normalized[] = strtolower(rtrim(trim($allowedHost), '.'));
+        }
+
+        return array_values(array_unique($normalized));
     }
 
     /**
@@ -831,6 +884,48 @@ final class Config
     {
         $strategy = $this->config['eset']['mirrors']['strategy'] ?? 'random';
         return MirrorStrategy::fromString($strategy);
+    }
+
+    public function isMirrorDiscoveryEnabled(): bool
+    {
+        return !empty($this->config['eset']['mirrors']['discovery']['enabled']);
+    }
+
+    public function getMirrorDiscoveryPool(): string
+    {
+        return (string) ($this->config['eset']['mirrors']['discovery']['pool'] ?? 'merge');
+    }
+
+    /**
+     * @return string[]|true
+     */
+    public function getMirrorDiscoveryVersions(): array|bool
+    {
+        return $this->config['eset']['mirrors']['discovery']['fetch']['versions'] ?? true;
+    }
+
+    public function getMirrorDiscoveryMaxHosts(): int
+    {
+        return (int) ($this->config['eset']['mirrors']['discovery']['validation']['max_hosts'] ?? 100);
+    }
+
+    public function areMirrorDiscoveryPortsAllowed(): bool
+    {
+        return !empty($this->config['eset']['mirrors']['discovery']['validation']['allow_ports']);
+    }
+
+    public function arePrivateMirrorAddressesAllowed(): bool
+    {
+        return !empty($this->config['eset']['mirrors']['discovery']['validation']['allow_private_addresses']);
+    }
+
+    /**
+     * @return string[]|null
+     */
+    public function getAllowedMirrorHosts(): ?array
+    {
+        $allowedHosts = $this->config['eset']['mirrors']['discovery']['validation']['allowed_hosts'] ?? null;
+        return is_array($allowedHosts) ? $allowedHosts : null;
     }
 
     private function normalizeMirrorStrategy(mixed $value): string

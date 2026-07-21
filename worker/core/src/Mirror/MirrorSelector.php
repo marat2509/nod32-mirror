@@ -48,7 +48,9 @@ final class MirrorSelector
         $this->log->debug($this->language->t('mirror.selection_strategy', $strategy->label()));
         $this->statusReporter->setCurrent(
             StatusPhase::SelectingMirrors,
-            StatusAction::PreselectBestMirrors,
+            $strategy === MirrorStrategy::Best
+                ? StatusAction::PreselectBestMirrors
+                : StatusAction::PrepareMirrors,
             $this->language->t('status.message.selecting_mirrors', $strategy->label())
         );
 
@@ -138,7 +140,7 @@ final class MirrorSelector
     private function testMirrorSpeed(string $mirror, Credential $credential, array $testUrls): MirrorTestResult
     {
         // Check cache first
-        $cacheKey = $this->getCacheKey($mirror, $credential);
+        $cacheKey = $this->getCacheKey($mirror, $credential, $testUrls);
         if (isset($this->testResultsCache[$cacheKey])) {
             return $this->testResultsCache[$cacheKey];
         }
@@ -214,8 +216,12 @@ final class MirrorSelector
         );
     }
 
-    private function getCacheKey(string $mirror, Credential $credential): string
+    /**
+     * @param array<string, string> $testUrls
+     */
+    private function getCacheKey(string $mirror, Credential $credential, array $testUrls): string
     {
-        return md5($mirror . ':' . $credential->login);
+        ksort($testUrls);
+        return md5($mirror . ':' . $credential->login . ':' . serialize($testUrls));
     }
 }

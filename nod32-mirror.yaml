@@ -127,6 +127,16 @@ eset:
       - "um21.eset.com"
       # - "um22.eset.com"
       - "um23.eset.com"
+    discovery:
+      enabled: true                 # Collect additional mirrors from [SERVERS] in update.ver
+      pool: "merge"                 # merge or discovered; configured hosts are always the fallback
+      fetch:
+        versions: true              # true = every enabled version, or a list such as [ep10, ep13]
+      validation:
+        max_hosts: 100              # Maximum accepted discovered hosts
+        allow_ports: false
+        allow_private_addresses: false
+        allowed_hosts: []           # null/[] = unrestricted; supports domains, wildcards, IPs, and CIDR
   versions:
     platforms: []                   # Empty means all platforms
     channels: []                    # Empty means all channels

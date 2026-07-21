@@ -194,6 +194,48 @@ final class Parser
     }
 
     /**
+     * Extract mirror hosts advertised by the [SERVERS] section of update.ver.
+     * The numeric value before @ is intentionally ignored.
+     *
+     * @return string[]
+     */
+    public function parseUpdateServers(string $content): array
+    {
+        $content = preg_replace('/^\xEF\xBB\xBF/', '', $content) ?? $content;
+
+        if (!preg_match(
+            '/(?:\A|\R)\s*\[SERVERS\]\s*\R(?<section>.*?)(?=\R\s*\[[^\]]+\]|\z)/is',
+            $content,
+            $sectionMatch
+        )) {
+            return [];
+        }
+
+        if (!preg_match('/^\s*list\s*=\s*(.*?)\s*$/mi', $sectionMatch['section'], $listMatch)) {
+            return [];
+        }
+
+        $list = trim($listMatch[1]);
+        if (strlen($list) >= 2 && $list[0] === '"' && $list[strlen($list) - 1] === '"') {
+            $list = substr($list, 1, -1);
+        }
+
+        $servers = [];
+        foreach (explode(',', $list) as $entry) {
+            if (!preg_match('/^\s*\d+\s*@\s*\/\/\s*(.+?)\s*$/', $entry, $entryMatch)) {
+                continue;
+            }
+
+            $host = trim($entryMatch[1]);
+            if ($host !== '') {
+                $servers[strtolower($host)] = $host;
+            }
+        }
+
+        return array_values($servers);
+    }
+
+    /**
      * Parse pattern file (YAML or legacy format)
      *
      * @param array<string, mixed> $defaults

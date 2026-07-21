@@ -14,6 +14,8 @@ use Nod32Mirror\Key\KeyManager;
 use Nod32Mirror\Log\Language;
 use Nod32Mirror\Log\Log;
 use Nod32Mirror\Mirror\Mirror;
+use Nod32Mirror\Mirror\MirrorDiscovery;
+use Nod32Mirror\Mirror\MirrorHostValidator;
 use Nod32Mirror\Mirror\MirrorSelector;
 use Nod32Mirror\Parser\Parser;
 use Nod32Mirror\Report\HtmlReportGenerator;
@@ -48,6 +50,7 @@ final class Application
     private ReferenceCollector $referenceCollector;
     private StorageGarbageCollector $storageGarbageCollector;
     private Mirror $mirror;
+    private MirrorDiscovery $mirrorDiscovery;
     private MirrorSelector $mirrorSelector;
     private HtmlReportGenerator $htmlGenerator;
     private JsonReportGenerator $jsonGenerator;
@@ -156,6 +159,16 @@ final class Application
             $this->statusReporter
         );
 
+        $this->mirrorDiscovery = new MirrorDiscovery(
+            $this->downloader,
+            $this->parser,
+            new MirrorHostValidator($this->config),
+            $this->config,
+            $this->log,
+            $this->language,
+            $this->statusReporter
+        );
+
         $this->htmlGenerator = new HtmlReportGenerator($this->config, $this->log, $this->language);
         $this->jsonGenerator = new JsonReportGenerator($this->config, $this->log, $this->language);
 
@@ -170,6 +183,7 @@ final class Application
             $this->keyFinder,
             $this->parser,
             $this->mirror,
+            $this->mirrorDiscovery,
             $this->mirrorSelector,
             $this->htmlGenerator,
             $this->jsonGenerator,

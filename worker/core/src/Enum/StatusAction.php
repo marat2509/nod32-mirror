@@ -12,6 +12,7 @@ enum StatusAction: string
     case CleanupTmp = 'cleanup_tmp';
     case CleanupStorageTmp = 'cleanup_storage_tmp';
     case CleanupPublishTmp = 'cleanup_publish_tmp';
+    case PrepareMirrors = 'prepare_mirrors';
     case PreselectBestMirrors = 'preselect_best_mirrors';
     case TestMirror = 'test_mirror';
     case ProcessVersion = 'process_version';

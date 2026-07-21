@@ -115,6 +115,71 @@ Report files are configured with `web.reports.json.file`,
 `web.reports.html.file`, and `web.reports.status.file`. They are relative to
 `web.root`; parent directories are created automatically.
 
+## Mirror discovery
+
+The worker can collect additional ESET update hosts from the `[SERVERS]`
+section of `update.ver` files before processing versions:
+
+```ini
+[SERVERS]
+list=10@//um02.eset.com,10@//185.94.157.10,100000@//update.eset.com
+```
+
+The numeric value before `@` is discarded and never affects ordering. Static
+`eset.mirrors.hosts` remain the trusted bootstrap pool used to find a working
+credential and fetch the initial `update.ver` files.
+
+```yaml
+eset:
+  mirrors:
+    strategy: best
+    hosts:
+      - update.eset.com
+      - um01.eset.com
+    discovery:
+      enabled: true
+      pool: merge
+      fetch:
+        versions: true
+      validation:
+        max_hosts: 100
+        allow_ports: false
+        allow_private_addresses: false
+        allowed_hosts:
+          - update.eset.com
+          - "*.eset.com"
+          - "**.example.net"
+          - 185.94.157.0/24
+```
+
+`pool: merge` combines configured and discovered hosts. `pool: discovered`
+uses configured hosts only for bootstrap and as a fallback when discovery
+returns no accepted hosts. Discovery has no persistent cache and runs on every
+worker execution.
+
+`fetch.versions: true` inspects every enabled version. It can instead contain
+an explicit list such as `[ep10, ep13]`. For each version, bootstrap mirrors
+are tried in configured order until the first non-empty `update.ver` server
+list is downloaded and parsed.
+
+`validation.max_hosts` caps the final deduplicated union. `allow_ports: false`
+rejects advertised `host:port` endpoints; when enabled, ports from 1 through
+65535 are accepted. `allow_private_addresses: false` rejects literal and
+DNS-resolved private, loopback, link-local, and reserved addresses.
+
+`allowed_hosts: null`, an empty list, or an omitted key disables the allowlist.
+A non-empty list accepts these rule types:
+
+- `some-domain.com` matches that exact hostname only.
+- `*.example.com` matches exactly one subdomain label.
+- `**.example.com` matches the base hostname and subdomains of any depth.
+- `8.8.8.8` and `2001:4860:4860::8888` match exact IP addresses.
+- `185.94.157.0/24` and `2001:4860::/32` match IPv4 or IPv6 networks.
+
+Wildcard tokens are only valid as the complete leftmost label. Discovered
+hostnames are DNS-resolved before they are accepted. Static bootstrap hosts are
+not filtered by `allowed_hosts`.
+
 `status.json` is a runtime snapshot of the currently running update process. It
 is enabled by default and is written atomically so browser polling should always
 see valid JSON. The file stores only the current state, not an event history.

@@ -17,6 +17,7 @@ use Nod32Mirror\Key\KeyManager;
 use Nod32Mirror\Log\Log;
 use Nod32Mirror\Log\Language;
 use Nod32Mirror\Mirror\Mirror;
+use Nod32Mirror\Mirror\MirrorDiscovery;
 use Nod32Mirror\Mirror\MirrorSelector;
 use Nod32Mirror\Parser\Parser;
 use Nod32Mirror\Report\HtmlReportGenerator;
@@ -46,8 +47,8 @@ final class UpdateOrchestrator
     /** @var array<string, string[]> */
     private array $platformsFound = [];
 
-    /** @var MirrorInfo[]|null Cached sorted mirrors for 'best' strategy */
-    private ?array $selectedMirrors = null;
+    /** @var array<string, MirrorInfo[]> Ordered mirror candidates per version */
+    private array $selectedMirrorsByVersion = [];
 
     /** @var Credential|null Global working credential */
     private ?Credential $globalCredential = null;
@@ -66,6 +67,7 @@ final class UpdateOrchestrator
         private readonly KeyFinder $keyFinder,
         private readonly Parser $parser,
         private readonly Mirror $mirror,
+        private readonly MirrorDiscovery $mirrorDiscovery,
         private readonly MirrorSelector $mirrorSelector,
         private readonly HtmlReportGenerator $htmlGenerator,
         private readonly JsonReportGenerator $jsonGenerator,
@@ -134,8 +136,7 @@ final class UpdateOrchestrator
 
             $this->log->info($this->language->t('script.enabled_versions', implode(', ', $enabledVersions)));
 
-            // Pre-select best mirrors if strategy is 'best'
-            $this->preselectMirrors($enabledVersions);
+            $this->prepareMirrors($enabledVersions);
 
             foreach ($enabledVersions as $version) {
                 $this->processVersion($version);
@@ -164,25 +165,28 @@ final class UpdateOrchestrator
     }
 
     /**
-     * Pre-select mirrors based on strategy before processing versions
+     * Discover and order mirrors before processing versions.
      *
      * @param string[] $enabledVersions
      */
-    private function preselectMirrors(array $enabledVersions): void
+    private function prepareMirrors(array $enabledVersions): void
     {
         $strategy = $this->config->getMirrorStrategy();
+        $discoveryEnabled = $this->config->isMirrorDiscoveryEnabled();
 
-        if ($strategy !== MirrorStrategy::Best) {
+        if (!$discoveryEnabled && $strategy !== MirrorStrategy::Best) {
             $this->log->debug($this->language->t('mirror.selection_strategy', $strategy->label()));
             return;
         }
 
         $this->statusReporter->setCurrent(
             StatusPhase::SelectingMirrors,
-            StatusAction::PreselectBestMirrors,
-            $this->language->t('status.message.preselecting_best_mirrors')
+            StatusAction::PrepareMirrors,
+            $this->language->t('status.message.preparing_mirrors')
         );
-        $this->log->info($this->language->t('mirror.preselecting_best'));
+        if ($strategy === MirrorStrategy::Best) {
+            $this->log->info($this->language->t('mirror.preselecting_best'));
+        }
 
         // Collect test URLs for all versions
         $testUrls = $this->collectTestUrls($enabledVersions);
@@ -202,11 +206,52 @@ final class UpdateOrchestrator
 
         $this->globalCredential = $credential;
 
-        // Select best mirrors
-        $mirrors = $this->config->getMirrorList();
-        $this->selectedMirrors = $this->mirrorSelector->selectMirrors($mirrors, $credential, $testUrls);
+        $configuredMirrors = $this->config->getMirrorList();
+        $discoveredMirrors = $this->mirrorDiscovery->discover(
+            $configuredMirrors,
+            $credential,
+            $testUrls
+        );
+        $mirrors = $this->buildMirrorPool($configuredMirrors, $discoveredMirrors);
 
-        $this->log->info($this->language->t('mirror.preselection_complete', count($this->selectedMirrors)));
+        foreach ($testUrls as $version => $testUrl) {
+            $this->selectedMirrorsByVersion[$version] = $this->mirrorSelector->selectMirrors(
+                $mirrors,
+                $credential,
+                [$version => $testUrl]
+            );
+        }
+
+        $this->log->info($this->language->t(
+            'mirror.selection_ready',
+            count($mirrors),
+            count($this->selectedMirrorsByVersion)
+        ));
+    }
+
+    /**
+     * @param string[] $configuredMirrors
+     * @param string[] $discoveredMirrors
+     * @return string[]
+     */
+    private function buildMirrorPool(array $configuredMirrors, array $discoveredMirrors): array
+    {
+        if (
+            $this->config->getMirrorDiscoveryPool() === 'discovered'
+            && $discoveredMirrors !== []
+        ) {
+            return $discoveredMirrors;
+        }
+
+        $pool = [];
+        foreach (array_merge($configuredMirrors, $discoveredMirrors) as $mirror) {
+            $key = strtolower(trim($mirror));
+            if ($key !== '' && !isset($pool[$key])) {
+                $pool[$key] = trim($mirror);
+            }
+        }
+
+        return array_values($pool);
     }
 
     /**
@@ -328,9 +373,9 @@ final class UpdateOrchestrator
             return;
         }
 
-        // Use pre-selected mirrors if available, otherwise get from config
-        $mirrors = $this->selectedMirrors !== null
-            ? array_map(static fn(MirrorInfo $m): string => $m->host, $this->selectedMirrors)
+        $preferredMirrors = $this->selectedMirrorsByVersion[$version] ?? [];
+        $mirrors = $preferredMirrors !== []
+            ? array_map(static fn(MirrorInfo $mirror): string => $mirror->host, $preferredMirrors)
             : $this->config->getMirrorList();
 
         // Try to find working key (use global credential if available)
@@ -368,9 +413,8 @@ final class UpdateOrchestrator
         /** @var Credential $credential */
         $credential = $keyResult['credential'];
 
-        // Use pre-selected mirrors order if available, otherwise use keyResult mirrors
         /** @var MirrorInfo[] $workingMirrors */
-        $workingMirrors = $this->selectedMirrors ?? $keyResult['mirrors'];
+        $workingMirrors = $this->orderWorkingMirrors($preferredMirrors, $keyResult['mirrors']);
 
         // Check database versions on mirrors
         $this->checkMirrorVersions($workingMirrors, $credential, $version, $sourceFile);
@@ -466,6 +510,34 @@ final class UpdateOrchestrator
             $this->language->t('script.version_completed', $version)
         );
         $this->log->debug($this->language->t('script.version_completed', $version), $version);
+    }
+
+    /**
+     * @param MirrorInfo[] $preferredMirrors
+     * @param MirrorInfo[] $workingMirrors
+     * @return MirrorInfo[]
+     */
+    private function orderWorkingMirrors(array $preferredMirrors, array $workingMirrors): array
+    {
+        if ($preferredMirrors === []) {
+            return $workingMirrors;
+        }
+
+        $workingByHost = [];
+        foreach ($workingMirrors as $mirror) {
+            $workingByHost[strtolower($mirror->host)] = $mirror;
+        }
+
+        $ordered = [];
+        foreach ($preferredMirrors as $preferredMirror) {
+            $key = strtolower($preferredMirror->host);
+            if (isset($workingByHost[$key])) {
+                $ordered[] = $workingByHost[$key];
+                unset($workingByHost[$key]);
+            }
+        }
+
+        return array_merge($ordered, array_values($workingByHost));
     }
 
     /**
