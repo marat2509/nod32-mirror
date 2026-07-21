@@ -6,7 +6,6 @@ namespace Nod32Mirror\Storage;
 
 use Nod32Mirror\Config\Config;
 use Nod32Mirror\Enum\StorageLinkMethod;
-use Nod32Mirror\Tools;
 
 final class StorageConfig
 {
@@ -22,7 +21,7 @@ final class StorageConfig
 
     public function getBlobDir(): string
     {
-        return Tools::ds($this->getStorageDir(), 'blobs');
+        return $this->config->getStorageBlobDir();
     }
 
     public function getIndexPath(): string
@@ -37,7 +36,7 @@ final class StorageConfig
 
     public function getQuarantineDir(): string
     {
-        return Tools::ds($this->getStorageDir(), 'quarantine');
+        return $this->config->getStorageQuarantineDir();
     }
 
     public function getHashAlgorithm(): string

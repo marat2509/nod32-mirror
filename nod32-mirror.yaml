@@ -21,6 +21,14 @@ state:
   root: "data"                      # Mutable application data, relative to runtime.root or absolute
   database:
     file: "content-index.sqlite"    # SQLite index, relative to state.root or absolute
+  files:                            # Relative to state.root or absolute
+    credentials: "keys.json"
+    database_sizes: "databases_size.json"
+    last_update: "lastupdate.json"
+    gc_state: "gc-state.json"
+    lock: "locks/update.lock"
+  directories:
+    debug: "debug"                  # Downloaded HTML debug pages
 
 web:
   root: "www"                       # Public web root, relative to runtime.root or absolute
@@ -40,6 +48,9 @@ web:
 
 storage:
   root: "storage"                   # Content-addressed storage, relative to runtime.root or absolute
+  directories:                     # Relative to storage.root or absolute
+    blobs: "blobs"
+    quarantine: "quarantine"
   hash: "sha256"                    # Algorithm supported by hash_algos()
   link_method: "hardlink"           # hardlink, softlink, or copy
   gc:
@@ -73,6 +84,7 @@ logging:
   file:
     enabled: false
     level: "debug"
+    path: "nod32ms.log"             # Relative to logging.root or absolute
     rotation:
       enabled: true
       max_size: "100K"              # Supports K/M/G suffixes

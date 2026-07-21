@@ -301,7 +301,7 @@ final class KeyFinder
     private function saveDebugHtml(string $content, string $url): void
     {
         $pathInfo = pathinfo($url);
-        $dir = Tools::ds($this->config->getDataDir(), DEBUG_DIR, $pathInfo['basename'] ?? 'unknown');
+        $dir = Tools::ds($this->config->getDebugDir(), $pathInfo['basename'] ?? 'unknown');
         Tools::ensureDirectory($dir);
 
         $filename = Tools::ds($dir, ($pathInfo['filename'] ?? 'page') . '.log');

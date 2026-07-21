@@ -45,6 +45,14 @@ state:
   root: data
   database:
     file: content-index.sqlite
+  files:
+    credentials: keys.json
+    database_sizes: databases_size.json
+    last_update: lastupdate.json
+    gc_state: gc-state.json
+    lock: locks/update.lock
+  directories:
+    debug: debug
 web:
   root: www
   reports:
@@ -59,6 +67,9 @@ web:
       file: status.json
 storage:
   root: storage
+  directories:
+    blobs: blobs
+    quarantine: quarantine
   hash: sha256
   link_method: hardlink
   gc:
@@ -94,8 +105,9 @@ The Docker example mounts `./docker-data` into the worker as `/data`.
 `runtime.root` is the global base directory. Relative values in `runtime.temp`,
 `state.root`, `web.root`, `storage.root`, and `logging.root` are resolved from
 it. Absolute directory paths are accepted and do not use `runtime.root`.
-`state.database.file` is resolved from `state.root`; report file names are
-resolved from `web.root`.
+`state.database.file`, `state.files.*`, and `state.directories.*` are resolved
+from `state.root`. `storage.directories.*` is resolved from `storage.root`,
+`logging.file.path` from `logging.root`, and report file names from `web.root`.
 
 `link_method` can be `hardlink`, `softlink`, or `copy`. Use `copy` when
 `storage` and `www` are separate Docker mounts. `hardlink` requires both paths
@@ -104,6 +116,24 @@ metadata database. With the example configuration it resolves to
 `/data/data/content-index.sqlite`. Absolute file paths are also accepted. The
 worker creates the SQLite database automatically. `runtime.php.memory_limit`
 is applied to the PHP process at startup with `ini_set()`.
+
+All persistent state, storage, and log artifacts have configurable locations.
+Relative paths use their owning root; absolute paths bypass it:
+
+- `state.database.file`: SQLite content index.
+- `state.files.credentials`: stored credentials.
+- `state.files.database_sizes`: cached database sizes.
+- `state.files.last_update`: successful update timestamps.
+- `state.files.gc_state`: latest garbage-collection result.
+- `state.files.lock`: single-instance update lock.
+- `state.directories.debug`: downloaded credential-discovery debug pages.
+- `storage.directories.blobs`: content-addressed blobs.
+- `storage.directories.quarantine`: rejected or corrupt storage files.
+- `logging.file.path`: application log file; rotated archives use this path as
+  their prefix.
+
+Temporary working files remain under `runtime.temp`. Published ESET update
+paths remain under `web.root` and follow the upstream mirror directory layout.
 
 `storage.gc.excludes` contains paths, prefixes, or glob patterns relative to
 `web.root` that GC must leave untouched, for example `custom/`, `robots.txt`,

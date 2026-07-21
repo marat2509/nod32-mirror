@@ -232,11 +232,40 @@ final class Config
         $state = array_replace_recursive([
             'root' => 'data',
             'database' => ['file' => 'content-index.sqlite'],
+            'files' => [
+                'credentials' => 'keys.json',
+                'database_sizes' => 'databases_size.json',
+                'last_update' => 'lastupdate.json',
+                'gc_state' => 'gc-state.json',
+                'lock' => 'locks/update.lock',
+            ],
+            'directories' => [
+                'debug' => 'debug',
+            ],
         ], $stateConfig);
         $state['root'] = $this->normalizePathValue($state['root'] ?? null, 'data');
         $state['database']['file'] = $this->normalizePathValue(
             $state['database']['file'] ?? null,
             'content-index.sqlite'
+        );
+        if (!is_array($state['files'] ?? null)) {
+            $state['files'] = [];
+        }
+        foreach ([
+            'credentials' => 'keys.json',
+            'database_sizes' => 'databases_size.json',
+            'last_update' => 'lastupdate.json',
+            'gc_state' => 'gc-state.json',
+            'lock' => 'locks/update.lock',
+        ] as $key => $default) {
+            $state['files'][$key] = $this->normalizePathValue($state['files'][$key] ?? null, $default);
+        }
+        if (!is_array($state['directories'] ?? null)) {
+            $state['directories'] = [];
+        }
+        $state['directories']['debug'] = $this->normalizePathValue(
+            $state['directories']['debug'] ?? null,
+            'debug'
         );
 
         return $state;
@@ -280,6 +309,10 @@ final class Config
     {
         $defaults = [
             'root' => 'storage',
+            'directories' => [
+                'blobs' => 'blobs',
+                'quarantine' => 'quarantine',
+            ],
             'hash' => 'sha256',
             'link_method' => StorageLinkMethod::Hardlink->value,
             'gc' => [
@@ -290,6 +323,17 @@ final class Config
 
         $storage = array_replace_recursive($defaults, $storageConfig);
         $storage['root'] = $this->normalizePathValue($storage['root'] ?? null, 'storage');
+        if (!is_array($storage['directories'] ?? null)) {
+            $storage['directories'] = [];
+        }
+        $storage['directories']['blobs'] = $this->normalizePathValue(
+            $storage['directories']['blobs'] ?? null,
+            'blobs'
+        );
+        $storage['directories']['quarantine'] = $this->normalizePathValue(
+            $storage['directories']['quarantine'] ?? null,
+            'quarantine'
+        );
         $storage['hash'] = is_string($storage['hash'] ?? null) && trim($storage['hash']) !== ''
             ? strtolower(trim((string) $storage['hash']))
             : 'sha256';
@@ -406,6 +450,7 @@ final class Config
             'file' => [
                 'enabled' => true,
                 'level' => LogLevel::Debug->value,
+                'path' => 'nod32ms.log',
                 'rotation' => ['enabled' => true, 'max_size' => '100K', 'keep' => 5],
             ],
         ];
@@ -418,6 +463,10 @@ final class Config
 
         $merged['file']['enabled'] = !empty($merged['file']['enabled']);
         $merged['file']['level'] = LogLevel::fromMixed($merged['file']['level'] ?? LogLevel::Debug)->value;
+        $merged['file']['path'] = $this->normalizePathValue(
+            $merged['file']['path'] ?? null,
+            'nod32ms.log'
+        );
         $merged['file']['rotation']['enabled'] = !empty($merged['file']['rotation']['enabled']);
         $merged['file']['rotation']['keep'] = max(1, (int) ($merged['file']['rotation']['keep'] ?? 5));
 
@@ -707,6 +756,21 @@ final class Config
         $storageIndexPath = $this->resolvePath($storageIndexPath, $dataDir);
         $tmpDir = $this->resolvePath($tmpDir, $rootDir);
 
+        foreach ($this->config['state']['files'] as $key => $path) {
+            $this->config['state']['files'][$key] = $this->resolvePath((string) $path, $dataDir);
+        }
+        $this->config['state']['directories']['debug'] = $this->resolvePath(
+            (string) $this->config['state']['directories']['debug'],
+            $dataDir
+        );
+        $this->config['logging']['file']['path'] = $this->resolvePath(
+            (string) $this->config['logging']['file']['path'],
+            $logDir
+        );
+        foreach ($this->config['storage']['directories'] as $key => $path) {
+            $this->config['storage']['directories'][$key] = $this->resolvePath((string) $path, $storageDir);
+        }
+
         $this->config['runtime']['root'] = $rootDir;
         $this->config['runtime']['temp'] = Tools::cleanPath($tmpDir);
         $this->config['web']['root'] = Tools::cleanPath($webDir);
@@ -724,8 +788,16 @@ final class Config
         Tools::ensureDirectory(dirname($this->config['state']['database']['file']));
         Tools::ensureDirectory($this->config['runtime']['temp']);
 
+        foreach ($this->config['state']['files'] as $path) {
+            Tools::ensureDirectory(dirname((string) $path));
+        }
+        Tools::ensureDirectory(dirname($this->config['logging']['file']['path']));
+        foreach ($this->config['storage']['directories'] as $path) {
+            Tools::ensureDirectory((string) $path);
+        }
+
         if (!empty($this->config['runtime']['debug']['html'])) {
-            Tools::ensureDirectory(Tools::ds($this->config['state']['root'], DEBUG_DIR));
+            Tools::ensureDirectory($this->config['state']['directories']['debug']);
         }
     }
 
@@ -823,6 +895,65 @@ final class Config
     {
         $path = $this->config['state']['database']['file'] ?? Tools::ds($this->getDataDir(), 'content-index.sqlite');
         return is_string($path) && $path !== '' ? $path : Tools::ds($this->getDataDir(), 'content-index.sqlite');
+    }
+
+    public function getCredentialsFilePath(): string
+    {
+        return $this->getStateFilePath('credentials', 'keys.json');
+    }
+
+    public function getDatabaseSizesFilePath(): string
+    {
+        return $this->getStateFilePath('database_sizes', 'databases_size.json');
+    }
+
+    public function getLastUpdateFilePath(): string
+    {
+        return $this->getStateFilePath('last_update', 'lastupdate.json');
+    }
+
+    public function getGcStateFilePath(): string
+    {
+        return $this->getStateFilePath('gc_state', 'gc-state.json');
+    }
+
+    public function getLockFilePath(): string
+    {
+        return $this->getStateFilePath('lock', Tools::ds('locks', 'update.lock'));
+    }
+
+    private function getStateFilePath(string $key, string $default): string
+    {
+        $path = $this->config['state']['files'][$key] ?? Tools::ds($this->getDataDir(), $default);
+        return is_string($path) && $path !== '' ? $path : Tools::ds($this->getDataDir(), $default);
+    }
+
+    public function getDebugDir(): string
+    {
+        $path = $this->config['state']['directories']['debug'] ?? Tools::ds($this->getDataDir(), 'debug');
+        return is_string($path) && $path !== '' ? $path : Tools::ds($this->getDataDir(), 'debug');
+    }
+
+    public function getLogFilePath(): string
+    {
+        $path = $this->config['logging']['file']['path'] ?? Tools::ds(
+            (string) ($this->config['logging']['root'] ?? 'log'),
+            'nod32ms.log'
+        );
+        return is_string($path) && $path !== '' ? $path : Tools::ds($this->getBaseDir(), 'log', 'nod32ms.log');
+    }
+
+    public function getStorageBlobDir(): string
+    {
+        $path = $this->config['storage']['directories']['blobs'] ?? Tools::ds($this->getStorageDir(), 'blobs');
+        return is_string($path) && $path !== '' ? $path : Tools::ds($this->getStorageDir(), 'blobs');
+    }
+
+    public function getStorageQuarantineDir(): string
+    {
+        $path = $this->config['storage']['directories']['quarantine']
+            ?? Tools::ds($this->getStorageDir(), 'quarantine');
+        return is_string($path) && $path !== '' ? $path : Tools::ds($this->getStorageDir(), 'quarantine');
     }
 
     public function getStorageHashAlgorithm(): string

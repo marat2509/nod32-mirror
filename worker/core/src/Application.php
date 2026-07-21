@@ -87,8 +87,11 @@ final class Application
         $this->downloader = new GuzzleDownloader($this->config, $this->log, $this->language);
         $this->parser = new Parser($this->log, $this->language);
 
-        $keyFilePath = Tools::ds($this->config->getDataDir(), KEY_FILE);
-        $this->keyStorage = new JsonKeyStorage($keyFilePath, $this->log, $this->language);
+        $this->keyStorage = new JsonKeyStorage(
+            $this->config->getCredentialsFilePath(),
+            $this->log,
+            $this->language
+        );
 
         $this->keyManager = new KeyManager(
             $this->keyStorage,

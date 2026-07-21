@@ -115,7 +115,7 @@ final class Log
 
         $fileConfig = $this->logConfig['file'] ?? [];
         if (!empty($fileConfig['enabled'])) {
-            $filePath = Tools::ds($this->logConfig['root'] ?? 'log', LOG_FILE);
+            $filePath = $this->config->getLogFilePath();
             $minLevel = $this->mapToMonologLevel(LogLevel::fromMixed($fileConfig['level'] ?? LogLevel::Debug));
 
             $this->fileHandler = new StreamHandler($filePath, $minLevel);
@@ -147,7 +147,7 @@ final class Log
             return;
         }
 
-        $filePath = Tools::ds($this->logConfig['root'] ?? 'log', LOG_FILE);
+        $filePath = $this->config->getLogFilePath();
         if (!file_exists($filePath)) {
             return;
         }

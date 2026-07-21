@@ -598,7 +598,7 @@ final class UpdateOrchestrator
 
     private function loadStoredSizes(): void
     {
-        $sizesFile = Tools::ds($this->config->getDataDir(), DATABASES_SIZE);
+        $sizesFile = $this->config->getDatabaseSizesFilePath();
 
         if (!file_exists($sizesFile)) {
             return;
@@ -621,7 +621,7 @@ final class UpdateOrchestrator
     {
         $this->log->trace($this->language->t('log.running', __METHOD__), $version);
 
-        $sizesFile = Tools::ds($this->config->getDataDir(), DATABASES_SIZE);
+        $sizesFile = $this->config->getDatabaseSizesFilePath();
         $sizes = $this->totalSizes;
         $sizes[$version] = $size ?? 0;
 
@@ -634,7 +634,7 @@ final class UpdateOrchestrator
     {
         $this->log->trace($this->language->t('log.running', __METHOD__), $version);
 
-        $tsFile = Tools::ds($this->config->getDataDir(), SUCCESSFUL_TIMESTAMP);
+        $tsFile = $this->config->getLastUpdateFilePath();
         $timestamps = [];
 
         if (file_exists($tsFile)) {
@@ -654,7 +654,7 @@ final class UpdateOrchestrator
 
     private function getTimestamp(string $version): ?int
     {
-        $tsFile = Tools::ds($this->config->getDataDir(), SUCCESSFUL_TIMESTAMP);
+        $tsFile = $this->config->getLastUpdateFilePath();
 
         if (!file_exists($tsFile)) {
             return null;
@@ -722,10 +722,8 @@ final class UpdateOrchestrator
 
     private function acquireUpdateLock(): bool
     {
-        $lockDir = Tools::ds($this->config->getDataDir(), 'locks');
-        Tools::ensureDirectory($lockDir);
-
-        $lockPath = Tools::ds($lockDir, 'update.lock');
+        $lockPath = $this->config->getLockFilePath();
+        Tools::ensureDirectory(dirname($lockPath));
         $handle = @fopen($lockPath, 'c');
         if ($handle === false) {
             return false;
@@ -792,7 +790,7 @@ final class UpdateOrchestrator
         );
         $this->statusReporter->updateStorage(StatusState::Running, StatusAction::FinalizeStorage);
 
-        $this->storageGarbageCollector->saveState(Tools::ds($this->config->getDataDir(), 'gc-state.json'), $gcState);
+        $this->storageGarbageCollector->saveState($this->config->getGcStateFilePath(), $gcState);
         $this->contentIndex->save($this->storageConfig->getIndexPath());
         $this->statusReporter->updateStorage(StatusState::Completed);
     }
