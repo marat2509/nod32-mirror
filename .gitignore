@@ -1,6 +1,7 @@
 /docker-data
 /data
 /log
+/logs.log
 /www
 /nod32-mirror.yaml
 /nod32-mirror.conf
