@@ -48,7 +48,7 @@ web:
 
 storage:
   root: "storage"                   # Content-addressed storage, relative to runtime.root or absolute
-  directories:                     # Relative to storage.root or absolute
+  directories:                      # Relative to storage.root or absolute
     blobs: "blobs"
     quarantine: "quarantine"
   hash: "sha256"                    # Algorithm supported by hash_algos()
