@@ -1,0 +1,195 @@
+# nod32-mirror configuration
+# - All keys are lowercase and match the worker defaults.
+# - runtime.root is the global base directory for every relative directory.
+# - Any value may reference env://VARIABLE or file://path/to/value.
+# - Log levels accept names (error, warning, notice, info, debug, trace) or numbers 0–5.
+
+runtime:
+  root: "/data"                     # Global base directory
+  temp: "tmp"                       # Temporary directory, relative to runtime.root or absolute
+  locale:
+    language: "en"                  # CLI/UI language (en, ru, ukr)
+    encoding: "utf-8"               # Runtime text encoding
+    timezone: "Europe/Moscow"       # PHP timezone; leave empty for system default
+  php:
+    memory_limit: "512M"            # PHP memory_limit applied at startup
+  debug:
+    update: false                   # Dump raw update.ver files
+    html: false                     # Dump downloaded pages used for credential discovery
+
+state:
+  root: "data"                      # Mutable application data, relative to runtime.root or absolute
+  database:
+    file: "content-index.sqlite"    # SQLite index, relative to state.root or absolute
+  files:                            # Relative to state.root or absolute
+    credentials: "keys.json"
+    database_sizes: "databases_size.json"
+    last_update: "lastupdate.json"
+    gc_state: "gc-state.json"
+    lock: "locks/update.lock"
+  directories:
+    debug: "debug"                  # Downloaded HTML debug pages
+
+web:
+  root: "www"                       # Public web root, relative to runtime.root or absolute
+  reports:
+    export_credentials: false       # Include credentials in JSON/HTML reports
+    json:
+      enabled: true
+      file: "index.json"            # Relative to web.root
+    html:
+      enabled: true
+      file: "index.html"            # Relative to web.root
+      encoding: "utf-8"
+      table_only: false
+    status:
+      enabled: true
+      file: "status.json"           # Relative to web.root
+
+storage:
+  root: "storage"                   # Content-addressed storage, relative to runtime.root or absolute
+  directories:                      # Relative to storage.root or absolute
+    blobs: "blobs"
+    quarantine: "quarantine"
+  hash: "sha256"                    # Algorithm supported by hash_algos()
+  link_method: "hardlink"           # hardlink, softlink, or copy
+  gc:
+    enabled: false                  # Delete unreferenced published files and blobs
+    excludes: []                    # Paths, prefixes, or globs ignored by GC
+
+downloads:
+  concurrency: 32                   # Concurrent download workers
+  speed_limit: 0                    # Bytes per second (0 = unlimited)
+  timeout:
+    request: 30                     # Request timeout in seconds
+    connect: 5                      # Connection timeout in seconds
+  retries:
+    attempts: 5                     # 1 means no retries
+    delay: 1                        # Base delay in seconds (exponential backoff)
+  proxy:
+    enabled: false
+    type: "http"                    # http, socks4, socks4a, or socks5
+    endpoint:
+      host: "proxy.example.com"
+      port: 3128
+    credentials:
+      username: "username"
+      password: "pass"              # For example: env://PROXY_PASSWORD or file:///run/secrets/proxy_password
+
+logging:
+  root: "log"                       # Log directory, relative to runtime.root or absolute
+  stdout:
+    enabled: true
+    level: "info"
+  file:
+    enabled: false
+    level: "debug"
+    path: "nod32ms.log"             # Relative to logging.root or absolute
+    rotation:
+      enabled: true
+      max_size: "100K"              # Supports K/M/G suffixes
+      keep: 5                       # Number of compressed archives to keep
+
+credentials:
+  discovery:
+    enabled: true                   # Enable built-in credential discovery
+    automatic: false                # Enable automatic discovery mode
+    attempts: 5                     # Attempts to request a new credential
+    required_count: 1               # Valid credentials required before stopping
+    remove_invalid: true            # Remove invalid credentials from storage
+    patterns:
+      selected: ""                  # Pattern file name; empty selects all patterns
+      fallback: "((EAV|TRIAL)-[0-9]{10}).+?([a-z0-9]{10})"
+    request:
+      user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      headers: []                   # Additional "Name: value" headers
+    search:
+      queries:
+        - "nod32+username+password"
+      first_page: 1                 # Starting value for the page placeholder
+      page_count: 5
+      recursion_depth: 2
+      error_limit: 5
+
+eset:
+  mirrors:
+    strategy: "random"              # random, best, or first
+    hosts:
+      - "update.eset.com"
+      - "um01.eset.com"
+      - "um02.eset.com"
+      - "um03.eset.com"
+      # - "um04.eset.com"
+      - "um05.eset.com"
+      - "um06.eset.com"
+      - "um07.eset.com"
+      - "um08.eset.com"
+      - "um09.eset.com"
+      - "um10.eset.com"
+      - "um11.eset.com"
+      - "um12.eset.com"
+      - "um13.eset.com"
+      - "um14.eset.com"
+      - "um15.eset.com"
+      - "um16.eset.com"
+      # - "um17.eset.com"
+      # - "um18.eset.com"
+      # - "um19.eset.com"
+      # - "um20.eset.com"
+      - "um21.eset.com"
+      # - "um22.eset.com"
+      - "um23.eset.com"
+    discovery:
+      enabled: true                 # Collect additional mirrors from [SERVERS] in update.ver
+      pool: "merge"                 # merge or discovered; configured hosts are always the fallback
+      fetch:
+        versions: true              # true = every enabled version, or a list such as [ep10, ep13]
+      validation:
+        max_hosts: 100              # Maximum accepted discovered hosts
+        allow_ports: false
+        allow_private_addresses: false
+        allowed_hosts: []           # null/[] = unrestricted; supports domains, wildcards, IPs, and CIDR
+  versions:
+    platforms: []                   # Empty means all platforms
+    channels: []                    # Empty means all channels
+    overrides:
+      ep6:
+        enabled: true
+        platforms: []
+        channels: []
+      ep8:
+        enabled: true
+        platforms: []
+        channels: []
+      ep9:
+        enabled: true
+        platforms: []
+        channels: []
+      ep10:
+        enabled: true
+        platforms: []
+        channels: []
+      ep11:
+        enabled: true
+        platforms: []
+        channels: []
+      ep12:
+        enabled: true
+        platforms: []
+        channels: []
+      ep13:
+        enabled: true
+        platforms: []
+        channels: []
+      v3:
+        enabled: true
+        platforms: []
+        channels: []
+      v10:
+        enabled: true
+        platforms: []
+        channels: []
+      v16:
+        enabled: true
+        platforms: []
+        channels: []
