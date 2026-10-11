@@ -18,5 +18,4 @@ services:
         ports:
             - 8084:80
         volumes:
-            - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-            - ./docker-data/www:/data/www
+            - ./docker-data/www:/app/www
