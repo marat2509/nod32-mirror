@@ -7,9 +7,8 @@ services:
         environment:
             UPDATE_INTERVAL: 3600 # update interval in seconds
         volumes:
-            - ./nod32ms.conf:/app/nod32ms.conf
-            - ./docker-data/www:/app/www
-            - ./docker-data/log:/app/log
+            - ./nod32-mirror.yaml:/app/nod32-mirror.yaml
+            - ./docker-data:/data
 
     nod32-mirror-nginx:
         container_name: nod32-mirror-nginx

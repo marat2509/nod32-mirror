@@ -1,0 +1,66 @@
+variables:
+  BUILDKITD_FLAGS: "--oci-worker-no-process-sandbox"
+  PLATFORMS: "linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v6,linux/386,linux/ppc64le,linux/s390x"
+
+
+build:
+  stage: build
+
+  image:
+    name: moby/buildkit:rootless
+    entrypoint: [""]
+
+  parallel:
+    matrix:
+      - TARGET:
+          - worker
+          - nginx
+
+  variables:
+    PUSH: "true"
+
+    IMAGE: "$CI_REGISTRY_IMAGE/$TARGET"
+    IMAGE_NAMES: "$IMAGE:$CI_COMMIT_REF_SLUG,$IMAGE:$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA"
+
+    CACHE_IMPORT: "type=registry,ref=$IMAGE:buildcache"
+    CACHE_EXPORT: "type=registry,ref=$IMAGE:buildcache,mode=max"
+
+    OUTPUT: 'type=image,"name=$IMAGE_NAMES",push=$PUSH'
+
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      variables:
+        PUSH: "false"
+        CACHE_EXPORT: "type=local,dest=/tmp/buildkit-cache"
+
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      variables:
+        IMAGE_NAMES: "$IMAGE:$CI_COMMIT_REF_SLUG,$IMAGE:$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA,$IMAGE:latest"
+
+    - when: on_success
+
+  before_script:
+    - mkdir -p "$HOME/.docker"
+
+    - |
+      cat > "$HOME/.docker/config.json" <<EOF
+      {
+        "auths": {
+          "$CI_REGISTRY": {
+            "username": "$CI_REGISTRY_USER",
+            "password": "$CI_REGISTRY_PASSWORD"
+          }
+        }
+      }
+      EOF
+
+  script:
+    - >-
+      buildctl-daemonless.sh build
+      --frontend dockerfile.v0
+      --local context="$TARGET"
+      --local dockerfile="$TARGET"
+      --opt platform="$PLATFORMS"
+      --import-cache "$CACHE_IMPORT"
+      --export-cache "$CACHE_EXPORT"
+      --output "$OUTPUT"

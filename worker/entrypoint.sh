@@ -1,8 +1,8 @@
 #!/bin/sh
 
-if [ ! -f "/app/nod32ms.conf" ]; then
+if [ ! -f "/app/nod32-mirror.yaml" ]; then
     echo "E: Config file not found"
-    echo "E: Create nod32ms.conf file in directory with docker-compose.yml file and restart"
+    echo "E: Create nod32-mirror.yaml file in directory with docker-compose.yml file and restart"
     exit 1
 fi
 
@@ -11,12 +11,13 @@ UPDATE_INTERVAL=${UPDATE_INTERVAL:-3600}
 while true; do
     start_time=$(date +%s)
     php /app/update.php
+    exit_code=$?
     end_time=$(date +%s)
     duration=$((end_time - start_time))
 
-    if [ $? -ne 0 ]; then
+    if [ "$exit_code" -ne 0 ]; then
         echo "E: Run script failed after $duration s, exiting..."
-        exit 1
+        exit "$exit_code"
     fi
 
     sleep_time=$((UPDATE_INTERVAL - duration))
